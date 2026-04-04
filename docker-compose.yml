@@ -1,0 +1,97 @@
+version: '3.8'
+
+services:
+  postgres:
+    image: postgres:15
+    environment:
+      POSTGRES_USER: root
+      POSTGRES_PASSWORD: password
+      POSTGRES_DB: vartapravah
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U root -d vartapravah"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  temporal:
+    container_name: temporal
+    image: temporalio/auto-setup:latest
+    environment:
+      - DB=postgres12
+      - DB_PORT=5432
+      - POSTGRES_USER=root
+      - POSTGRES_PWD=password
+      - POSTGRES_SEEDS=postgres
+      - SKIP_DEFAULT_NAMESPACE_CREATION=false
+    ports:
+      - "7233:7233"
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  temporal-ui:
+    container_name: temporal-ui
+    image: temporalio/ui:latest
+    environment:
+      - TEMPORAL_ADDRESS=temporal:7233
+    ports:
+      - "8080:8080"
+    depends_on:
+      - temporal
+
+  frontend:
+    container_name: vartapravah_frontend
+    build: ./frontend
+    ports:
+      - "3000:3000"
+    environment:
+      - NEXT_PUBLIC_API_URL=http://backend:8000
+    depends_on:
+      - backend
+
+  backend:
+    container_name: vartapravah_backend
+    build: ./backend
+    ports:
+      - "8000:8000"
+    environment:
+      - DATABASE_URL=postgresql://root:password@postgres:5432/vartapravah
+      - TEMPORAL_HOST=temporal:7233
+    volumes:
+      - ./backend/videos:/app/videos # Mount local storage dynamically
+    depends_on:
+      temporal:
+        condition: service_started
+      postgres:
+        condition: service_healthy
+
+  backend-worker:
+    container_name: vartapravah_worker
+    build: ./backend
+    command: ["python", "temporal/worker.py"]
+    environment:
+      - DATABASE_URL=postgresql://root:password@postgres:5432/vartapravah
+      - TEMPORAL_HOST=temporal:7233
+    volumes:
+      - ./backend/videos:/app/videos 
+    depends_on:
+      - backend
+      - temporal
+
+  streamer:
+    container_name: vartapravah_streamer
+    build: ./backend
+    command: ["python", "streamer.py"]
+    environment:
+      - DATABASE_URL=postgresql://root:password@postgres:5432/vartapravah
+    volumes:
+      - ./backend/videos:/app/videos 
+    depends_on:
+      - backend
+
+volumes:
+  postgres_data:

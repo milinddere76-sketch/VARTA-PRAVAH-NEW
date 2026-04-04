@@ -1,0 +1,16 @@
+fastapi
+uvicorn
+temporalio
+sqlalchemy
+psycopg2-binary
+pydantic-settings
+requests
+boto3
+openai
+python-dotenv
+alembic
+pydantic[email]
+python-multipart
+jose[cryptography]
+passlib[bcrypt]
+anthropic
