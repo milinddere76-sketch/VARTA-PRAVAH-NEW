@@ -91,7 +91,7 @@ services:
     container_name: vartapravah_backend
     build: ./backend
     restart: always
-    command: ["/bin/sh", "-c", "echo 'nameserver 8.8.8.8' > /etc/resolv.conf && echo 'nameserver 1.1.1.1' >> /etc/resolv.conf && python main.py"]
+    command: python main.py
     ports:
       - "8000:8000"
     environment:
@@ -116,7 +116,7 @@ services:
     container_name: vartapravah_worker
     build: ./backend
     restart: always
-    command: ["/bin/sh", "-c", "echo 'nameserver 8.8.8.8' > /etc/resolv.conf && echo 'nameserver 1.1.1.1' >> /etc/resolv.conf && python -m temporal.worker"]
+    command: python -m temporal.worker
     environment:
       - DATABASE_URL=postgresql://root:password@postgres:5432/temporal
       - TEMPORAL_ADDRESS=temporal:7233
