@@ -24,6 +24,19 @@ class NewsProductionWorkflow:
             start_to_close_timeout=timedelta(seconds=120)
         )
         
+        # 1. INITIAL BROADCAST: Go live with the promo loop IMMEDIATELY
+        # This eliminates the "Black Screen" phase while the first news clip is generating.
+        await workflow.execute_activity(
+            start_stream_activity,
+            {
+                "channel_id": channel_id,
+                "stream_key": stream_key,
+                "video_url": "/app/videos/promo.mp4",
+                "is_promo": True
+            },
+            start_to_close_timeout=timedelta(seconds=60)
+        )
+        
         while True:
             try:
                 # 1. Fetch News
