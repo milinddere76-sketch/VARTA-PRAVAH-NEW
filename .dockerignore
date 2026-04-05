@@ -1,0 +1,26 @@
+# Dependencies
+node_modules/
+npm-debug.log
+yarn-error.log
+
+# Next.js Build Output
+.next/
+out/
+build/
+
+# Local Environment
+.env
+.env.*.local
+.env.local
+
+# Python Environments
+__pycache__/
+*.pyc
+venv/
+env/
+
+# System / OS
+.DS_Store
+Thumbs.db
+backend/videos/
+news-ai/videos/
