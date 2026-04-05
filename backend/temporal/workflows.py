@@ -37,14 +37,14 @@ class NewsProductionWorkflow:
                 script_data = await workflow.execute_activity(
                     generate_script_activity,
                     {"news_data": news_data, "language": language},
-                    start_to_close_timeout=timedelta(seconds=120)
+                    start_to_close_timeout=timedelta(minutes=5)
                 )
                 
                 # 3. Request Lip-Sync from Sync Labs
                 job_id = await workflow.execute_activity(
                     synclabs_lip_sync_activity,
                     script_data,
-                    start_to_close_timeout=timedelta(seconds=60)
+                    start_to_close_timeout=timedelta(minutes=10)
                 )
                 
                 # 4. Wait for Lip-Sync to complete
@@ -70,7 +70,7 @@ class NewsProductionWorkflow:
                 s3_url = await workflow.execute_activity(
                     upload_to_s3_activity,
                     final_video_url,
-                    start_to_close_timeout=timedelta(seconds=300)
+                    start_to_close_timeout=timedelta(minutes=10)
                 )
                 
                 # 6. Start / Update Stream (NEWS MODE)
