@@ -18,6 +18,9 @@ services:
       timeout: 5s
       retries: 20
       start_period: 300s
+    dns:
+      - 8.8.8.8
+      - 1.1.1.1
     networks:
       - vartapravah-net
 
@@ -37,6 +40,9 @@ services:
       - TEMPORAL_VISIBILITY_STORE_TYPE=postgres
     ports:
       - "7233:7233"
+    dns:
+      - 8.8.8.8
+      - 1.1.1.1
     depends_on:
       postgres:
         condition: service_healthy
@@ -57,12 +63,9 @@ services:
       - TEMPORAL_UI_LOCAL_AUTH=true
     ports:
       - "8088:8080"
-    healthcheck:
-      test: ["CMD-SHELL", "nc -z localhost 8080 || exit 1"]
-      interval: 10s
-      timeout: 5s
-      retries: 20
-      start_period: 300s
+    dns:
+      - 8.8.8.8
+      - 1.1.1.1
     depends_on:
       - temporal
     networks:
@@ -76,6 +79,9 @@ services:
       - "3000:3000"
     environment:
       - NEXT_PUBLIC_API_URL=http://backend:8000
+    dns:
+      - 8.8.8.8
+      - 1.1.1.1
     depends_on:
       - backend
     networks:
@@ -85,9 +91,6 @@ services:
     container_name: vartapravah_backend
     build: ./backend
     restart: always
-    dns:
-      - 8.8.8.8
-      - 1.1.1.1
     ports:
       - "8000:8000"
     environment:
@@ -97,6 +100,9 @@ services:
       - PYTHONUNBUFFERED=1
     volumes:
       - ./backend/videos:/app/videos
+    dns:
+      - 8.8.8.8
+      - 1.1.1.1
     depends_on:
       temporal:
         condition: service_started
@@ -109,9 +115,6 @@ services:
     container_name: vartapravah_worker
     build: ./backend
     restart: always
-    dns:
-      - 8.8.8.8
-      - 1.1.1.1
     command: ["python", "-m", "temporal.worker"]
     environment:
       - DATABASE_URL=postgresql://root:password@postgres:5432/temporal
@@ -121,7 +124,10 @@ services:
       - AUTO_START_CHANNEL_ID=1
       - DEFAULT_LANGUAGE=mr
     volumes:
-      - ./backend/videos:/app/videos 
+      - ./backend/videos:/app/videos
+    dns:
+      - 8.8.8.8
+      - 1.1.1.1
     depends_on:
       - backend
       - temporal
