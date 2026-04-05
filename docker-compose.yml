@@ -25,11 +25,12 @@ services:
     image: temporalio/auto-setup:latest
     restart: always
     environment:
-      - DB=postgres12_pgx
+      - DB=postgres12
       - DB_PORT=5432
       - POSTGRES_USER=root
       - POSTGRES_PWD=password
       - POSTGRES_SEEDS=postgres
+      - SKIP_SCHEMA_SETUP=true
       - SKIP_DEFAULT_NAMESPACE_CREATION=true
       - TEMPORAL_VISIBILITY_STORE_TYPE=postgres
     ports:
