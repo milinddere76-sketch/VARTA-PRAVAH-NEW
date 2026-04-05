@@ -11,7 +11,7 @@ services:
     ports:
       - "5432:5432"
     volumes:
-      - postgres_data:/var/lib/postgresql/data
+      - postgres_data_v3:/var/lib/postgresql/data
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U root -d vartapravah"]
       interval: 10s
@@ -30,8 +30,8 @@ services:
       - POSTGRES_USER=root
       - POSTGRES_PWD=password
       - POSTGRES_SEEDS=postgres
-      - SKIP_SCHEMA_SETUP=true
-      - SKIP_DEFAULT_NAMESPACE_CREATION=true
+      - SKIP_SCHEMA_SETUP=false
+      - SKIP_DEFAULT_NAMESPACE_CREATION=false
       - TEMPORAL_VISIBILITY_STORE_TYPE=postgres
     ports:
       - "7233:7233"
@@ -111,4 +111,4 @@ networks:
     driver: bridge
 
 volumes:
-  postgres_data:
+  postgres_data_v3:
