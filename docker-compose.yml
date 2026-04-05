@@ -44,7 +44,7 @@ services:
 
   temporal-ui:
     container_name: temporal-ui
-    image: temporalio/ui:1.22.4
+    image: temporalio/ui:latest
     restart: always
     environment:
       - TEMPORAL_ADDRESS=temporal:7233
@@ -52,6 +52,8 @@ services:
       - TEMPORAL_NOTIFY_ON_NEW_VERSION=false
       - TEMPORAL_DISABLE_USAGE_COLLECTION=true
       - TEMPORAL_UI_PORT=8080
+      - TEMPORAL_GRPC_TIMEOUT=300s
+      - TEMPORAL_UI_LOCAL_AUTH=true
     ports:
       - "8088:8080"
     healthcheck:
