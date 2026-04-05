@@ -53,6 +53,9 @@ services:
       - TEMPORAL_NOTIFY_ON_NEW_VERSION=false
       - TEMPORAL_DISABLE_USAGE_COLLECTION=true
       - TEMPORAL_UI_PORT=8080
+      - TEMPORAL_GRPC_TIMEOUT=30s
+      - TEMPORAL_GRPC_MAX_MESSAGE_SIZE=67108864
+      - TEMPORAL_UI_LOG_LEVEL=debug
     ports:
       - "8088:8080"
     healthcheck:
