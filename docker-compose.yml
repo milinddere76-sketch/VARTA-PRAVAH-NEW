@@ -20,6 +20,7 @@ services:
   temporal:
     container_name: temporal
     image: temporalio/auto-setup:latest
+    restart: always
     environment:
       - DB=postgres12
       - DB_PORT=5432
@@ -36,6 +37,7 @@ services:
   temporal-ui:
     container_name: temporal-ui
     image: temporalio/ui:latest
+    restart: always
     environment:
       - TEMPORAL_ADDRESS=temporal:7233
       - TEMPORAL_CORS_ORIGINS=*
@@ -47,6 +49,7 @@ services:
   frontend:
     container_name: vartapravah_frontend
     build: ./frontend
+    restart: always
     ports:
       - "3000:3000"
     environment:
@@ -57,6 +60,7 @@ services:
   backend:
     container_name: vartapravah_backend
     build: ./backend
+    restart: always
     ports:
       - "8000:8000"
     environment:
@@ -74,6 +78,7 @@ services:
   backend-worker:
     container_name: vartapravah_worker
     build: ./backend
+    restart: always
     command: ["python", "-m", "temporal.worker"]
     environment:
       - DATABASE_URL=postgresql://root:password@postgres:5432/vartapravah
@@ -88,6 +93,7 @@ services:
   streamer:
     container_name: vartapravah_streamer
     build: ./backend
+    restart: always
     command: ["python", "streamer.py"]
     environment:
       - DATABASE_URL=postgresql://root:password@postgres:5432/vartapravah
