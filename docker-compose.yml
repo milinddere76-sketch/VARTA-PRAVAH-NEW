@@ -34,9 +34,9 @@ services:
       - POSTGRES_USER=root
       - POSTGRES_PWD=password
       - POSTGRES_SEEDS=postgres
-      - SKIP_DB_CREATE=false
-      - SKIP_SCHEMA_SETUP=false
-      - SKIP_DEFAULT_NAMESPACE_CREATION=false
+      - SKIP_DB_CREATE=true
+      - SKIP_SCHEMA_SETUP=true
+      - SKIP_DEFAULT_NAMESPACE_CREATION=true
       - TEMPORAL_VISIBILITY_STORE_TYPE=postgres
     ports:
       - "7233:7233"
@@ -94,6 +94,8 @@ services:
     command: uvicorn main:app --host 0.0.0.0 --port 8000
     ports:
       - "8000:8000"
+    env_file:
+      - ./backend/.env
     environment:
       - DATABASE_URL=postgresql://root:password@postgres:5432/temporal
       - TEMPORAL_ADDRESS=temporal:7233
@@ -118,6 +120,8 @@ services:
     build: ./backend
     restart: always
     command: python -m temporal.worker
+    env_file:
+      - ./backend/.env
     environment:
       - DATABASE_URL=postgresql://root:password@postgres:5432/temporal
       - TEMPORAL_ADDRESS=temporal:7233
