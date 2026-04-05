@@ -43,7 +43,7 @@ services:
 
   temporal-ui:
     container_name: temporal-ui
-    image: temporalio/ui:1.24.2
+    image: temporalio/ui:latest
     restart: always
     environment:
       - TEMPORAL_ADDRESS=temporal:7233
