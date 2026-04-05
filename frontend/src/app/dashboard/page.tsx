@@ -21,8 +21,8 @@ export default function DashboardPage() {
   
   const [showSettingsModal, setShowSettingsModal] = useState(false);
   const [settingsData, setSettingsData] = useState({ groq_api_key: '', world_news_api_key: '' });
-
-  const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:8000';
+  // Route strictly through the Next.js rewrite proxy to conquer CORS and DNS blocks instantly!
+  const API_URL = '/api';
 
   useEffect(() => {
     fetchChannels();
