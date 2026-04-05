@@ -37,18 +37,24 @@ class NewsProductionWorkflow:
         )
         
         # 4. Wait for Lip-Sync to complete
-        status = "pending"
-        final_video_url = ""
+        # Validate status immediately to bypass the 30-second delay for Local AI Generation!
+        result = await workflow.execute_activity(
+            check_sync_labs_status_activity,
+            job_id,
+            start_to_close_timeout=timedelta(seconds=60)
+        )
+        status = result.get("status", "pending")
+        final_video_url = result.get("video_url", "")
         
         while status != "completed":
-            await workflow.sleep(timedelta(seconds=30))
+            await workflow.sleep(timedelta(seconds=10))
             result = await workflow.execute_activity(
                 check_sync_labs_status_activity,
                 job_id,
                 start_to_close_timeout=timedelta(seconds=60)
             )
-            status = result["status"]
-            final_video_url = result["video_url"]
+            status = result.get("status", "pending")
+            final_video_url = result.get("video_url", "")
             
         # 5. Upload to S3
         s3_url = await workflow.execute_activity(
