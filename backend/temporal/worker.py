@@ -1,4 +1,5 @@
 import asyncio
+import os
 from temporalio.client import Client
 from temporalio.worker import Worker, UnsandboxedWorkflowRunner
 from .workflows import NewsProductionWorkflow
@@ -18,8 +19,9 @@ async def main():
     client = None
     for i in range(12):
         try:
-            client = await Client.connect("localhost:7233")
-            print("Successfully connected to Temporal!")
+            temporal_host = os.getenv("TEMPORAL_HOST", "localhost:7233")
+            client = await Client.connect(temporal_host)
+            print(f"Successfully connected to Temporal on {temporal_host}!")
             break
         except Exception as e:
             print(f"Waiting for Temporal to start... (Attempt {i+1}/12)")

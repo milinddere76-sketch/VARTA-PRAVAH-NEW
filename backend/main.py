@@ -40,7 +40,8 @@ app.add_middleware(
 
 async def get_temporal_client():
     # Use a shared client for efficiency
-    return await Client.connect("localhost:7233")
+    temporal_host = os.getenv("TEMPORAL_HOST", "localhost:7233")
+    return await Client.connect(temporal_host)
 
 from pydantic import BaseModel
 import os
