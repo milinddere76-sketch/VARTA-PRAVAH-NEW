@@ -34,6 +34,7 @@ LANGUAGE_CONFIG = {
 
 @activity.defn
 async def fetch_news_activity(language: str) -> dict:
+    load_dotenv(override=True)
     if os.getenv("MOCK_MODE", "false").lower() == "true":
         return {
             "headline": "[MOCK] Regional Update",
@@ -67,6 +68,7 @@ async def fetch_news_activity(language: str) -> dict:
 
 @activity.defn
 async def generate_script_activity(input_data: dict) -> dict:
+    load_dotenv(override=True)
     news_data = input_data["news_data"]
     language = input_data["language"]
     if os.getenv("MOCK_MODE", "false").lower() == "true":
@@ -163,8 +165,9 @@ async def synclabs_lip_sync_activity(data: dict) -> str:
             return "mock_job_fallback"
             
         job_id = f"mock_job_fallback_{uuid.uuid4().hex}"
-        out_audio = f"/app/{job_id}.mp3"
-        out_video = f"/app/{job_id}.mp4"
+        os.makedirs("/app/videos", exist_ok=True)
+        out_audio = f"/app/videos/{job_id}.mp3"
+        out_video = f"/app/videos/{job_id}.mp4"
         
         try:
             # 1. Generate Marathi Audio via gTTS
@@ -197,7 +200,7 @@ async def check_sync_labs_status_activity(job_id: str) -> dict:
         return {"status": "completed", "video_url": os.getenv("SYNC_LABS_BASE_VIDEO_URL")}
         
     if job_id.startswith("mock_job_fallback_"):
-        return {"status": "completed", "video_url": f"/app/{job_id}.mp4"}
+        return {"status": "completed", "video_url": f"/app/videos/{job_id}.mp4"}
 
     # 1. Poll Sync Labs Real API
     headers = {"x-api-key": os.getenv("SYNCLABS_API_KEY")}
@@ -233,15 +236,10 @@ async def start_stream_activity(data: dict) -> str:
         print(f"[MOCK] Starting stream for channel {channel_id}")
         return "mock_stream_started"
 
-    # 1. Check if FFmpeg is already running for this playlist
-    # On Windows, we can check for the specific playlist filename in the command line
+    # 1. Check if FFmpeg is already running for this playlist natively in Linux Docker
     playlist_name = f"playlist_{channel_id}.txt"
     try:
-        # Check running processes with the playlist name
-        # Tasklist /V gives the full command line window title usually, 
-        # but a more robust way is WMIC or just trying to start and letting it fail/overwrite.
-        # However, we'll try to be polite:
-        res = subprocess.run(f'tasklist /FI "IMAGENAME eq ffmpeg.exe" /V', shell=True, capture_output=True, text=True)
+        res = subprocess.run(f'pgrep -a ffmpeg', shell=True, capture_output=True, text=True)
         if playlist_name in res.stdout:
             print(f"Streamer already running for channel {channel_id}. Updating playlist.")
             streamer = Streamer(stream_key, channel_id)
