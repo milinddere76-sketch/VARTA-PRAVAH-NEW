@@ -1,4 +1,5 @@
 from fastapi import FastAPI, Depends, HTTPException, status
+import os
 from sqlalchemy.orm import Session
 from temporalio.client import Client
 import database, models, schemas
