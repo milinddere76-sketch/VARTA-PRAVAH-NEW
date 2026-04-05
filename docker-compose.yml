@@ -72,7 +72,7 @@ services:
   backend-worker:
     container_name: vartapravah_worker
     build: ./backend
-    command: ["python", "temporal/worker.py"]
+    command: ["python", "-m", "temporal.worker"]
     environment:
       - DATABASE_URL=postgresql://root:password@postgres:5432/vartapravah
       - TEMPORAL_HOST=temporal:7233
