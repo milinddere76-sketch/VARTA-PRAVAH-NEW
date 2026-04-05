@@ -88,6 +88,7 @@ services:
     command: ["python", "streamer.py"]
     environment:
       - DATABASE_URL=postgresql://root:password@postgres:5432/vartapravah
+      - PYTHONUNBUFFERED=1
     volumes:
       - ./backend/videos:/app/videos 
     depends_on:

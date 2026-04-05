@@ -55,8 +55,9 @@ class Streamer:
             self.rtmp_url
         ]
         
-        print(f"Starting stream to {self.rtmp_url}...")
-        self.process = subprocess.Popen(command, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+        print(f"Starting stream to {self.rtmp_url}...", flush=True)
+        # By removing the PIPE argument, Python allows FFmpeg to natively print raw speed heuristics to the Docker Daemon logs
+        self.process = subprocess.Popen(command)
 
     def stop_stream(self):
         if self.process:
