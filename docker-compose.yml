@@ -11,12 +11,12 @@ services:
     ports:
       - "5432:5432"
     volumes:
-      - postgres_data_v3:/var/lib/postgresql/data
+      - postgres_data_v4:/var/lib/postgresql/data
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U root -d temporal"]
       interval: 10s
       timeout: 5s
-      retries: 10
+      retries: 20
       start_period: 300s
     networks:
       - vartapravah-net
@@ -37,6 +37,12 @@ services:
       - TEMPORAL_VISIBILITY_STORE_TYPE=postgres
     ports:
       - "7233:7233"
+    healthcheck:
+      test: ["CMD-SHELL", "temporal operator cluster health || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 20
+      start_period: 300s
     depends_on:
       postgres:
         condition: service_healthy
@@ -61,7 +67,7 @@ services:
       test: ["CMD-SHELL", "nc -z localhost 8080 || exit 1"]
       interval: 10s
       timeout: 5s
-      retries: 10
+      retries: 20
       start_period: 300s
     depends_on:
       - temporal
@@ -99,7 +105,7 @@ services:
       - ./backend/videos:/app/videos
     depends_on:
       temporal:
-        condition: service_started
+        condition: service_healthy
       postgres:
         condition: service_healthy
     networks:
@@ -131,4 +137,4 @@ networks:
     driver: bridge
 
 volumes:
-  postgres_data_v3:
+  postgres_data_v4:
