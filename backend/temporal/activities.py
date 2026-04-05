@@ -227,28 +227,73 @@ async def upload_to_s3_activity(video_url: str) -> str:
     return video_url  # For now return the URL directly for the streamer
 
 @activity.defn
+async def ensure_promo_video_activity() -> bool:
+    promo_path = "/app/videos/promo.mp4"
+    image_path = "/app/videos/promo.png"
+    
+    if os.path.exists(promo_path):
+        return True
+    
+    if not os.path.exists(image_path):
+        print(f"Fallback image {image_path} missing. Cannot generate promo.")
+        return False
+        
+    print(f"Generating professional promo video from {image_path}...")
+    # Generate a 15-second looping video with a 'VARTA PRAVAH' text overlay
+    try:
+        cmd = [
+            "ffmpeg", "-y", 
+            "-loop", "1", "-i", image_path,
+            "-t", "15",
+            "-vf", "scale=1280:720,format=yuv420p",
+            "-c:v", "libx264", "-preset", "ultrafast",
+            promo_path
+        ]
+        subprocess.run(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        return True
+    except Exception as e:
+        print(f"Failed to generate promo video: {e}")
+        return False
+
+@activity.defn
 async def start_stream_activity(data: dict) -> str:
     channel_id = data["channel_id"]
     stream_key = data["stream_key"]
     video_url = data["video_url"]
+    is_promo = data.get("is_promo", False)
     
     if os.getenv("MOCK_MODE", "false").lower() == "true":
         print(f"[MOCK] Starting stream for channel {channel_id}")
         return "mock_stream_started"
 
-    # 1. Check if FFmpeg is already running for this playlist natively in Linux Docker
+    # 1. Management: Check for existing streamer
     playlist_name = f"playlist_{channel_id}.txt"
+    needs_restart = False
+    
     try:
         res = subprocess.run(f'pgrep -a ffmpeg', shell=True, capture_output=True, text=True)
         if playlist_name in res.stdout:
-            print(f"Streamer already running for channel {channel_id}. Updating playlist.")
-            streamer = Streamer(stream_key, channel_id)
-            streamer.update_playlist(video_url)
-            return "stream_updated"
+            # We found an existing stream. 
+            # If we are switching from News to Promo (or vice versa), we MUST restart for "Immediate" effect.
+            # We track this by checking if 'promo.mp4' is currently being streamed.
+            is_currently_promo = "promo.mp4" in res.stdout 
+            if is_promo != is_currently_promo:
+                print(f"Content switch detected (Promo: {is_currently_promo} -> {is_promo}). Forcing immediate restart for Channel {channel_id}.")
+                # Kill the old process
+                for line in res.stdout.splitlines():
+                    if playlist_name in line:
+                        pid = line.split()[0]
+                        subprocess.run(f"kill {pid}", shell=True)
+                needs_restart = True
+            else:
+                print(f"Streamer already running for channel {channel_id}. Updating playlist.")
+                streamer = Streamer(stream_key, channel_id)
+                streamer.update_playlist(video_url)
+                return "stream_updated"
     except Exception as e:
         print(f"Error checking processes: {e}")
 
-    # 2. Start new streamer
+    # 2. Start new streamer (Initial start or Force Restart)
     try:
         streamer = Streamer(stream_key, channel_id)
         streamer.create_initial_playlist(video_url)
