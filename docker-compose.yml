@@ -3,6 +3,7 @@ version: '3.8'
 services:
   postgres:
     image: postgres:15
+    container_name: postgres
     environment:
       POSTGRES_USER: root
       POSTGRES_PASSWORD: password
@@ -16,23 +17,28 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
+    networks:
+      - vartapravah-net
 
   temporal:
     container_name: temporal
     image: temporalio/auto-setup:latest
     restart: always
     environment:
-      - DB=postgres12
+      - DB=postgresql
       - DB_PORT=5432
       - POSTGRES_USER=root
       - POSTGRES_PWD=password
       - POSTGRES_SEEDS=postgres
       - SKIP_DEFAULT_NAMESPACE_CREATION=true
+      - TEMPORAL_VISIBILITY_STORE_TYPE=postgres
     ports:
       - "7233:7233"
     depends_on:
       postgres:
         condition: service_healthy
+    networks:
+      - vartapravah-net
 
   temporal-ui:
     container_name: temporal-ui
@@ -45,6 +51,8 @@ services:
       - "8088:8080"
     depends_on:
       - temporal
+    networks:
+      - vartapravah-net
 
   frontend:
     container_name: vartapravah_frontend
@@ -56,6 +64,8 @@ services:
       - NEXT_PUBLIC_API_URL=http://backend:8000
     depends_on:
       - backend
+    networks:
+      - vartapravah-net
 
   backend:
     container_name: vartapravah_backend
@@ -68,12 +78,14 @@ services:
       - TEMPORAL_HOST=temporal:7233
       - PYTHONUNBUFFERED=1
     volumes:
-      - ./backend/videos:/app/videos # Mount local storage dynamically
+      - ./backend/videos:/app/videos
     depends_on:
       temporal:
         condition: service_started
       postgres:
         condition: service_healthy
+    networks:
+      - vartapravah-net
 
   backend-worker:
     container_name: vartapravah_worker
@@ -89,6 +101,8 @@ services:
     depends_on:
       - backend
       - temporal
+    networks:
+      - vartapravah-net
 
   streamer:
     container_name: vartapravah_streamer
@@ -102,6 +116,12 @@ services:
       - ./backend/videos:/app/videos 
     depends_on:
       - backend
+    networks:
+      - vartapravah-net
+
+networks:
+  vartapravah-net:
+    driver: bridge
 
 volumes:
   postgres_data:
