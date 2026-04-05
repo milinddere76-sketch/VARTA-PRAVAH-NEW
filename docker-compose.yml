@@ -7,13 +7,13 @@ services:
     environment:
       POSTGRES_USER: root
       POSTGRES_PASSWORD: password
-      POSTGRES_DB: vartapravah
+      POSTGRES_DB: temporal
     ports:
       - "5432:5432"
     volumes:
       - postgres_data_v3:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U root -d vartapravah"]
+      test: ["CMD-SHELL", "pg_isready -U root -d temporal"]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -30,9 +30,9 @@ services:
       - POSTGRES_USER=root
       - POSTGRES_PWD=password
       - POSTGRES_SEEDS=postgres
-      - SKIP_DB_CREATE=true
-      - SKIP_SCHEMA_SETUP=true
-      - SKIP_DEFAULT_NAMESPACE_CREATION=true
+      - SKIP_DB_CREATE=false
+      - SKIP_SCHEMA_SETUP=false
+      - SKIP_DEFAULT_NAMESPACE_CREATION=false
       - TEMPORAL_VISIBILITY_STORE_TYPE=postgres
     ports:
       - "7233:7233"
@@ -89,7 +89,8 @@ services:
     ports:
       - "8000:8000"
     environment:
-      - DATABASE_URL=postgresql://root:password@postgres:5432/vartapravah
+      - DATABASE_URL=postgresql://root:password@postgres:5432/temporal
+      - TEMPORAL_ADDRESS=temporal:7233
       - TEMPORAL_HOST=temporal:7233
       - PYTHONUNBUFFERED=1
     volumes:
@@ -111,7 +112,8 @@ services:
       - 1.1.1.1
     command: ["python", "-m", "temporal.worker"]
     environment:
-      - DATABASE_URL=postgresql://root:password@postgres:5432/vartapravah
+      - DATABASE_URL=postgresql://root:password@postgres:5432/temporal
+      - TEMPORAL_ADDRESS=temporal:7233
       - TEMPORAL_HOST=temporal:7233
       - PYTHONUNBUFFERED=1
     volumes:
