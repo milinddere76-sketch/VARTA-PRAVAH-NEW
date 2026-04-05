@@ -82,6 +82,9 @@ services:
     container_name: vartapravah_backend
     build: ./backend
     restart: always
+    dns:
+      - 8.8.8.8
+      - 1.1.1.1
     ports:
       - "8000:8000"
     environment:
@@ -102,6 +105,9 @@ services:
     container_name: vartapravah_worker
     build: ./backend
     restart: always
+    dns:
+      - 8.8.8.8
+      - 1.1.1.1
     command: ["python", "-m", "temporal.worker"]
     environment:
       - DATABASE_URL=postgresql://root:password@postgres:5432/vartapravah
