@@ -37,7 +37,7 @@ class Streamer:
         
         command = [
             "ffmpeg",
-            "-y", # Overwrite output if exists (though RTMP doesn't)
+            "-y",
             "-protocol_whitelist", "file,crypto,data,https,tcp,tls",
             "-re",
             "-f", "concat",
@@ -45,12 +45,17 @@ class Streamer:
             "-i", self.playlist_path,
             "-c:v", "libx264",
             "-preset", "veryfast",
-            "-b:v", "3000k",
-            "-maxrate", "3000k",
-            "-bufsize", "6000k",
-            "-pix_fmt", "yuv420p", # Standard for most players
+            "-b:v", "2500k",
+            "-maxrate", "2500k",
+            "-minrate", "2500k",
+            "-bufsize", "5000k",
+            "-nal-hrd", "cbr", # Force constant bitrate
+            "-g", "60", # Force keyframes every 2 seconds
+            "-pix_fmt", "yuv420p",
             "-c:a", "aac",
             "-ar", "44100",
+            "-b:a", "128k",
+            "-ac", "2",
             "-f", "flv",
             self.rtmp_url
         ]

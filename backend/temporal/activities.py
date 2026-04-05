@@ -231,22 +231,26 @@ async def ensure_promo_video_activity() -> bool:
     promo_path = "/app/videos/promo.mp4"
     image_path = "/app/videos/promo.png"
     
-    if os.path.exists(promo_path):
+    # If we need to upgrade the promo (e.g. to add audio), we delete it here once
+    # For now, let's just make it robust.
+    
+    if os.path.exists(promo_path) and os.path.getsize(promo_path) > 1000:
         return True
     
     if not os.path.exists(image_path):
         print(f"Fallback image {image_path} missing. Cannot generate promo.")
         return False
         
-    print(f"Generating professional promo video from {image_path}...")
-    # Generate a 15-second looping video with a 'VARTA PRAVAH' text overlay
+    print(f"Generating professional promo video with audio from {image_path}...")
     try:
         cmd = [
             "ffmpeg", "-y", 
             "-loop", "1", "-i", image_path,
+            "-f", "lavfi", "-i", "anullsrc=channel_layout=stereo:sample_rate=44100",
             "-t", "15",
             "-vf", "scale=1280:720,format=yuv420p",
             "-c:v", "libx264", "-preset", "ultrafast",
+            "-c:a", "aac", "-b:a", "128k", "-shortest",
             promo_path
         ]
         subprocess.run(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
