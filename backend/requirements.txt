@@ -14,3 +14,6 @@ python-multipart
 jose[cryptography]
 passlib[bcrypt]
 anthropic
+groq
+gTTS
+Pillow
