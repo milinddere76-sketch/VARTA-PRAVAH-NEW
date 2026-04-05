@@ -37,8 +37,15 @@ class NewsProductionWorkflow:
             start_to_close_timeout=timedelta(seconds=60)
         )
         
+        
+        # Tracking variables
+        is_female_anchor = False
+        
         while True:
             try:
+                # Toggle anchor for each loop iteration to add variety
+                is_female_anchor = not is_female_anchor
+                
                 # 1. Fetch News
                 news_data = await workflow.execute_activity(
                     fetch_news_activity,
@@ -49,7 +56,7 @@ class NewsProductionWorkflow:
                 # 2. Script
                 script_data = await workflow.execute_activity(
                     generate_script_activity,
-                    {"news_data": news_data, "language": language},
+                    {"news_data": news_data, "language": language, "is_female": is_female_anchor},
                     start_to_close_timeout=timedelta(minutes=5)
                 )
                 

@@ -40,6 +40,8 @@ class Streamer:
             "-y",
             "-protocol_whitelist", "file,crypto,data,https,tcp,tls",
             "-re",
+            "-stream_loop", "-1",
+            "-fflags", "+genpts",
             "-f", "concat",
             "-safe", "0",
             "-i", self.playlist_path,

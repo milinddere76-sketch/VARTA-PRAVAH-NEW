@@ -34,9 +34,9 @@ services:
       - POSTGRES_USER=root
       - POSTGRES_PWD=password
       - POSTGRES_SEEDS=postgres
-      - SKIP_DB_CREATE=true
-      - SKIP_SCHEMA_SETUP=true
-      - SKIP_DEFAULT_NAMESPACE_CREATION=true
+      - SKIP_DB_CREATE=false
+      - SKIP_SCHEMA_SETUP=false
+      - SKIP_DEFAULT_NAMESPACE_CREATION=false
       - TEMPORAL_VISIBILITY_STORE_TYPE=postgres
     ports:
       - "7233:7233"

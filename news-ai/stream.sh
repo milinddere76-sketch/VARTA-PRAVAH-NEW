@@ -31,4 +31,4 @@ cat $PLAYLIST_FILE
 
 echo "🔴 Commencing Continuous RTMP Stream to YouTube..."
 # 2. Run the continuous FFmpeg Auto-Loop
-ffmpeg -re -stream_loop -1 -f concat -safe 0 -i $PLAYLIST_FILE -c copy -f flv rtmp://a.rtmp.youtube.com/live2/$YOUTUBE_KEY
+ffmpeg -re -stream_loop -1 -fflags +genpts -f concat -safe 0 -i $PLAYLIST_FILE -c copy -f flv rtmp://a.rtmp.youtube.com/live2/$YOUTUBE_KEY

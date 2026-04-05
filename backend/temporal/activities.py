@@ -41,29 +41,37 @@ async def fetch_news_activity(language: str) -> dict:
             "description": "Mock description for testing the VartaPravah pipeline."
         }
     
-    # 1. Fetch real news from World News API
+    # 1. Fetch real news from World News API prioritizing Maharashtra, National, and World
     api_key = os.getenv("WORLD_NEWS_API_KEY")
-    config = LANGUAGE_CONFIG.get(language, {"code": "hi", "region": "India"})
-    region = config["region"]
-    lang_code = config["code"]
+    lang_code = LANGUAGE_CONFIG.get(language, {"code": "hi", "region": "India"})["code"]
     
-    url = f"https://api.worldnewsapi.com/search-news?api-key={api_key}&text={region}&language={lang_code}&number=1"
+    combined_headline = "Top Updates: "
+    combined_description = ""
     
-    try:
-        r = requests.get(url)
-        data = r.json()
-        if data.get("news"):
-            news = data["news"][0]
-            return {
-                "headline": news["title"],
-                "description": news["text"][:500]  # Limit text length
-            }
-    except Exception as e:
-        print(f"Error fetching news: {e}")
+    # Define priorities
+    priorities = [("Maharashtra", 2), ("India", 2), ("World", 1)]
     
+    for category, count in priorities:
+        url = f"https://api.worldnewsapi.com/search-news?api-key={api_key}&text={category}&language={lang_code}&number={count}"
+        try:
+            r = requests.get(url, timeout=5)
+            data = r.json()
+            if data.get("news"):
+                for n in data["news"]:
+                    combined_headline += f" | {n['title']}"
+                    combined_description += f"\n[{category.upper()} NEWS]: {n['text'][:250]}..."
+        except Exception as e:
+            print(f"Error fetching {category} news: {e}")
+            
+    if not combined_description:
+        return {
+            "headline": "Maharashtra Political Update",
+            "description": "New developments in the state assembly regarding the budget."
+        }
+        
     return {
-        "headline": "Maharashtra Political Update",
-        "description": "New developments in the state assembly regarding the budget."
+        "headline": combined_headline,
+        "description": combined_description
     }
 
 @activity.defn
@@ -101,19 +109,25 @@ async def generate_script_activity(input_data: dict) -> dict:
         bulletin_name = "रात्री"
         content_type = "Summary of the day's major events"
 
+    is_female = input_data.get("is_female", False)
+    anchor_gender = "महिला (Female)" if is_female else "पुरुष (Male)"
+    gender_instruction = f"* व्याकरण (Grammar): अत्यंत शुद्ध आणि व्यावसायिक {language} भाषेचा वापर करा. कोणतीही व्याकरणीय चूक नको.\n* लिंग (Gender Rule): अँकर {anchor_gender} आहे. त्यामुळे स्वतःबद्दल बोलताना क्रियापदे '{anchor_gender}' लिंगानुसारच वापरा (उदा. पुरुष असल्यास 'मी सांगतो', 'माझा', महिला असल्यास 'मी सांगते', 'माझी'). हे अत्यंत महत्त्वाचे आहे!"
+
     system_prompt = f"""तुम्ही एक व्यावसायिक {language} वृत्तवाहिनीचे अँकर आहात. आता '{bulletin_name}' बुलेटिनची वेळ आहे.
 
 नियम:
-* भाषा पूर्णपणे शुद्ध आणि अधिकृत {language} असावी
+* भाषा पूर्णपणे शुद्ध आणि अधिकृत {language} असावी. वाक्यरचना अचूक आणि बातमीदाराला शोभेल अशी असावी.
 * उच्चार स्पष्ट आणि प्रभावी असावेत
 * बातमी सादरीकरणाचा वेग मध्यम असावा
 * आवाजात आत्मविश्वास आणि गांभीर्य असावे
 * सादरीकरण पुर्णपणे '{content_type}' या शैलीत असावे.
+* केवळ बातमी (STRICT RULE): DO NOT add any greetings like "Namaskar", DO NOT introduce yourself or the channel, DO NOT add closing remarks, DO NOT add conversational fillers. YOU MUST START READING THE CORE SCRIPT DIRECTLY.
+{gender_instruction}
 """
     user_prompt = f"""बातमी:
 {news_data['headline']} - {news_data['description']}
 
-कृपया वरील बातमीसाठी 'Varta Pravah - {bulletin_name}' या बुलेटिनची स्क्रिप्ट तयार करा:"""
+कृपया वरील बातमीसाठी 'Varta Pravah - {bulletin_name}' या बुलेटिनची स्क्रिप्ट तयार करा. फक्त बातमीचा मजकूर द्या, दुसरे काहीही नाही:"""
 
     groq_client = Groq(api_key=os.getenv("GROQ_API_KEY"))
     completion = groq_client.chat.completions.create(
@@ -133,7 +147,8 @@ async def generate_script_activity(input_data: dict) -> dict:
     
     return {
         "script": script,
-        "audio_url": audio_url
+        "audio_url": audio_url,
+        "is_female": is_female
     }
 
 @activity.defn
@@ -170,18 +185,26 @@ async def synclabs_lip_sync_activity(data: dict) -> str:
         out_video = f"/app/videos/{job_id}.mp4"
         
         try:
-            # 1. Generate Marathi Audio via gTTS
-            tts = gTTS(text=script, lang='mr')
-            tts.save(out_audio)
+            # 1. Generate Marathi Audio via Edge TTS
+            # Wait, data dict doesn't natively carry is_female unless we pass it from generate_script_activity. 
+            # In workflows.py, we passed is_female to generate_script_activity, but synclabs_lip_sync_activity receives the output of generate_script_activity.
+            # We MUST extract is_female from data.
+            is_female = data.get("is_female", False)
+            voice = "mr-IN-AarohiNeural" if is_female else "mr-IN-ManoharNeural"
+            subprocess.run(["python", "-m", "edge_tts", "--voice", voice, "--text", script, "--write-media", out_audio], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
             
-            # 2. Overlay anchor video over studio backdrop + generated audio
+            anchor_name = "anchor_female.mp4" if is_female else "anchor.mp4"
+            anchor_mp4 = f"/app/{anchor_name}"
+            
+            # 2. Overlay anchor video over studio backdrop + generated audio + logo
             cmd = [
                 "ffmpeg", "-y", 
-                "-i", "/app/anchor.mp4",
+                "-stream_loop", "-1", "-i", anchor_mp4,
                 "-loop", "1", "-i", "/app/studio.jpg",
+                "-i", "/app/logo.png",
                 "-i", out_audio,
-                "-filter_complex", "[0:v]scale=1280:720[anchor]; [1:v][anchor]overlay=(W-w)/2:(H-h)/2[outv]",
-                "-map", "[outv]", "-map", "2:a",
+                "-filter_complex", "[0:v]colorkey=0x00FF00:0.3:0.2,scale=1280:720[anchor]; [1:v][anchor]overlay=(W-w)/2:(H-h)/2[base]; [2:v]scale=250:-1[logoscale]; [base][logoscale]overlay=W-w-50:50[outv]",
+                "-map", "[outv]", "-map", "3:a",
                 "-c:v", "libx264", "-c:a", "aac",
                 "-shortest", out_video
             ]
