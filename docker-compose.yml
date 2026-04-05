@@ -38,6 +38,7 @@ services:
     image: temporalio/ui:latest
     environment:
       - TEMPORAL_ADDRESS=temporal:7233
+      - TEMPORAL_CORS_ORIGINS=*
     ports:
       - "8088:8080"
     depends_on:
