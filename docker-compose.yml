@@ -22,9 +22,8 @@ services:
 
   temporal:
     container_name: temporal
-    image: temporalio/auto-setup:latest
+    image: temporalio/auto-setup:1.22.4
     restart: always
-    entrypoint: ["/bin/bash", "-c", "sed -i 's/register_default_namespace/register_default_namespace || true/g' /etc/temporal/auto-setup.sh; /etc/temporal/auto-setup.sh"]
     environment:
       - DB=postgres12
       - DB_PORT=5432
