@@ -46,6 +46,7 @@ services:
     restart: always
     environment:
       - TEMPORAL_ADDRESS=temporal:7233
+      - TEMPORAL_GRPC_ENDPOINT=temporal:7233
       - TEMPORAL_CORS_ORIGINS=*
     ports:
       - "8088:8080"
