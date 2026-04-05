@@ -17,14 +17,16 @@ async def main():
     load_dotenv()
     # Retry loop to wait for Temporal to be ready
     client = None
-    for i in range(12):
+    # Use TEMPORAL_ADDRESS (standard) or TEMPORAL_HOST (custom) or Docker dns
+    temporal_host = os.getenv("TEMPORAL_ADDRESS") or os.getenv("TEMPORAL_HOST") or "temporal:7233"
+    
+    for i in range(24): # Double the retry count
         try:
-            temporal_host = os.getenv("TEMPORAL_HOST", "localhost:7233")
             client = await Client.connect(temporal_host)
             print(f"Successfully connected to Temporal on {temporal_host}!")
             break
         except Exception as e:
-            print(f"Waiting for Temporal to start... (Attempt {i+1}/12)")
+            print(f"Waiting for Temporal at {temporal_host}... (Attempt {i+1}/24)")
             await asyncio.sleep(10)
     
     if not client:
