@@ -16,7 +16,6 @@ from streamer import Streamer
 
 # Initialize AI Clients
 load_dotenv()
-groq_client = Groq(api_key=os.getenv("GROQ_API_KEY"))
 
 LANGUAGE_CONFIG = {
     "Marathi": {"code": "mr", "region": "Maharashtra"},
@@ -114,6 +113,7 @@ async def generate_script_activity(input_data: dict) -> dict:
 
 कृपया वरील बातमीसाठी 'Varta Pravah - {bulletin_name}' या बुलेटिनची स्क्रिप्ट तयार करा:"""
 
+    groq_client = Groq(api_key=os.getenv("GROQ_API_KEY"))
     completion = groq_client.chat.completions.create(
         model="llama-3.1-8b-instant",
         messages=[
