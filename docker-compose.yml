@@ -22,16 +22,19 @@ services:
 
   temporal:
     container_name: temporal
-    image: temporalio/server:1.24.2
+    image: temporalio/auto-setup:latest
     restart: always
+    entrypoint: ["/bin/bash", "-c", "sed -i 's/register_default_namespace/register_default_namespace || true/g' /etc/temporal/auto-setup.sh; /etc/temporal/auto-setup.sh"]
     environment:
-      - SQL_DRIVER=postgres
-      - SQL_USER=root
-      - SQL_PASSWORD=password
-      - SQL_ADDR=postgres:5432
-      - SQL_DATABASE=temporal
-      - SQL_VISIBILITY_DATABASE=temporal_visibility
-      - DYNAMIC_CONFIG_FILE_PATH=config/dynamicconfig/development.yaml
+      - DB=postgres12
+      - DB_PORT=5432
+      - POSTGRES_USER=root
+      - POSTGRES_PWD=password
+      - POSTGRES_SEEDS=postgres
+      - SKIP_DB_CREATE=true
+      - SKIP_SCHEMA_SETUP=true
+      - SKIP_DEFAULT_NAMESPACE_CREATION=true
+      - TEMPORAL_VISIBILITY_STORE_TYPE=postgres
     ports:
       - "7233:7233"
     depends_on:
