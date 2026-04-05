@@ -44,8 +44,9 @@ def read_root():
 
 
 async def get_temporal_client():
-    # Use a shared client for efficiency
-    temporal_host = os.getenv("TEMPORAL_HOST", "localhost:7233")
+    # Use TEMPORAL_ADDRESS (standard) or TEMPORAL_HOST (custom)
+    temporal_host = os.getenv("TEMPORAL_ADDRESS") or os.getenv("TEMPORAL_HOST") or "temporal:7233"
+    print(f"Connecting to Temporal at: {temporal_host}")
     return await Client.connect(temporal_host)
 
 from pydantic import BaseModel
