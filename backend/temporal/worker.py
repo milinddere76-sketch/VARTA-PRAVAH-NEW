@@ -13,7 +13,49 @@ from .activities import (
     ensure_promo_video_activity
 )
 
+from sqlalchemy.orm import Session
+import sys
+# Path to backend for db imports
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+from database import SessionLocal
+from models import Channel, User
+
+async def seed_database():
+    """Ensure at least one user and one channel exist for the autonomous loop."""
+    db: Session = SessionLocal()
+    try:
+        # 1. Ensure System User exists
+        user = db.query(User).filter(User.id == 1).first()
+        if not user:
+            print("Seeding default system user...")
+            user = User(id=1, email="system@vartapravah.ai", hashed_password="seed_password_not_used")
+            db.add(user)
+            db.commit()
+            db.refresh(user)
+
+        # 2. Ensure Channel 1 exists
+        channel = db.query(Channel).filter(Channel.id == 1).first()
+        if not channel:
+            print("Seeding default broadcast channel (Channel 1)...")
+            stream_key = os.getenv("YOUTUBE_STREAM_KEY", "qcu7-xesd-m4sv-9zvv-e335")
+            channel = Channel(
+                id=1, 
+                name="Varta Pravah Live", 
+                language="Marathi", 
+                youtube_stream_key=stream_key,
+                owner_id=1
+            )
+            db.add(channel)
+            db.commit()
+            print(f"Channel 1 seeded successfully with key: {stream_key[:4]}****")
+    except Exception as e:
+        print(f"Database seeding failed: {e}")
+    finally:
+        db.close()
+
 async def trigger_auto_start(client: Client):
+    # Ensure DB is ready before triggering
+    await seed_database()
     channel_id = os.getenv("AUTO_START_CHANNEL_ID", "1")
     language = os.getenv("DEFAULT_LANGUAGE", "mr")
     stream_key = os.getenv("YOUTUBE_STREAM_KEY", "")
