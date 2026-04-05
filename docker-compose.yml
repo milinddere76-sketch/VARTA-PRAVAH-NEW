@@ -26,7 +26,7 @@ services:
       - POSTGRES_USER=root
       - POSTGRES_PWD=password
       - POSTGRES_SEEDS=postgres
-      - SKIP_DEFAULT_NAMESPACE_CREATION=false
+      - SKIP_DEFAULT_NAMESPACE_CREATION=true
     ports:
       - "7233:7233"
     depends_on:
