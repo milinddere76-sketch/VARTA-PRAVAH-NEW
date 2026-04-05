@@ -38,6 +38,11 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+@app.get("/")
+def read_root():
+    return {"status": "VartaPravah API Engine Online", "version": "1.0.0"}
+
+
 async def get_temporal_client():
     # Use a shared client for efficiency
     temporal_host = os.getenv("TEMPORAL_HOST", "localhost:7233")
