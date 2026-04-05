@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Varta Pravah Admin App</title>
+    <style>
+        body { margin: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; background-color: #0f172a; color: #fff; display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100vh; text-align: center; }
+        .card { background: #1e293b; padding: 2rem; border-radius: 1rem; box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1); width: 80%; max-width: 400px; }
+        h1 { font-size: 1.5rem; margin-bottom: 1.5rem; color: #38bdf8; }
+        input { width: calc(100% - 20px); padding: 10px; margin-bottom: 1rem; border-radius: 0.5rem; border: 1px solid #334155; background: #0f172a; color: #fff; }
+        button { background: #0ea5e9; color: white; border: none; padding: 10px 20px; font-size: 1rem; border-radius: 0.5rem; cursor: pointer; width: 100%; font-weight: bold; transition: background 0.2s; }
+        button:hover { background: #0284c7; }
+        .status { margin-top: 1rem; font-size: 0.9rem; color: #94a3b8; }
+    </style>
+</head>
+<body>
+    <div class="card">
+        <h1>Varta Pravah Admin</h1>
+        <p style="font-size: 0.8rem; color: #94a3b8; margin-bottom: 2rem;">Enter your backend host IP to connect (e.g. 192.168.1.5:8000)</p>
+        <input type="text" id="host" placeholder="192.168.1.x:8000" />
+        <button onclick="triggerStream()">Trigger Stream</button>
+        <p class="status" id="status"></p>
+    </div>
+
+    <script>
+        // Load saved host if any
+        if(localStorage.getItem('vp_host')){
+            document.getElementById('host').value = localStorage.getItem('vp_host');
+        }
+
+        async function triggerStream() {
+            const host = document.getElementById('host').value.trim();
+            if(!host) return alert("Please enter the server IP.");
+            
+            localStorage.setItem('vp_host', host);
+            const statusLabel = document.getElementById('status');
+            statusLabel.style.color = '#eab308';
+            statusLabel.textContent = "Connecting to " + host + "...";
+
+            try {
+                let url = host.startsWith("http") ? host : "http://" + host;
+                // Channel 1 usually, using standard trigger
+                const r = await fetch(url + "/channels/1/trigger", { 
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" }
+                });
+                
+                if(r.ok) {
+                    statusLabel.style.color = '#22c55e';
+                    statusLabel.textContent = "✅ Broadcast Stream successfully sent to workflow!";
+                } else {
+                    const txt = await r.text();
+                    statusLabel.style.color = '#ef4444';
+                    statusLabel.textContent = "❌ Failed: " + txt;
+                }
+            } catch(e) {
+                statusLabel.style.color = '#ef4444';
+                statusLabel.textContent = "❌ Network Error: " + e.message;
+            }
+        }
+    </script>
+</body>
+</html>

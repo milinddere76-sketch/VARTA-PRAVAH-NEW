@@ -1,0 +1,6 @@
+{
+  "appId": "com.vartapravah.mobile",
+  "appName": "Varta Pravah Admin",
+  "webDir": "www",
+  "bundledWebRuntime": false
+}
