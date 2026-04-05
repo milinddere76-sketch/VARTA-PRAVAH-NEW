@@ -104,21 +104,6 @@ services:
     networks:
       - vartapravah-net
 
-  streamer:
-    container_name: vartapravah_streamer
-    build: ./backend
-    restart: always
-    command: ["python", "streamer.py"]
-    environment:
-      - DATABASE_URL=postgresql://root:password@postgres:5432/vartapravah
-      - PYTHONUNBUFFERED=1
-    volumes:
-      - ./backend/videos:/app/videos 
-    depends_on:
-      - backend
-    networks:
-      - vartapravah-net
-
 networks:
   vartapravah-net:
     driver: bridge
