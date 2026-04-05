@@ -67,7 +67,7 @@ class Streamer:
 if __name__ == "__main__":
     # Test stub
     YOUTUBE_KEY = "your-key-here"
-    VIDEO = "c:/VARTAPRAVAH/assets/test_video.mp4"
+    VIDEO = "/app/anchor.mp4"
     
     streamer = Streamer(YOUTUBE_KEY, channel_id=99)
     streamer.create_initial_playlist(VIDEO)

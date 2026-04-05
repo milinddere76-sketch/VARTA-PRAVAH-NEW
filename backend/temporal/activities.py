@@ -163,8 +163,8 @@ async def synclabs_lip_sync_activity(data: dict) -> str:
             return "mock_job_fallback"
             
         job_id = f"mock_job_fallback_{uuid.uuid4().hex}"
-        out_audio = f"c:/VARTAPRAVAH/backend/{job_id}.mp3"
-        out_video = f"c:/VARTAPRAVAH/backend/{job_id}.mp4"
+        out_audio = f"/app/{job_id}.mp3"
+        out_video = f"/app/{job_id}.mp4"
         
         try:
             # 1. Generate Marathi Audio via gTTS
@@ -174,8 +174,8 @@ async def synclabs_lip_sync_activity(data: dict) -> str:
             # 2. Overlay anchor video over studio backdrop + generated audio
             cmd = [
                 "ffmpeg", "-y", 
-                "-i", "c:/VARTAPRAVAH/backend/anchor.mp4",
-                "-loop", "1", "-i", "c:/VARTAPRAVAH/backend/studio.jpg",
+                "-i", "/app/anchor.mp4",
+                "-loop", "1", "-i", "/app/studio.jpg",
                 "-i", out_audio,
                 "-filter_complex", "[0:v]scale=1280:720[anchor]; [1:v][anchor]overlay=(W-w)/2:(H-h)/2[outv]",
                 "-map", "[outv]", "-map", "2:a",
@@ -197,7 +197,7 @@ async def check_sync_labs_status_activity(job_id: str) -> dict:
         return {"status": "completed", "video_url": os.getenv("SYNC_LABS_BASE_VIDEO_URL")}
         
     if job_id.startswith("mock_job_fallback_"):
-        return {"status": "completed", "video_url": f"c:/VARTAPRAVAH/backend/{job_id}.mp4"}
+        return {"status": "completed", "video_url": f"/app/{job_id}.mp4"}
 
     # 1. Poll Sync Labs Real API
     headers = {"x-api-key": os.getenv("SYNCLABS_API_KEY")}
