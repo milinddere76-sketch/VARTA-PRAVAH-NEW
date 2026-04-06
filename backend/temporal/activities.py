@@ -64,10 +64,9 @@ async def fetch_news_activity(language: str) -> dict:
             print(f"Error fetching {category} news: {e}")
             
     if not combined_description:
-        return {
-            "headline": "Maharashtra Political Update",
-            "description": "New developments in the state assembly regarding the budget."
-        }
+        # Instead of silently returning a dummy test script, raise an exception
+        # so the Workflow automatically triggers the Promo Stream fallback naturally.
+        raise Exception(f"No {language} news fetched right now. Triggering Fallback Sequence.")
         
     return {
         "headline": combined_headline,

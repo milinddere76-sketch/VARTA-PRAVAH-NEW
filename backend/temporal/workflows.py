@@ -1,5 +1,6 @@
 from datetime import timedelta
 from temporalio import workflow
+from temporalio.common import RetryPolicy
 from .activities import (
     fetch_news_activity,
     generate_script_activity,
@@ -50,21 +51,24 @@ class NewsProductionWorkflow:
                 news_data = await workflow.execute_activity(
                     fetch_news_activity,
                     language,
-                    start_to_close_timeout=timedelta(seconds=60)
+                    start_to_close_timeout=timedelta(seconds=60),
+                    retry_policy=RetryPolicy(maximum_attempts=3)
                 )
                 
                 # 2. Script
                 script_data = await workflow.execute_activity(
                     generate_script_activity,
                     {"news_data": news_data, "language": language, "is_female": is_female_anchor},
-                    start_to_close_timeout=timedelta(minutes=5)
+                    start_to_close_timeout=timedelta(minutes=5),
+                    retry_policy=RetryPolicy(maximum_attempts=3)
                 )
                 
                 # 3. Request Lip-Sync from Sync Labs
                 job_id = await workflow.execute_activity(
                     synclabs_lip_sync_activity,
                     script_data,
-                    start_to_close_timeout=timedelta(minutes=10)
+                    start_to_close_timeout=timedelta(minutes=10),
+                    retry_policy=RetryPolicy(maximum_attempts=3)
                 )
                 
                 # 4. Wait for Lip-Sync to complete
