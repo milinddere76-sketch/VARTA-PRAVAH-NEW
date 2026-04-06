@@ -34,5 +34,10 @@ echo "✅ Playlist active:"
 cat $PLAYLIST_FILE
 
 echo "🔴 Commencing Continuous RTMP Stream to YouTube..."
-# 2. Run the continuous FFmpeg Auto-Loop
-ffmpeg -re -stream_loop -1 -fflags +genpts -f concat -safe 0 -i $PLAYLIST_FILE -c copy -f flv rtmp://a.rtmp.youtube.com/live2/$YOUTUBE_KEY
+# 2. Run the continuous FFmpeg Auto-Loop. Wrapped in while-true to automatically reconnect!
+while true; do
+    echo "Starting FFmpeg stream..."
+    ffmpeg -re -stream_loop -1 -fflags +genpts -f concat -safe 0 -i $PLAYLIST_FILE -c copy -f flv rtmp://a.rtmp.youtube.com/live2/$YOUTUBE_KEY
+    echo "⚠️ Stream disconnected or crashed. Soft restarting in 5 seconds to maintain uptime..."
+    sleep 5
+done
