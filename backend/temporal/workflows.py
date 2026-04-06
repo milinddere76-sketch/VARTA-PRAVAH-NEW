@@ -8,8 +8,19 @@ from .activities import (
     check_sync_labs_status_activity,
     upload_to_s3_activity,
     start_stream_activity,
-    ensure_promo_video_activity
+    ensure_promo_video_activity,
+    stop_stream_activity
 )
+
+@workflow.defn
+class StopStreamWorkflow:
+    @workflow.run
+    async def run(self, channel_id: int) -> str:
+        return await workflow.execute_activity(
+            stop_stream_activity,
+            channel_id,
+            start_to_close_timeout=timedelta(seconds=10)
+        )
 
 @workflow.defn
 class NewsProductionWorkflow:

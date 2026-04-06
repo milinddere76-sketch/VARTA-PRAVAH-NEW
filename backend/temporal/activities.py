@@ -331,3 +331,14 @@ async def start_stream_activity(data: dict) -> str:
     except Exception as e:
         activity.logger.error(f"Failed to start stream: {e}")
         raise e
+
+@activity.defn
+async def stop_stream_activity(channel_id: int) -> str:
+    playlist_name = f"playlist_{channel_id}.txt"
+    try:
+        print(f"Force stopping stream for channel {channel_id}")
+        subprocess.run(f"pkill -9 -f {playlist_name}", shell=True)
+        return "stream_stopped"
+    except Exception as e:
+        print(f"Error stopping stream: {e}")
+        return "error"

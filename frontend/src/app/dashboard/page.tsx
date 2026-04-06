@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useEffect } from 'react';
-import { Plus, Play, ExternalLink, Activity, Info, AlertCircle, Settings } from 'lucide-react';
+import { Plus, Play, ExternalLink, Activity, Info, AlertCircle, Settings, Trash2, Square } from 'lucide-react';
 
 interface Channel {
   id: number;
@@ -116,6 +116,34 @@ export default function DashboardPage() {
     }
   };
 
+  const handleStopChannel = async (channelId: number) => {
+    if (!confirm("Are you sure you want to halt broadcasting immediately? This will drop the YouTube stream.")) return;
+    
+    // Optimistic UI update
+    setChannels(prev => prev.map(ch => ch.id === channelId ? { ...ch, is_streaming: false } : ch));
+    
+    try {
+      const res = await fetch(`${API_URL}/channels/${channelId}/stop`, { method: 'POST' });
+      if (!res.ok) throw new Error("Failed to stop.");
+      await fetchChannels();
+    } catch (err) {
+      alert("Error stopping stream.");
+      await fetchChannels();
+    }
+  };
+
+  const handleDeleteChannel = async (channelId: number) => {
+    if (!confirm("Are you sure you want to permanently delete this channel and stop any active streams?")) return;
+    
+    try {
+      const res = await fetch(`${API_URL}/channels/${channelId}`, { method: 'DELETE' });
+      if (!res.ok) throw new Error("Failed to delete.");
+      await fetchChannels();
+    } catch (err) {
+      alert("Error deleting channel.");
+    }
+  };
+
   return (
     <div className="min-h-screen bg-[#0f111a] text-white flex font-sans">
       {/* Sidebar */}
@@ -191,7 +219,7 @@ export default function DashboardPage() {
                   </div>
                 </div>
 
-                <div className="flex space-x-4">
+                <div className="flex space-x-3">
                   <button 
                     disabled={processing === channel.id}
                     onClick={() => handleTriggerNews(channel.id)}
@@ -200,15 +228,29 @@ export default function DashboardPage() {
                     <Play size={18} />
                     <span>{processing === channel.id ? 'Processing...' : 'Generate News'}</span>
                   </button>
+                  <button
+                    onClick={() => handleStopChannel(channel.id)}
+                    className="bg-red-500/10 hover:bg-red-600 border border-red-500/30 hover:border-red-600 text-red-500 hover:text-white px-5 rounded-xl font-bold transition flex items-center justify-center"
+                    title="Stop Broadcast"
+                  >
+                    <Square fill="currentColor" size={14} />
+                  </button>
                   <a 
                     href="https://studio.youtube.com/channel/live" 
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="flex-1 bg-[#22273a] hover:bg-[#2c324a] text-white py-3.5 rounded-xl font-bold transition flex items-center justify-center space-x-2 text-center"
+                    className="bg-[#22273a] hover:bg-[#2c324a] text-white px-5 rounded-xl font-bold transition flex items-center justify-center"
+                    title="View Stream Status"
                   >
                     <ExternalLink size={18} />
-                    <span>View Stream</span>
                   </a>
+                  <button
+                    onClick={() => handleDeleteChannel(channel.id)}
+                    className="bg-transparent hover:bg-red-900/30 border border-transparent hover:border-red-600/30 text-gray-500 hover:text-red-400 px-4 rounded-xl transition flex items-center justify-center"
+                    title="Delete Channel"
+                  >
+                    <Trash2 size={18} />
+                  </button>
                 </div>
               </div>
             ))}

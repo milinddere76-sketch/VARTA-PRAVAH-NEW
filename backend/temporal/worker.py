@@ -3,7 +3,7 @@ import os
 import sys
 from temporalio.client import Client
 from temporalio.worker import Worker, UnsandboxedWorkflowRunner
-from .workflows import NewsProductionWorkflow
+from .workflows import NewsProductionWorkflow, StopStreamWorkflow
 from .activities import (
     fetch_news_activity,
     generate_script_activity,
@@ -11,7 +11,8 @@ from .activities import (
     check_sync_labs_status_activity,
     upload_to_s3_activity,
     start_stream_activity,
-    ensure_promo_video_activity
+    ensure_promo_video_activity,
+    stop_stream_activity
 )
 
 # Hardened Imports for Docker Subdirectory execution
@@ -92,11 +93,12 @@ async def main():
     
     worker = Worker(
         client, task_queue="news-task-queue",
-        workflows=[NewsProductionWorkflow],
+        workflows=[NewsProductionWorkflow, StopStreamWorkflow],
         activities=[
             fetch_news_activity, generate_script_activity,
             synclabs_lip_sync_activity, check_sync_labs_status_activity,
-            upload_to_s3_activity, start_stream_activity, ensure_promo_video_activity
+            upload_to_s3_activity, start_stream_activity, ensure_promo_video_activity,
+            stop_stream_activity
         ],
         workflow_runner=UnsandboxedWorkflowRunner()
     )

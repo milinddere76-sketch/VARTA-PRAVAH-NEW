@@ -4,7 +4,7 @@ from sqlalchemy.orm import Session
 from temporalio.client import Client
 import database, models, schemas
 from datetime import timedelta
-from temporal.workflows import NewsProductionWorkflow
+from temporal.workflows import NewsProductionWorkflow, StopStreamWorkflow
 
 from fastapi.middleware.cors import CORSMiddleware
 
@@ -93,9 +93,8 @@ async def trigger_news_generation(
     if not channel:
         raise HTTPException(status_code=404, detail="Channel not found")
 
-    # 2. Trigger Temporal Workflow with unique ID
-    import time
-    workflow_id = f"news-gen-{channel_id}-{int(time.time())}"
+    # 2. Trigger Temporal Workflow with deterministic single-channel ID
+    workflow_id = f"news-production-{channel_id}"
     
     # Update channel status to "Live"
     channel.is_streaming = True
@@ -110,6 +109,61 @@ async def trigger_news_generation(
     )
     
     return {"status": "processing", "workflow_id": handle.id}
+
+@app.post("/channels/{channel_id}/stop")
+async def stop_news_generation(
+    channel_id: int,
+    db: Session = Depends(database.get_db),
+    temporal_client: Client = Depends(get_temporal_client)
+):
+    channel = db.query(models.Channel).filter(models.Channel.id == channel_id).first()
+    if not channel:
+        raise HTTPException(status_code=404, detail="Channel not found")
+
+    import time
+    # 1. Update DB 
+    channel.is_streaming = False
+    db.commit()
+
+    # 2. Kill the stream physical process via worker
+    stop_workflow_id = f"stop-channel-{channel_id}-{int(time.time())}"
+    await temporal_client.start_workflow(
+        StopStreamWorkflow.run,
+        channel_id,
+        id=stop_workflow_id,
+        task_queue="news-task-queue"
+    )
+
+    # 3. Soft-fail any pending Temporal generation if needed
+    try:
+        # We try to terminate the news-gen tracking workflow
+        handle = temporal_client.get_workflow_handle(f"news-production-{channel_id}")
+        await handle.terminate("User stopped channel from dashboard")
+    except Exception:
+        pass
+        
+    return {"status": "stopped", "message": "Channel broadcasting halted."}
+
+@app.delete("/channels/{channel_id}")
+async def delete_channel(
+    channel_id: int,
+    db: Session = Depends(database.get_db),
+    temporal_client: Client = Depends(get_temporal_client)
+):
+    channel = db.query(models.Channel).filter(models.Channel.id == channel_id).first()
+    if not channel:
+        raise HTTPException(status_code=404, detail="Channel not found")
+
+    # Stop any broadcast processes immediately
+    try:
+        await stop_news_generation(channel_id, db, temporal_client)
+    except Exception:
+        pass
+        
+    db.delete(channel)
+    db.commit()
+    
+    return {"status": "deleted", "message": "Channel permanently removed."}
 
 @app.get("/channels", response_model=list[schemas.ChannelResponse])
 def list_channels(db: Session = Depends(database.get_db)):
