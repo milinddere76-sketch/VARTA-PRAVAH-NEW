@@ -6,7 +6,7 @@ RUN apt-get update && apt-get install -y ffmpeg curl bash && rm -rf /var/lib/apt
 WORKDIR /app
 
 # Install Python requirements
-RUN pip install requests groq gtts python-dotenv pillow
+RUN pip install requests groq gtts python-dotenv pillow edge-tts
 
 # Copy logic
 COPY . /app
