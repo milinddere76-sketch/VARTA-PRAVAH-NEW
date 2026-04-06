@@ -195,6 +195,9 @@ async def synclabs_lip_sync_activity(data: dict) -> str:
             anchor_name = "anchor_female.mp4" if is_female else "anchor.mp4"
             anchor_mp4 = f"/app/{anchor_name}"
             
+            # Sanitize the headline for FFmpeg (escape single quotes)
+            headline_text = data.get("headline", "VARTA PRAVAH NEWS LIVE").replace("'", "\\'")
+            
             # 2. Overlay anchor video over studio backdrop + generated audio + logo + professional news graphics
             # News display and tickers are drawn directly with drawtext filters
             # Ticker scrolling is achieved via 'mod(t*speed, text_w)' logic
@@ -212,10 +215,11 @@ async def synclabs_lip_sync_activity(data: dict) -> str:
                 "[2:v]scale=180:-1[logoscale];"
                 "[base][logoscale]overlay=W-w-40:40[withlogo];"
                 # b) Draw News Ticker Bar (Bottom red bar)
-                "[withlogo]drawbox=y=ih-80:w=iw:h=80:color=red@0.8:t=fill[tickerbg];"
-                # c) Headline Ticker (Persistent news header at the top or center)
-                # d) Scrolling Bottom Ticker (White text moving right to left)
-                "[tickerbg]drawtext=text='VARTA PRAVAH NEWS - LIVE - FAST 50':fontcolor=white:fontsize=36:x=w-mod(t*200,w+tw):y=h-55:shadowcolor=black:shadowx=2:shadowy=2[outv]",
+                "[withlogo]drawbox=y=ih-100:w=iw:h=100:color=red@0.8:t=fill[tickerbg];"
+                # c) Dynamic Headline (Stationary bold news title on the left)
+                f"[tickerbg]drawtext=text='{headline_text}':fontcolor=white:fontsize=42:fontfile=/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf:x=40:y=h-85:shadowcolor=black:shadowx=2:shadowy=2[withheadline];"
+                # d) Scrolling Bottom Ticker (White sub-text moving right to left)
+                "[withheadline]drawtext=text='VARTA PRAVAH NEWS - LIVE - FAST 50 - UPDATES EVERY 30 MINS':fontcolor=white:fontsize=28:x=w-mod(t*220,w+tw):y=h-35:shadowcolor=black:shadowx=2:shadowy=2[outv]",
                 "-map", "[outv]", "-map", "3:a",
                 "-c:v", "libx264", "-c:a", "aac",
                 "-shortest", 
