@@ -298,19 +298,22 @@ async def start_stream_activity(data: dict) -> str:
     needs_restart = False
     
     try:
-        res = subprocess.run(f'pgrep -a ffmpeg', shell=True, capture_output=True, text=True)
-        if playlist_name in res.stdout:
+        res = subprocess.run(f'pgrep -f {playlist_name}', shell=True, capture_output=True, text=True)
+        if res.stdout:
             # We found an existing stream. 
             # If we are switching from News to Promo (or vice versa), we MUST restart for "Immediate" effect.
-            # We track this by checking if 'promo.mp4' is currently being streamed.
-            is_currently_promo = "promo.mp4" in res.stdout 
+            # We track this by checking the actual playlist contents since parsing pgrep for promo.mp4 is unreliable inside a bash loop wrapper.
+            try:
+                with open(playlist_name, "r") as f:
+                    content = f.read()
+                    is_currently_promo = "promo.mp4" in content
+            except Exception:
+                is_currently_promo = False
+
             if is_promo != is_currently_promo:
                 print(f"Content switch detected (Promo: {is_currently_promo} -> {is_promo}). Forcing immediate restart for Channel {channel_id}.")
-                # Kill the old process
-                for line in res.stdout.splitlines():
-                    if playlist_name in line:
-                        pid = line.split()[0]
-                        subprocess.run(f"kill {pid}", shell=True)
+                # Cleanly annihilate BOTH the bash while-true loop AND the child ffmpeg processes.
+                subprocess.run(f"pkill -9 -f {playlist_name}", shell=True)
                 needs_restart = True
             else:
                 print(f"Streamer already running for channel {channel_id}. Updating playlist.")
