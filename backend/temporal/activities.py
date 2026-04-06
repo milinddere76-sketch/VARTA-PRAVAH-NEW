@@ -195,17 +195,32 @@ async def synclabs_lip_sync_activity(data: dict) -> str:
             anchor_name = "anchor_female.mp4" if is_female else "anchor.mp4"
             anchor_mp4 = f"/app/{anchor_name}"
             
-            # 2. Overlay anchor video over studio backdrop + generated audio + logo
+            # 2. Overlay anchor video over studio backdrop + generated audio + logo + professional news graphics
+            # News display and tickers are drawn directly with drawtext filters
+            # Ticker scrolling is achieved via 'mod(t*speed, text_w)' logic
             cmd = [
                 "ffmpeg", "-y", 
-                "-stream_loop", "-1", "-i", anchor_mp4,
-                "-loop", "1", "-i", "/app/studio.jpg",
-                "-i", "/app/logo.png",
-                "-i", out_audio,
-                "-filter_complex", "[0:v]colorkey=0x00FF00:0.3:0.2,scale=1280:720[anchor]; [1:v][anchor]overlay=(W-w)/2:(H-h)/2[base]; [2:v]scale=250:-1[logoscale]; [base][logoscale]overlay=W-w-50:50[outv]",
+                "-loop", "1", "-i", "/app/studio.jpg", # 1. Background
+                "-stream_loop", "-1", "-i", anchor_mp4, # 2. Anchor
+                "-i", "/app/logo.png", # 3. Logo
+                "-i", out_audio, # 4. Audio track
+                "-filter_complex", 
+                # a) Scale background and core overlays to strict 16:9 (1280x720)
+                "[0:v]scale=1280:720,setsar=1[bg];"
+                "[1:v]colorkey=0x00FF00:0.3:0.2,scale=1280:720[anchor];"
+                "[bg][anchor]overlay=(W-w)/2:(H-h)/2[base];"
+                "[2:v]scale=180:-1[logoscale];"
+                "[base][logoscale]overlay=W-w-40:40[withlogo];"
+                # b) Draw News Ticker Bar (Bottom red bar)
+                "[withlogo]drawbox=y=ih-80:w=iw:h=80:color=red@0.8:t=fill[tickerbg];"
+                # c) Headline Ticker (Persistent news header at the top or center)
+                # d) Scrolling Bottom Ticker (White text moving right to left)
+                "[tickerbg]drawtext=text='VARTA PRAVAH NEWS - LIVE - FAST 50':fontcolor=white:fontsize=36:x=w-mod(t*200,w+tw):y=h-55:shadowcolor=black:shadowx=2:shadowy=2[outv]",
                 "-map", "[outv]", "-map", "3:a",
                 "-c:v", "libx264", "-c:a", "aac",
-                "-shortest", out_video
+                "-shortest", 
+                "-pix_fmt", "yuv420p", # Essential for streaming compatibility
+                out_video
             ]
             subprocess.run(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
             return job_id
