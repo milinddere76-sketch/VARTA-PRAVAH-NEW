@@ -65,7 +65,15 @@ class Streamer:
         print(f"Starting stream to {self.rtmp_url}...", flush=True)
         # By providing sys.stdout/stderr, we guarantee the sub-process output hits the Docker logs
         import sys
-        self.process = subprocess.Popen(command, stdout=sys.stdout, stderr=sys.stderr)
+        
+        # Convert the command list to a bash string
+        cmd_str = " ".join([f"'{c}'" if (" " in c or "=" in c) else c for c in command])
+        
+        # Super-robust Endless Restart Wrapper (mirroring the news-ai architecture logic)
+        # Guarantees the RTMP stream NEVER crashes on Coolify leaving a defunct process.
+        bash_loop = f"while true; do {cmd_str}; echo '⚠️ Temporal Stream disconnected. Auto-recovering in 5 seconds...'; sleep 5; done"
+        
+        self.process = subprocess.Popen(bash_loop, shell=True, executable='/bin/bash', stdout=sys.stdout, stderr=sys.stderr)
 
     def stop_stream(self):
         if self.process:

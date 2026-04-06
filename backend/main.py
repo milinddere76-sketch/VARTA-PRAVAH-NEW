@@ -48,11 +48,7 @@ async def get_temporal_client():
     # Use TEMPORAL_ADDRESS (standard) or TEMPORAL_HOST (custom)
     temporal_host = os.getenv("TEMPORAL_ADDRESS") or os.getenv("TEMPORAL_HOST") or "temporal:7233"
     print(f"Connecting to Temporal at: {temporal_host}")
-    try:
-        return await Client.connect(temporal_host)
-    except Exception as e:
-        print(f"Temporal Engine Unavailable. Proceeding in standalone/zero-pc mode. Error: {e}")
-        return None
+    return await Client.connect(temporal_host)
 
 from pydantic import BaseModel
 import os
@@ -106,19 +102,14 @@ async def trigger_news_generation(
     db.add(channel)
     db.commit()
     
-    if temporal_client:
-        handle = await temporal_client.start_workflow(
-            NewsProductionWorkflow.run,
-            {"channel_id": channel_id, "language": channel.language, "stream_key": channel.youtube_stream_key},
-            id=workflow_id,
-            task_queue="news-task-queue"
-        )
-        final_workflow_id = handle.id
-    else:
-        print("Standalone 'news-ai' sequence triggered. Bypassing Temporal Workflows.")
-        final_workflow_id = f"news-gen-standalone-{channel_id}-{int(time.time())}"
+    handle = await temporal_client.start_workflow(
+        NewsProductionWorkflow.run,
+        {"channel_id": channel_id, "language": channel.language, "stream_key": channel.youtube_stream_key},
+        id=workflow_id,
+        task_queue="news-task-queue"
+    )
     
-    return {"status": "processing", "workflow_id": final_workflow_id}
+    return {"status": "processing", "workflow_id": handle.id}
 
 @app.get("/channels", response_model=list[schemas.ChannelResponse])
 def list_channels(db: Session = Depends(database.get_db)):
