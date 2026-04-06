@@ -9,7 +9,8 @@ from .activities import (
     upload_to_s3_activity,
     start_stream_activity,
     ensure_promo_video_activity,
-    stop_stream_activity
+    stop_stream_activity,
+    check_scheduled_ads_activity
 )
 
 @workflow.defn
@@ -52,9 +53,38 @@ class NewsProductionWorkflow:
         
         # Tracking variables
         is_female_anchor = False
-        
+        import datetime
+        from zoneinfo import ZoneInfo
+        ist = ZoneInfo("Asia/Kolkata")
         while True:
             try:
+                # --- ADS & CUSTOM VIDEOS CHECK ---
+                # Check for ads scheduled for this hour
+                now = datetime.datetime.now(ist)
+                current_hour_str = now.strftime("%H") # Just the hour "08", "12", etc.
+                
+                ad_segments = await workflow.execute_activity(
+                    check_scheduled_ads_activity,
+                    {"channel_id": channel_id, "hour": current_hour_str},
+                    start_to_close_timeout=timedelta(seconds=60)
+                )
+
+                if ad_segments:
+                    for ad_video_url in ad_segments:
+                        print(f"Scheduled Ad Detected for {channel_id} @ {current_hour_str}. Injecting.")
+                        await workflow.execute_activity(
+                            start_stream_activity,
+                            {
+                                "channel_id": channel_id,
+                                "stream_key": stream_key,
+                                "video_url": ad_video_url,
+                                "is_promo": False
+                            },
+                            start_to_close_timeout=timedelta(seconds=60)
+                        )
+                        # Give it a 30s min buffer for ads
+                        await workflow.sleep(timedelta(seconds=35))
+                
                 # Toggle anchor for each loop iteration to add variety
                 is_female_anchor = not is_female_anchor
                 

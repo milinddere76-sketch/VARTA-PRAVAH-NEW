@@ -82,6 +82,29 @@ async def create_channel(
     db.refresh(db_channel)
     return db_channel
 
+# --- Advertising Endpoints ---
+@app.post("/channels/{channel_id}/ads", response_model=schemas.AdCampaignResponse)
+async def create_ad(channel_id: int, ad: schemas.AdCampaignCreate, db: Session = Depends(database.get_db)):
+    db_ad = models.AdCampaign(**ad.dict())
+    db.add(db_ad)
+    db.commit()
+    db.refresh(db_ad)
+    return db_ad
+
+@app.get("/channels/{channel_id}/ads", response_model=list[schemas.AdCampaignResponse])
+async def list_ads(channel_id: int, db: Session = Depends(database.get_db)):
+    return db.query(models.AdCampaign).filter(models.AdCampaign.channel_id == channel_id).all()
+
+@app.delete("/ads/{ad_id}")
+async def delete_ad(ad_id: int, db: Session = Depends(database.get_db)):
+    db_ad = db.query(models.AdCampaign).filter(models.AdCampaign.id == ad_id).first()
+    if not db_ad:
+        raise HTTPException(status_code=404, detail="Ad not found")
+    db.delete(db_ad)
+    db.commit()
+    return {"status": "deleted"}
+
+
 @app.post("/channels/{channel_id}/trigger")
 async def trigger_news_generation(
     channel_id: int,
@@ -168,3 +191,29 @@ async def delete_channel(
 @app.get("/channels", response_model=list[schemas.ChannelResponse])
 def list_channels(db: Session = Depends(database.get_db)):
     return db.query(models.Channel).all()
+
+# --- Advertisement Endpoints ---
+
+@app.post("/ads", response_model=schemas.AdAssetResponse)
+def create_ad_asset(ad: schemas.AdAssetCreate, db: Session = Depends(database.get_db)):
+    db_ad = models.AdAsset(**ad.dict())
+    db.add(db_ad)
+    db.commit()
+    db.refresh(db_ad)
+    return db_ad
+
+@app.get("/ads", response_model=list[schemas.AdAssetResponse])
+def list_ads(db: Session = Depends(database.get_db)):
+    return db.query(models.AdAsset).all()
+
+@app.post("/scheduled-ads", response_model=schemas.ScheduledAdResponse)
+def schedule_ad(sched: schemas.ScheduledAdCreate, db: Session = Depends(database.get_db)):
+    db_sched = models.ScheduledAd(**sched.dict())
+    db.add(db_sched)
+    db.commit()
+    db.refresh(db_sched)
+    return db_sched
+
+@app.get("/channels/{channel_id}/scheduled-ads", response_model=list[schemas.ScheduledAdResponse])
+def list_scheduled_ads(channel_id: int, db: Session = Depends(database.get_db)):
+    return db.query(models.ScheduledAd).filter(models.ScheduledAd.channel_id == channel_id).all()

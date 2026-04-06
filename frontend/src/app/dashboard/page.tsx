@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useEffect } from 'react';
-import { Plus, Play, ExternalLink, Activity, Info, AlertCircle, Settings, Trash2, Square } from 'lucide-react';
+import { Plus, Play, ExternalLink, Activity, Info, AlertCircle, Settings, Trash2, Square, Megaphone } from 'lucide-react';
 
 interface Channel {
   id: number;
@@ -10,6 +10,14 @@ interface Channel {
   youtube_stream_key: string;
   is_streaming: boolean;
   created_at: string;
+}
+
+interface AdCampaign {
+  id: number;
+  name: string;
+  video_url: string;
+  scheduled_hours: string;
+  is_active: boolean;
 }
 
 export default function DashboardPage() {
@@ -21,7 +29,11 @@ export default function DashboardPage() {
   
   const [showSettingsModal, setShowSettingsModal] = useState(false);
   const [settingsData, setSettingsData] = useState({ groq_api_key: '', world_news_api_key: '' });
-  // Route strictly through the Next.js rewrite proxy to conquer CORS and DNS blocks instantly!
+  
+  const [showAdModal, setShowAdModal] = useState<number | null>(null);
+  const [ads, setAds] = useState<AdCampaign[]>([]);
+  const [newAd, setNewAd] = useState({ name: '', video_url: '', scheduled_hours: '08,12,18,21' });
+  
   const API_URL = '/api';
 
   useEffect(() => {
@@ -144,6 +156,37 @@ export default function DashboardPage() {
     }
   };
 
+  const fetchAds = async (channelId: number) => {
+    try {
+      const res = await fetch(`${API_URL}/channels/${channelId}/ads`);
+      const data = await res.json();
+      setAds(data);
+    } catch (err) { console.error(err); }
+  };
+
+  const handleCreateAd = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!showAdModal) return;
+    try {
+      const res = await fetch(`${API_URL}/channels/${showAdModal}/ads`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ...newAd, channel_id: showAdModal })
+      });
+      if (res.ok) {
+        setNewAd({ name: '', video_url: '', scheduled_hours: '08,12,18,21' });
+        fetchAds(showAdModal);
+      }
+    } catch (err) { alert("Error adding ad."); }
+  };
+
+  const handleDeleteAd = async (adId: number) => {
+    try {
+      await fetch(`${API_URL}/ads/${adId}`, { method: 'DELETE' });
+      if (showAdModal) fetchAds(showAdModal);
+    } catch (err) { alert("Error."); }
+  };
+
   return (
     <div className="min-h-screen bg-[#0f111a] text-white flex font-sans">
       {/* Sidebar */}
@@ -235,6 +278,13 @@ export default function DashboardPage() {
                   >
                     <Square fill="currentColor" size={14} />
                   </button>
+                  <button
+                    onClick={() => { setShowAdModal(channel.id); fetchAds(channel.id); }}
+                    className="bg-purple-500/10 hover:bg-purple-600 border border-purple-500/30 hover:border-purple-600 text-purple-500 hover:text-white px-5 rounded-xl font-bold transition flex items-center justify-center"
+                    title="Ad Campaigns"
+                  >
+                    <Megaphone size={18} />
+                  </button>
                   <a 
                     href="https://studio.youtube.com/channel/live" 
                     target="_blank"
@@ -268,6 +318,64 @@ export default function DashboardPage() {
                 </button>
               </div>
             )}
+          </div>
+        )}
+
+        {/* Ads Management Modal */}
+        {showAdModal && (
+          <div className="fixed inset-0 bg-black/80 backdrop-blur-md flex items-center justify-center z-50 p-4">
+            <div className="bg-[#161926] w-full max-w-2xl p-10 rounded-3xl border border-[#22273a] shadow-2xl max-h-[90vh] overflow-y-auto">
+              <div className="flex justify-between items-start mb-8">
+                <div>
+                  <h3 className="text-3xl font-bold mb-2">Ad Scheduler</h3>
+                  <p className="text-gray-400">Manage commercials & custom clips for this channel.</p>
+                </div>
+                <button onClick={() => setShowAdModal(null)} className="text-gray-500 hover:text-white">✕</button>
+              </div>
+
+              <form onSubmit={handleCreateAd} className="bg-[#0f111a] p-6 rounded-2xl border border-[#22273a] mb-10 space-y-4">
+                <div className="grid grid-cols-2 gap-4">
+                  <input 
+                    placeholder="Ad Name (e.g. Morning Promo)"
+                    className="bg-transparent border border-[#22273a] rounded-xl px-4 py-3 focus:border-blue-500 outline-none"
+                    value={newAd.name}
+                    onChange={e => setNewAd({...newAd, name: e.target.value})}
+                    required
+                  />
+                  <input 
+                    placeholder="Hours (e.g. 09,14,21)"
+                    className="bg-transparent border border-[#22273a] rounded-xl px-4 py-3 focus:border-blue-500 outline-none"
+                    value={newAd.scheduled_hours}
+                    onChange={e => setNewAd({...newAd, scheduled_hours: e.target.value})}
+                    required
+                  />
+                </div>
+                <input 
+                  placeholder="Video URL (S3 or Direct Link)"
+                  className="w-full bg-transparent border border-[#22273a] rounded-xl px-4 py-3 focus:border-blue-500 outline-none"
+                  value={newAd.video_url}
+                  onChange={e => setNewAd({...newAd, video_url: e.target.value})}
+                  required
+                />
+                <button type="submit" className="w-full bg-blue-600 hover:bg-blue-700 py-3 rounded-xl font-bold">Add to Schedule</button>
+              </form>
+
+              <div className="space-y-4">
+                <h4 className="text-xs font-bold uppercase tracking-widest text-gray-500">Active Campaigns</h4>
+                {ads.map(ad => (
+                  <div key={ad.id} className="flex items-center justify-between bg-[#1f2335] p-5 rounded-2xl border border-[#2c324a]">
+                    <div>
+                      <p className="font-bold">{ad.name}</p>
+                      <p className="text-xs text-blue-400">Plays at: {ad.scheduled_hours}:00</p>
+                    </div>
+                    <button onClick={() => handleDeleteAd(ad.id)} className="text-red-500 hover:bg-red-500/10 p-2 rounded-lg transition">
+                      <Trash2 size={20} />
+                    </button>
+                  </div>
+                ))}
+                {ads.length === 0 && <p className="text-center text-gray-600 py-10">No advertisements scheduled yet.</p>}
+              </div>
+            </div>
           </div>
         )}
 

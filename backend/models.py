@@ -33,6 +33,23 @@ class Channel(Base):
     owner = relationship("User", back_populates="channels")
     
     segments = relationship("Segment", back_populates="channel")
+    ad_campaigns = relationship("AdCampaign", back_populates="channel")
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+class AdCampaign(Base):
+    __tablename__ = "ad_campaigns"
+
+    id = Column(Integer, primary_key=True, index=True)
+    channel_id = Column(Integer, ForeignKey("channels.id"))
+    channel = relationship("Channel", back_populates="ad_campaigns")
+
+    name = Column(String, nullable=False)
+    video_url = Column(String, nullable=False) # S3 or Local URL
+    
+    # Schedule logic: Simple hour-based triggers (e.g., "08:00,12:00,20:00")
+    scheduled_hours = Column(String, nullable=False) 
+    
+    is_active = Column(Boolean, default=True)
     created_at = Column(DateTime, default=datetime.utcnow)
 
 class Segment(Base):

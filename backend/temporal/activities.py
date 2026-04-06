@@ -342,3 +342,28 @@ async def stop_stream_activity(channel_id: int) -> str:
     except Exception as e:
         print(f"Error stopping stream: {e}")
         return "error"
+
+@activity.defn
+async def check_scheduled_ads_activity(data: dict) -> list[str]:
+    channel_id = data["channel_id"]
+    hour = data["hour"] # e.g. "08", "14", etc.
+    
+    from database import SessionLocal
+    from models import AdCampaign
+    
+    db = SessionLocal()
+    try:
+        # Search for ads where the scheduled hours string contains this hour
+        # e.g. "08:00,12:00" contains "08"
+        ads = db.query(AdCampaign).filter(
+            AdCampaign.channel_id == channel_id,
+            AdCampaign.is_active == True,
+            AdCampaign.scheduled_hours.contains(hour)
+        ).all()
+        
+        return [ad.video_url for ad in ads]
+    except Exception as e:
+        print(f"Error checking ads: {e}")
+        return []
+    finally:
+        db.close()

@@ -43,3 +43,20 @@ class SegmentResponse(BaseModel):
 
     class Config:
         from_attributes = True
+
+class AdCampaignCreate(BaseModel):
+    name: str
+    video_url: str
+    scheduled_hours: str # "08:00,12:00,20:00"
+    channel_id: int
+
+class AdCampaignResponse(BaseModel):
+    id: int
+    name: str
+    video_url: str
+    scheduled_hours: str
+    is_active: bool
+    channel_id: int
+
+    class Config:
+        from_attributes = True

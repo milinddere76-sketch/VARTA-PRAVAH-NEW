@@ -98,7 +98,7 @@ async def main():
             fetch_news_activity, generate_script_activity,
             synclabs_lip_sync_activity, check_sync_labs_status_activity,
             upload_to_s3_activity, start_stream_activity, ensure_promo_video_activity,
-            stop_stream_activity
+            stop_stream_activity, check_scheduled_ads_activity
         ],
         workflow_runner=UnsandboxedWorkflowRunner()
     )
