@@ -12,7 +12,8 @@ from .activities import (
     upload_to_s3_activity,
     start_stream_activity,
     ensure_promo_video_activity,
-    stop_stream_activity
+    stop_stream_activity,
+    check_scheduled_ads_activity
 )
 
 # Hardened Imports for Docker Subdirectory execution
@@ -20,6 +21,7 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from database import SessionLocal
 from models import Channel, User
 from sqlalchemy.orm import Session
+import temporal_utils
 
 async def seed_database():
     """Integrated Seeder: Ensure Channel 1 exists immediately on deployment."""
@@ -75,17 +77,7 @@ async def main():
     from dotenv import load_dotenv
     load_dotenv()
     
-    temporal_host = os.getenv("TEMPORAL_ADDRESS") or "temporal:7233"
-    client = None
-    
-    for i in range(24):
-        try:
-            client = await Client.connect(temporal_host)
-            print(f"Connected to Temporal on {temporal_host}!")
-            break
-        except Exception:
-            print(f"Syncing with News Engine... ({i+1}/24)")
-            await asyncio.sleep(10)
+    client = await temporal_utils.get_temporal_client()
     
     if not client: return
 

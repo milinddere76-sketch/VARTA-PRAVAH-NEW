@@ -48,8 +48,8 @@ async def fetch_news_activity(language: str) -> dict:
     combined_headline = "Top Updates: "
     combined_description = ""
     
-    # Define priorities
-    priorities = [("Maharashtra", 2), ("India", 2), ("World", 1)]
+    # Define priorities (Minimum 6 items total)
+    priorities = [("Maharashtra", 3), ("India", 3), ("World", 2)]
     
     for category, count in priorities:
         url = f"https://api.worldnewsapi.com/search-news?api-key={api_key}&text={category}&language={lang_code}&number={count}"
@@ -201,27 +201,39 @@ async def synclabs_lip_sync_activity(data: dict) -> str:
             # 2. Overlay anchor video over studio backdrop + generated audio + logo + professional news graphics
             # News display and tickers are drawn directly with drawtext filters
             # Ticker scrolling is achieved via 'mod(t*speed, text_w)' logic
+            # 2. Overlay anchor video over studio backdrop + generated audio + logo + professional news graphics
+            # News display and tickers are drawn directly with drawtext filters
+            # We mix in music.mp3 at a low volume if it exists
+            music_input = []
+            audio_filter = "[3:a]volume=1.0[v];" # Default: only voice
+            
+            if os.path.exists("/app/music.mp3"):
+                music_input = ["-i", "/app/music.mp3"]
+                audio_filter = "[3:a]volume=1.2[v];[4:a]volume=0.1[m];[v][m]amix=inputs=2:duration=first[outa];"
+            
             cmd = [
                 "ffmpeg", "-y", 
-                "-loop", "1", "-i", "/app/studio.jpg", # 1. Background
-                "-stream_loop", "-1", "-i", anchor_mp4, # 2. Anchor
-                "-i", "/app/logo.png", # 3. Logo
-                "-i", out_audio, # 4. Audio track
+                "-loop", "1", "-i", "/app/studio.jpg", # 0. Background
+                "-stream_loop", "-1", "-i", anchor_mp4, # 1. Anchor
+                "-i", "/app/logo.png", # 2. Logo
+                "-i", out_audio # 3. Audio track (Voice)
+            ] + music_input + [
                 "-filter_complex", 
-                # a) Scale background and core overlays to strict 16:9 (1280x720)
+                # a) Scale background and core overlays to strict 720p (1280x720)
                 "[0:v]scale=1280:720,setsar=1[bg];"
                 "[1:v]colorkey=0x00FF00:0.3:0.2,scale=1280:720[anchor];"
                 "[bg][anchor]overlay=(W-w)/2:(H-h)/2[base];"
                 "[2:v]scale=180:-1[logoscale];"
-                "[base][logoscale]overlay=W-w-40:40[withlogo];"
+                "[base][logoscale]overlay=W-w-140:40[withlogo];"
                 # b) Draw News Ticker Bar (Bottom red bar)
-                "[withlogo]drawbox=y=ih-100:w=iw:h=100:color=red@0.8:t=fill[tickerbg];"
+                "[withlogo]drawbox=y=ih-110:w=iw:h=110:color=red@0.9:t=fill[tickerbg];"
                 # c) Dynamic Headline (Stationary bold news title on the left)
-                f"[tickerbg]drawtext=text='{headline_text}':fontcolor=white:fontsize=42:fontfile=/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf:x=40:y=h-85:shadowcolor=black:shadowx=2:shadowy=2[withheadline];"
+                f"[tickerbg]drawtext=text='{headline_text}':fontcolor=white:fontsize=48:fontfile=/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf:x=40:y=h-95:shadowcolor=black:shadowx=2:shadowy=2[withheadline];"
                 # d) Scrolling Bottom Ticker (White sub-text moving right to left)
-                "[withheadline]drawtext=text='VARTA PRAVAH NEWS - LIVE - FAST 50 - UPDATES EVERY 30 MINS':fontcolor=white:fontsize=28:x=w-mod(t*220,w+tw):y=h-35:shadowcolor=black:shadowx=2:shadowy=2[outv]",
-                "-map", "[outv]", "-map", "3:a",
-                "-c:v", "libx264", "-c:a", "aac",
+                "[withheadline]drawtext=text='VARTA PRAVAH NEWS - LIVE - FAST 100 - UPDATES EVERY 30 MINS - STAY TUNED':fontcolor=white:fontsize=32:x=w-mod(t*220,w+tw):y=h-40:shadowcolor=black:shadowx=2:shadowy=2[outv];" + 
+                (audio_filter if music_input else "[3:a]volume=1.2[outa]"),
+                "-map", "[outv]", "-map", "[outa]",
+                "-c:v", "libx264", "-preset", "veryfast", "-c:a", "aac",
                 "-shortest", 
                 "-pix_fmt", "yuv420p", # Essential for streaming compatibility
                 out_video
@@ -386,3 +398,22 @@ async def check_scheduled_ads_activity(data: dict) -> list[str]:
         return []
     finally:
         db.close()
+
+@activity.defn
+async def cleanup_old_videos_activity() -> str:
+    """Auto-delete videos older than 24 hours to save space."""
+    video_dir = "/app/videos"
+    if not os.path.exists(video_dir):
+        return "Directory missing"
+        
+    now = time.time()
+    deleted_count = 0
+    for f in os.listdir(video_dir):
+        file_path = os.path.join(video_dir, f)
+        if os.path.getmtime(file_path) < now - (24 * 3600):
+            try:
+                os.remove(file_path)
+                deleted_count += 1
+            except Exception:
+                pass
+    return f"Cleanup complete: Deleted {deleted_count} files."

@@ -10,7 +10,8 @@ from .activities import (
     start_stream_activity,
     ensure_promo_video_activity,
     stop_stream_activity,
-    check_scheduled_ads_activity
+    check_scheduled_ads_activity,
+    cleanup_old_videos_activity
 )
 
 @workflow.defn
@@ -56,6 +57,8 @@ class NewsProductionWorkflow:
         import datetime
         from zoneinfo import ZoneInfo
         ist = ZoneInfo("Asia/Kolkata")
+        
+        last_cleanup_day = -1
         while True:
             try:
                 # --- ADS & CUSTOM VIDEOS CHECK ---
@@ -151,11 +154,35 @@ class NewsProductionWorkflow:
                     start_to_close_timeout=timedelta(seconds=60)
                 )
                 
-                # Sleep before next scheduled news loop (e.g. 30 minutes)
-                await workflow.sleep(timedelta(minutes=30))
+                # 7. Periodic Cleanup (Once per day)
+                now = datetime.datetime.now(ist)
+                if now.day != last_cleanup_day:
+                    await workflow.execute_activity(
+                        cleanup_old_videos_activity,
+                        start_to_close_timeout=timedelta(minutes=5)
+                    )
+                    last_cleanup_day = now.day
+
+                # 8. SMART SLEEPING: Calculate next run
+                # If it's near midnight or morning, we can sleep until exactly 5 AM if desired,
+                # but otherwise we do the 30-minute news rotation.
+                
+                # Check if we should wait for the specific 5 AM "Daily Generation"
+                # If current time is between 4:30 AM and 5:00 AM, sleep exactly until 5:00.
+                if now.hour == 4 and now.minute >= 30:
+                    five_am = now.replace(hour=5, minute=0, second=0, microsecond=0)
+                    sleep_secs = (five_am - now).total_seconds()
+                    if sleep_secs > 0:
+                        print(f"Approaching 5 AM refresh. Sleeping for {sleep_secs} seconds.")
+                        await workflow.sleep(timedelta(seconds=sleep_secs))
+                    else:
+                        await workflow.sleep(timedelta(minutes=30))
+                else:
+                    # Normal rotation loop
+                    await workflow.sleep(timedelta(minutes=30))
 
             except Exception as e:
-                # 7. FAIL-SAFE: Play Promo Video
+                # 9. FAIL-SAFE: Play Promo Video
                 print(f"Error in news generation (Channel {channel_id}): {e}. Playing Promo Fallback.")
                 try:
                     await workflow.execute_activity(

@@ -2,7 +2,7 @@ from fastapi import FastAPI, Depends, HTTPException, status
 import os
 from sqlalchemy.orm import Session
 from temporalio.client import Client
-import database, models, schemas
+import database, models, schemas, temporal_utils
 from datetime import timedelta
 from temporal.workflows import NewsProductionWorkflow, StopStreamWorkflow
 
@@ -45,10 +45,7 @@ def read_root():
 
 
 async def get_temporal_client():
-    # Use TEMPORAL_ADDRESS (standard) or TEMPORAL_HOST (custom)
-    temporal_host = os.getenv("TEMPORAL_ADDRESS") or os.getenv("TEMPORAL_HOST") or "temporal:7233"
-    print(f"Connecting to Temporal at: {temporal_host}")
-    return await Client.connect(temporal_host)
+    return await temporal_utils.get_temporal_client()
 
 from pydantic import BaseModel
 import os
@@ -192,28 +189,4 @@ async def delete_channel(
 def list_channels(db: Session = Depends(database.get_db)):
     return db.query(models.Channel).all()
 
-# --- Advertisement Endpoints ---
 
-@app.post("/ads", response_model=schemas.AdAssetResponse)
-def create_ad_asset(ad: schemas.AdAssetCreate, db: Session = Depends(database.get_db)):
-    db_ad = models.AdAsset(**ad.dict())
-    db.add(db_ad)
-    db.commit()
-    db.refresh(db_ad)
-    return db_ad
-
-@app.get("/ads", response_model=list[schemas.AdAssetResponse])
-def list_ads(db: Session = Depends(database.get_db)):
-    return db.query(models.AdAsset).all()
-
-@app.post("/scheduled-ads", response_model=schemas.ScheduledAdResponse)
-def schedule_ad(sched: schemas.ScheduledAdCreate, db: Session = Depends(database.get_db)):
-    db_sched = models.ScheduledAd(**sched.dict())
-    db.add(db_sched)
-    db.commit()
-    db.refresh(db_sched)
-    return db_sched
-
-@app.get("/channels/{channel_id}/scheduled-ads", response_model=list[schemas.ScheduledAdResponse])
-def list_scheduled_ads(channel_id: int, db: Session = Depends(database.get_db)):
-    return db.query(models.ScheduledAd).filter(models.ScheduledAd.channel_id == channel_id).all()
