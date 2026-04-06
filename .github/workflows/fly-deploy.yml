@@ -1,0 +1,27 @@
+name: Fly Deploy News Engine
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'news-ai/**'
+
+jobs:
+  deploy:
+    name: Deploy to Fly.io
+    runs-on: ubuntu-latest
+    
+    # We only need permission to clone the repository natively.
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+        
+      - name: Set up Flyctl CLI
+        uses: superfly/flyctl-actions/setup-flyctl@master
+        
+      - name: Deploy Zero-PC Streamer
+        # Navigates to the news-ai folder and triggers the strict Fly pipeline.
+        run: flyctl deploy --remote-only
+        working-directory: ./news-ai
+        env:
+          FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
