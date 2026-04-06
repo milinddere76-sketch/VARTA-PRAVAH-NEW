@@ -1,7 +1,11 @@
 #!/bin/bash
 
 # Configuration
-YOUTUBE_KEY="YOUR_YOUTUBE_STREAM_KEY_HERE"
+# Source .env file if it exists to get any local environment variables
+if [ -f .env ]; then
+    export $(cat .env | grep -v '^#' | xargs)
+fi
+YOUTUBE_KEY="${YOUTUBE_STREAM_KEY:-qcu7-xesd-m4sv-9zvv-e335}"
 PLAYLIST_FILE="playlist.txt"
 VIDEOS_DIR="videos"
 
