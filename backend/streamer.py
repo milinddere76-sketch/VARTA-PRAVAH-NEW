@@ -14,8 +14,8 @@ class Streamer:
     def create_initial_playlist(self, initial_video: str):
         """Creates a playlist file that loops the initial video."""
         with open(self.playlist_path, "w") as f:
-            f.write(f"file '{initial_video}'\n")
-            f.write(f"file '{initial_video}'\n")  # Loop buffer
+            f.write(f"file {initial_video}\n")
+            f.write(f"file {initial_video}\n")  # Loop buffer
 
     def update_playlist(self, new_video: str):
         """Updates the playlist to point to the new video for the next loop."""
@@ -23,7 +23,7 @@ class Streamer:
         # will read the file once and loop. To hot-swap, we need a more 
         # advanced approach or just overwrite and let the next loop pick it up.
         with open(self.playlist_path, "w") as f:
-            f.write(f"file '{new_video}'\n")
+            f.write(f"file {new_video}\n")
 
     def start_stream(self):
         """Starts the FFmpeg process."""

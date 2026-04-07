@@ -188,9 +188,8 @@ async def synclabs_lip_sync_activity(data: dict) -> str:
             return "mock_job_fallback"
             
         job_id = f"mock_job_fallback_{uuid.uuid4().hex}"
-        os.makedirs("/app/videos", exist_ok=True)
-        out_audio = f"/app/videos/{job_id}.mp3"
-        out_video = f"/app/videos/{job_id}.mp4"
+        out_audio = f"/app/{job_id}.mp3"
+        out_video = f"/app/{job_id}.mp4"
         
         try:
             # 1. Generate Marathi Audio via Edge TTS
@@ -247,7 +246,14 @@ async def synclabs_lip_sync_activity(data: dict) -> str:
                 "-pix_fmt", "yuv420p", # Essential for streaming compatibility
                 out_video
             ]
-            subprocess.run(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            process = subprocess.run(cmd, capture_output=True, text=True)
+            if process.returncode != 0:
+                print(f"ERROR: Local video generation failed! StdErr: {process.stderr}")
+                raise Exception(f"FFmpeg generator failed with code {process.returncode}")
+                
+            if not os.path.exists(out_video) or os.path.getsize(out_video) < 1000:
+                raise Exception("News segment file is missing or too small after generation.")
+                
             return job_id
         except Exception as fallback_e:
             print(f"Failed to generate dynamic local video: {fallback_e}")
@@ -262,7 +268,7 @@ async def check_sync_labs_status_activity(job_id: str) -> dict:
         return {"status": "completed", "video_url": os.getenv("SYNC_LABS_BASE_VIDEO_URL")}
         
     if job_id.startswith("mock_job_fallback_"):
-        return {"status": "completed", "video_url": f"/app/videos/{job_id}.mp4"}
+        return {"status": "completed", "video_url": f"/app/{job_id}.mp4"}
 
     # 1. Poll Sync Labs Real API
     headers = {"x-api-key": os.getenv("SYNCLABS_API_KEY")}
@@ -290,8 +296,8 @@ async def upload_to_s3_activity(video_url: str) -> str:
 
 @activity.defn
 async def ensure_promo_video_activity() -> bool:
-    promo_path = "/app/videos/promo.mp4"
-    image_path = "/app/videos/promo.png"
+    promo_path = "/app/promo.mp4"
+    image_path = "/app/promo.png"
     
     # If we need to upgrade the promo (e.g. to add audio), we delete it here once
     # For now, let's just make it robust.
@@ -332,37 +338,18 @@ async def start_stream_activity(data: dict) -> str:
         print(f"[MOCK] Starting stream for channel {channel_id}")
         return "mock_stream_started"
 
-    # 1. Management: Check for existing streamer
+    # 1. Management: Cleanly annihilate any existing streamer for this channel
     playlist_name = f"playlist_{channel_id}.txt"
-    needs_restart = False
-    
     try:
-        res = subprocess.run(f'pgrep -f {playlist_name}', shell=True, capture_output=True, text=True)
-        if res.stdout:
-            # We found an existing stream. 
-            # If we are switching from News to Promo (or vice versa), we MUST restart for "Immediate" effect.
-            # We track this by checking the actual playlist contents since parsing pgrep for promo.mp4 is unreliable inside a bash loop wrapper.
-            try:
-                with open(playlist_name, "r") as f:
-                    content = f.read()
-                    is_currently_promo = "promo.mp4" in content
-            except Exception:
-                is_currently_promo = False
-
-            if is_promo != is_currently_promo:
-                print(f"Content switch detected (Promo: {is_currently_promo} -> {is_promo}). Forcing immediate restart for Channel {channel_id}.")
-                # Cleanly annihilate BOTH the bash while-true loop AND the child ffmpeg processes.
-                subprocess.run(f"pkill -9 -f {playlist_name}", shell=True)
-                needs_restart = True
-            else:
-                print(f"Streamer already running for channel {channel_id}. Updating playlist.")
-                streamer = Streamer(stream_key, channel_id)
-                streamer.update_playlist(video_url)
-                return "stream_updated"
+        print(f"Refreshing encoder for Channel {channel_id} to ensure 24/7 stability...")
+        # Kill BOTH the bash while-true loop AND the child ffmpeg processes.
+        subprocess.run(f"pkill -9 -f {playlist_name}", shell=True)
+        # Give a small 2s buffer for ports/keys to clear
+        time.sleep(2)
     except Exception as e:
-        print(f"Error checking processes: {e}")
+        print(f"Check error (ignoring): {e}")
 
-    # 2. Start new streamer (Initial start or Force Restart)
+    # 2. Start fresh streamer (Initial start or Force Restart)
     try:
         streamer = Streamer(stream_key, channel_id)
         streamer.create_initial_playlist(video_url)
@@ -411,7 +398,7 @@ async def check_scheduled_ads_activity(data: dict) -> list[str]:
 @activity.defn
 async def cleanup_old_videos_activity() -> str:
     """Auto-delete videos older than 24 hours to save space."""
-    video_dir = "/app/videos"
+    video_dir = "/app"
     if not os.path.exists(video_dir):
         return "Directory missing"
         
