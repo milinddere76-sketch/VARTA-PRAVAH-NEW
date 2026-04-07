@@ -21,4 +21,4 @@ async def get_temporal_client(max_retries=24, delay=10):
             print(f"⏳ Waiting for Temporal Engine... ({i+1}/{max_retries})")
             await asyncio.sleep(delay)
             
-    return None
+    raise ConnectionError(f"Critical: Failed to connect to Temporal at {temporal_host} after {max_retries} attempts.")
