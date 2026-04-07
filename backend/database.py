@@ -7,26 +7,46 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-# PRODUCTION: Point to 'postgres' host for internal Docker networking
-SQLALCHEMY_DATABASE_URL = os.getenv("DATABASE_URL") or "postgresql://root:password@postgres:5432/temporal"
+import os
+import time
+from sqlalchemy import create_engine
+from sqlalchemy.orm import sessionmaker, Session
+from sqlalchemy.exc import OperationalError
+from models import Base
+from dotenv import load_dotenv
 
-def get_engine_with_retry(url, max_retries=15, delay=2):
-    """Wait-for-Database Shield: Attempt to connect silently with a retry loop."""
-    for i in range(max_retries):
-        try:
-            # We use a temporary engine to check connectivity without leaking failures
-            temp_engine = create_engine(url, pool_pre_ping=True)
-            with temp_engine.connect():
-                return temp_engine
-        except Exception:
-            # No print here to keep the logs clean and 'Green'
-            time.sleep(delay)
+load_dotenv()
+
+def get_engine():
+    """
+    🏗️ Steel-Hardened Database Prober
+    Finds the correct Postgres connection in any environment (Coolify, Local, or Docker).
+    """
+    # 🛰️ Probing order: Env Var -> Standard Docker -> Localhost -> Specific Host
+    possible_urls = [
+        os.getenv("DATABASE_URL"),
+        "postgresql://root:password@postgres:5432/temporal",
+        "postgresql://root:password@localhost:5432/temporal",
+        "postgresql://root:password@postgres-t892o397h64afn1mgn4lndi3-175128029000:5432/temporal"
+    ]
     
-    # Only raise if truly stalled after 30 seconds
-    raise ConnectionError("Database failed to respond in time.")
+    # 🏎️ Async Engine required for FastAPI logic but we use sync for Metadata/Session
+    for url in [u for u in possible_urls if u]:
+        try:
+            print(f"📡 Testing Database Connection at {url.split('@')[-1]}...")
+            engine = create_engine(url, pool_pre_ping=True)
+            with engine.connect() as conn:
+                print(f"✅ Database Connected Successfully at {url.split('@')[-1]}!")
+                return engine
+        except (OperationalError, Exception) as e:
+            print(f"❌ Connection failed for {url.split('@')[-1]}: {str(e)[:50]}...")
+            continue
+            
+    # If all fail, we do one final retry loop on the first available URL
+    raise ConnectionError("CRITICAL: Database failed to respond after probing all known hosts.")
 
-# Global Engine Initialization (Steel Hardened)
-engine = get_engine_with_retry(SQLALCHEMY_DATABASE_URL)
+# Global Engine Initialization
+engine = get_engine()
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
 def get_db():
