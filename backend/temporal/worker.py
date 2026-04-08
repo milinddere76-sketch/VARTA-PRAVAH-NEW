@@ -52,27 +52,41 @@ async def seed_database():
         db.close()
 
 async def trigger_auto_start(client: Client):
+    """🚀 Autonomous Engine Ignition: Automatically starts news production on boot."""
     await seed_database()
     channel_id = os.getenv("AUTO_START_CHANNEL_ID", "1")
-    language = os.getenv("DEFAULT_LANGUAGE", "mr")
+    language = os.getenv("DEFAULT_LANGUAGE", " Marathi").strip()
     stream_key = os.getenv("YOUTUBE_STREAM_KEY", "")
     workflow_id = f"news-production-{channel_id}"
 
-    if not stream_key: return
+    if not stream_key:
+        print("🛰️ AUTOPILOT: Waiting for YOUTUBE_STREAM_KEY to be configured...")
+        return
+
+    # 🔄 Attempt to start the workflow with retries
+    for attempt in range(5):
+        try:
+            print(f"🛰️ AUTOPILOT: Checking for active broadcast (Attempt {attempt+1}/5)...")
+            handle = client.get_workflow_handle(workflow_id)
+            desc = await handle.describe()
+            if desc.status.name == "RUNNING":
+                print(f"✅ AUTOPILOT: Channel {channel_id} is already LIVE. Resuming monitoring.")
+                return
+        except Exception:
+            # Workflow doesn't exist yet, proceeding to start
+            break
+        await asyncio.sleep(5)
 
     try:
-        handle = client.get_workflow_handle(workflow_id)
-        desc = await handle.describe()
-        if desc.status.name == "RUNNING": return
-    except Exception: pass
-
-    try:
+        print(f"🚀 AUTOPILOT: Launching news production workflow for Channel {channel_id}...")
         await client.start_workflow(
             NewsProductionWorkflow.run,
             {"channel_id": int(channel_id), "language": language, "stream_key": stream_key},
             id=workflow_id, task_queue="news-task-queue"
         )
-    except Exception as e: print(f"Auto-trigger error: {e}")
+        print("✅ AUTOPILOT: Workflow launched successfully!")
+    except Exception as e:
+        print(f"❌ AUTOPILOT ERROR: {e}")
 
 async def main():
     from dotenv import load_dotenv

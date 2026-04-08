@@ -16,7 +16,7 @@ async def get_temporal_client(max_retries=24, delay=5):
         "localhost:7233",
         "127.0.0.1:7233",
         # Adding the specific Coolify-generated name as a fallback for this environment
-        "temporal-t892o397h64afn1mgn4lndi3-175128076895:7233"
+        "temporal-t892o397h64afn1mgn4lndi3-234723919922:7233"
     ]
     
     # Filter out None and empty strings

@@ -263,14 +263,10 @@ export default function DashboardPage() {
                 </div>
 
                 <div className="flex space-x-3">
-                  <button 
-                    disabled={processing === channel.id}
-                    onClick={() => handleTriggerNews(channel.id)}
-                    className={`flex-1 ${processing === channel.id ? 'bg-gray-700' : 'bg-blue-600 hover:bg-blue-700'} text-white py-3.5 rounded-xl font-bold transition flex items-center justify-center space-x-2`}
-                  >
-                    <Play size={18} />
-                    <span>{processing === channel.id ? 'Processing...' : 'Generate News'}</span>
-                  </button>
+                  <div className="flex-1 bg-blue-600/10 border border-blue-500/30 text-blue-400 py-3.5 rounded-xl font-bold flex items-center justify-center space-x-2 animate-pulse">
+                    <Activity size={18} />
+                    <span>🛰️ Automator: ACTIVE</span>
+                  </div>
                   <button
                     onClick={() => handleStopChannel(channel.id)}
                     className="bg-red-500/10 hover:bg-red-600 border border-red-500/30 hover:border-red-600 text-red-500 hover:text-white px-5 rounded-xl font-bold transition flex items-center justify-center"
