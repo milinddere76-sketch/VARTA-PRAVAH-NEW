@@ -33,12 +33,15 @@ services:
       - POSTGRES_USER=root
       - POSTGRES_PWD=password
       - POSTGRES_SEEDS=postgres
-      - SKIP_DB_CREATE=true
-      - SKIP_SCHEMA_SETUP=true
-      - SKIP_DEFAULT_NAMESPACE_CREATION=true
       - TEMPORAL_VISIBILITY_STORE_TYPE=postgres
     ports:
       - "7233:7233"
+    healthcheck:
+      test: ["CMD-SHELL", "timeout 5 bash -c 'cat < /dev/null > /dev/tcp/localhost/7233'"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
     dns:
       - 8.8.8.8
       - 1.1.1.1
@@ -135,8 +138,12 @@ services:
       - 8.8.8.8
       - 1.1.1.1
     depends_on:
-      - backend
-      - temporal
+      backend:
+        condition: service_started
+      temporal:
+        condition: service_started
+      postgres:
+        condition: service_healthy
     networks:
       - vartapravah-net
 
