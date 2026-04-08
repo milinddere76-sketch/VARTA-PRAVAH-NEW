@@ -113,13 +113,23 @@ async def trigger_news_generation(
     if not channel:
         raise HTTPException(status_code=404, detail="Channel not found")
 
-    # 2. Trigger Temporal Workflow with deterministic single-channel ID
-    workflow_id = f"news-production-{channel_id}"
+    # 2. Trigger Temporal Workflow with a stable base workflow ID
+    base_workflow_id = f"news-production-{channel_id}"
+    workflow_id = base_workflow_id
     
     # Update channel status to "Live"
     channel.is_streaming = True
     db.add(channel)
     db.commit()
+
+    # If an old workflow exists but is not currently RUNNING, start a fresh instance.
+    try:
+        existing_handle = temporal_client.get_workflow_handle(workflow_id)
+        desc = await existing_handle.describe()
+        if desc.status.name == "RUNNING":
+            return {"status": "already_running", "workflow_id": workflow_id, "message": "News generation is already in progress"}
+    except Exception:
+        pass
     
     try:
         handle = await temporal_client.start_workflow(
@@ -130,13 +140,17 @@ async def trigger_news_generation(
         )
         return {"status": "processing", "workflow_id": handle.id}
     except Exception as e:
-        # Handle case where workflow is already running
         error_str = str(e).lower()
-        if "already started" in error_str or "workflowalreadystarted" in str(type(e)).lower():
-            return {"status": "already_running", "workflow_id": workflow_id, "message": "News generation is already in progress"}
-        else:
-            # Re-raise other exceptions
-            raise
+        if "already started" in error_str or "workflowalreadystarted" in error_str:
+            new_workflow_id = f"{base_workflow_id}-{int(__import__('time').time())}"
+            handle = await temporal_client.start_workflow(
+                NewsProductionWorkflow.run,
+                {"channel_id": channel_id, "language": channel.language, "stream_key": channel.youtube_stream_key},
+                id=new_workflow_id,
+                task_queue="news-task-queue"
+            )
+            return {"status": "processing", "workflow_id": handle.id, "message": "Started new workflow instance after stale workflow id"}
+        raise
 
 @app.post("/channels/{channel_id}/stop")
 async def stop_news_generation(

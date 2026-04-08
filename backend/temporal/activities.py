@@ -258,16 +258,35 @@ async def ensure_promo_video_activity() -> bool:
         
     print(f"Generating professional promo video with audio from {image_path}...")
     try:
-        cmd = [
-            "ffmpeg", "-y", 
-            "-loop", "1", "-i", image_path,
-            "-f", "lavfi", "-i", "anullsrc=channel_layout=stereo:sample_rate=44100",
-            "-t", "15",
-            "-vf", "scale=1280:720,format=yuv420p",
-            "-c:v", "libx264", "-preset", "ultrafast",
-            "-c:a", "aac", "-b:a", "128k", "-shortest",
-            promo_path
-        ]
+        logo_path = None
+        for candidate in ["/app/logo.png", "/app/logo.svg"]:
+            if os.path.exists(candidate):
+                logo_path = candidate
+                break
+
+        if logo_path:
+            cmd = [
+                "ffmpeg", "-y", 
+                "-loop", "1", "-i", image_path,
+                "-f", "lavfi", "-i", "anullsrc=channel_layout=stereo:sample_rate=44100",
+                "-i", logo_path,
+                "-t", "15",
+                "-filter_complex", "[0:v]scale=1280:720,format=yuv420p[bg];[bg][2:v]overlay=W-w-20:20:format=auto",
+                "-c:v", "libx264", "-preset", "ultrafast",
+                "-c:a", "aac", "-b:a", "128k", "-shortest",
+                promo_path
+            ]
+        else:
+            cmd = [
+                "ffmpeg", "-y", 
+                "-loop", "1", "-i", image_path,
+                "-f", "lavfi", "-i", "anullsrc=channel_layout=stereo:sample_rate=44100",
+                "-t", "15",
+                "-vf", "scale=1280:720,format=yuv420p",
+                "-c:v", "libx264", "-preset", "ultrafast",
+                "-c:a", "aac", "-b:a", "128k", "-shortest",
+                promo_path
+            ]
         subprocess.run(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
         return True
     except Exception as e:

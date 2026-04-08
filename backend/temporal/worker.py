@@ -1,6 +1,7 @@
 import asyncio
 import os
 import sys
+import time
 from temporalio.client import Client
 from temporalio.worker import Worker, UnsandboxedWorkflowRunner
 from .workflows import NewsProductionWorkflow, StopStreamWorkflow
@@ -59,6 +60,7 @@ async def trigger_auto_start(client: Client):
     language = os.getenv("DEFAULT_LANGUAGE", " Marathi").strip()
     stream_key = os.getenv("YOUTUBE_STREAM_KEY", "")
     workflow_id = f"news-production-{channel_id}"
+    base_workflow_id = workflow_id
 
     if not stream_key:
         print("🛰️ AUTOPILOT: Waiting for YOUTUBE_STREAM_KEY to be configured...")
@@ -74,7 +76,7 @@ async def trigger_auto_start(client: Client):
                 print(f"✅ AUTOPILOT: Channel {channel_id} is already LIVE. Resuming monitoring.")
                 return
         except Exception:
-            # Workflow doesn't exist yet, proceeding to start
+            # Workflow doesn't exist yet, or the ID is stale/failed
             break
         await asyncio.sleep(5)
 
@@ -87,7 +89,20 @@ async def trigger_auto_start(client: Client):
         )
         print("✅ AUTOPILOT: Workflow launched successfully!")
     except Exception as e:
-        print(f"❌ AUTOPILOT ERROR: {e}")
+        error_str = str(e).lower()
+        if "already started" in error_str or "workflowalreadystarted" in error_str:
+            workflow_id = f"{base_workflow_id}-{int(time.time())}"
+            try:
+                await client.start_workflow(
+                    NewsProductionWorkflow.run,
+                    {"channel_id": int(channel_id), "language": language, "stream_key": stream_key},
+                    id=workflow_id, task_queue="news-task-queue"
+                )
+                print(f"✅ AUTOPILOT: Started fresh workflow as {workflow_id} after stale workflow id conflict.")
+            except Exception as inner:
+                print(f"❌ AUTOPILOT ERROR on fresh workflow start: {inner}")
+        else:
+            print(f"❌ AUTOPILOT ERROR: {e}")
 
 async def main():
     from dotenv import load_dotenv
