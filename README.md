@@ -22,9 +22,17 @@ VartaPravah is a fully automated AI news broadcasting platform focusing on regio
 ### 2. Backend Setup
 1. Navigate to `/backend`.
 2. `pip install -r requirements.txt`
-3. Copy `.env.example` to `.env` and fill in your API keys.
+3. Copy `backend/.env.example` to `backend/.env` and fill in your API keys.
 4. Run the worker: `python -m temporal.worker`
 5. Run the API: `uvicorn main:app --reload`
+
+### 2a. Environment Variables
+- `DATABASE_URL`: PostgreSQL connection string for production or Docker.
+- `SQLITE_URL`: local SQLite fallback for development when PostgreSQL is unavailable.
+- `TEMPORAL_ADDRESS`: Temporal server host and port, e.g. `localhost:7233`.
+- `GROQ_API_KEY`, `WORLD_NEWS_API_KEY`, `YOUTUBE_STREAM_KEY`: service API keys.
+
+> If PostgreSQL is unreachable during startup, the backend will automatically fall back to the local SQLite database specified by `SQLITE_URL` or `backend/dev.db`.
 
 ### 3. Frontend Setup
 1. Navigate to `/frontend`.
