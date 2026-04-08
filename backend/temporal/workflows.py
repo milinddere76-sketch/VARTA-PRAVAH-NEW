@@ -1,4 +1,5 @@
-from datetime import timedelta
+from datetime import datetime, timedelta
+from zoneinfo import ZoneInfo
 from temporalio import workflow
 from temporalio.common import RetryPolicy
 from .activities import (
@@ -45,25 +46,19 @@ class NewsProductionWorkflow:
             {
                 "channel_id": channel_id,
                 "stream_key": stream_key,
-                "video_url": "/app/anchor.mp4",
+                "video_url": "/app/videos/promo.mp4",
                 "is_promo": True
             },
             start_to_close_timeout=timedelta(seconds=60)
         )
-        
-        
-        # Tracking variables
-        is_female_anchor = False
-        import datetime
-        from zoneinfo import ZoneInfo
-        ist = ZoneInfo("Asia/Kolkata")
-        
         last_cleanup_day = -1
+        is_female_anchor = False
+        ist = ZoneInfo("Asia/Kolkata")
         while True:
             try:
                 # --- ADS & CUSTOM VIDEOS CHECK ---
                 # Check for ads scheduled for this hour
-                now = datetime.datetime.now(ist)
+                now = datetime.now(ist)
                 current_hour_str = now.strftime("%H") # Just the hour "08", "12", etc.
                 
                 ad_segments = await workflow.execute_activity(
@@ -133,7 +128,13 @@ class NewsProductionWorkflow:
                     )
                     status = result.get("status", "pending")
                     final_video_url = result.get("video_url", "")
-                    
+
+                # If the news generator returns an empty video URL, keep promo until next cycle.
+                if not final_video_url:
+                    print(f"News job completed without a valid video URL for channel {channel_id}. Keeping promo until next cycle.")
+                    await workflow.sleep(timedelta(minutes=5))
+                    continue
+
                 # 5. Upload to S3
                 s3_url = await workflow.execute_activity(
                     upload_to_s3_activity,
@@ -155,7 +156,7 @@ class NewsProductionWorkflow:
                 )
                 
                 # 7. Periodic Cleanup (Once per day)
-                now = datetime.datetime.now(ist)
+                now = datetime.now(ist)
                 if now.day != last_cleanup_day:
                     await workflow.execute_activity(
                         cleanup_old_videos_activity,
@@ -190,7 +191,7 @@ class NewsProductionWorkflow:
                         {
                             "channel_id": channel_id,
                             "stream_key": stream_key,
-                            "video_url": "/app/promo.mp4",
+                            "video_url": "/app/videos/promo.mp4",
                             "is_promo": True
                         },
                         start_to_close_timeout=timedelta(seconds=60)

@@ -6,8 +6,8 @@ const nextConfig: NextConfig = {
       {
         // Intercept all /api calls from the browser natively
         source: '/api/:path*',
-        // Proxy them behind impenetrable Docker local subnets straight to FastAPI!
-        destination: 'http://backend:8000/:path*',
+        // Proxy them to localhost:8000 for development (when running outside Docker)
+        destination: 'http://localhost:8000/:path*',
       },
     ];
   },

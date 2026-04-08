@@ -133,7 +133,7 @@ services:
       - AUTO_START_CHANNEL_ID=1
       - DEFAULT_LANGUAGE=mr
     volumes:
-      - ./backend/videos:/app/videos
+      - ./backend:/app
     dns:
       - 8.8.8.8
       - 1.1.1.1

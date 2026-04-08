@@ -1,62 +1,34 @@
 from pydantic import BaseModel
-from datetime import datetime
 from typing import Optional
+from datetime import datetime
 
-class UserCreate(BaseModel):
-    email: str
-    password: str
-    full_name: str
-
-class UserResponse(BaseModel):
-    id: int
-    email: str
-    full_name: str
-    tier: str
-    created_at: datetime
-
-    class Config:
-        from_attributes = True
-
-class ChannelCreate(BaseModel):
-    name: str
-    language: str = "Marathi"
-    youtube_stream_key: Optional[str] = None
-    owner_id: int
-
-class ChannelResponse(BaseModel):
-    id: int
+class ChannelBase(BaseModel):
     name: str
     language: str
-    youtube_stream_key: Optional[str]
+    youtube_stream_key: str
+
+class ChannelCreate(ChannelBase):
+    owner_id: int
+
+class ChannelResponse(ChannelBase):
+    id: int
     is_streaming: bool
     created_at: datetime
 
     class Config:
         from_attributes = True
 
-class SegmentResponse(BaseModel):
-    id: int
-    headline: str
-    video_url: Optional[str]
-    status: str
-    created_at: datetime
-
-    class Config:
-        from_attributes = True
-
-class AdCampaignCreate(BaseModel):
-    name: str
-    video_url: str
-    scheduled_hours: str # "08:00,12:00,20:00"
-    channel_id: int
-
-class AdCampaignResponse(BaseModel):
-    id: int
+class AdCampaignBase(BaseModel):
     name: str
     video_url: str
     scheduled_hours: str
-    is_active: bool
+
+class AdCampaignCreate(AdCampaignBase):
     channel_id: int
+
+class AdCampaignResponse(AdCampaignBase):
+    id: int
+    is_active: bool
 
     class Config:
         from_attributes = True

@@ -4,10 +4,12 @@ import socket
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker, Session
 from sqlalchemy.exc import OperationalError
-from models import Base
+from sqlalchemy.ext.declarative import declarative_base
 from dotenv import load_dotenv
 
 load_dotenv()
+
+Base = declarative_base()
 
 engine = None
 SessionLocal = None
