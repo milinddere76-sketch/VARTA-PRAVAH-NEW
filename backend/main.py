@@ -121,14 +121,22 @@ async def trigger_news_generation(
     db.add(channel)
     db.commit()
     
-    handle = await temporal_client.start_workflow(
-        NewsProductionWorkflow.run,
-        {"channel_id": channel_id, "language": channel.language, "stream_key": channel.youtube_stream_key},
-        id=workflow_id,
-        task_queue="news-task-queue"
-    )
-    
-    return {"status": "processing", "workflow_id": handle.id}
+    try:
+        handle = await temporal_client.start_workflow(
+            NewsProductionWorkflow.run,
+            {"channel_id": channel_id, "language": channel.language, "stream_key": channel.youtube_stream_key},
+            id=workflow_id,
+            task_queue="news-task-queue"
+        )
+        return {"status": "processing", "workflow_id": handle.id}
+    except Exception as e:
+        # Handle case where workflow is already running
+        error_str = str(e).lower()
+        if "already started" in error_str or "workflowalreadystarted" in str(type(e)).lower():
+            return {"status": "already_running", "workflow_id": workflow_id, "message": "News generation is already in progress"}
+        else:
+            # Re-raise other exceptions
+            raise
 
 @app.post("/channels/{channel_id}/stop")
 async def stop_news_generation(

@@ -296,8 +296,11 @@ async def upload_to_s3_activity(video_url: str) -> str:
 
 @activity.defn
 async def ensure_promo_video_activity() -> bool:
-    promo_path = "/app/promo.mp4"
-    image_path = "/app/promo.png"
+    promo_path = "/app/videos/promo.mp4"
+    image_path = "/app/studio.jpg"
+    
+    # Ensure videos directory exists
+    os.makedirs("/app/videos", exist_ok=True)
     
     # If we need to upgrade the promo (e.g. to add audio), we delete it here once
     # For now, let's just make it robust.

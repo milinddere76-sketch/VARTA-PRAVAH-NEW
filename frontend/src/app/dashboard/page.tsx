@@ -109,7 +109,12 @@ export default function DashboardPage() {
         method: 'POST'
       });
       if (res.ok) {
-        // No alert needed for "News generation triggered!" if the status pill already updated.
+        const data = await res.json();
+        if (data.status === 'already_running') {
+          alert(`News generation is already in progress for this channel.`);
+        } else {
+          // No alert needed for "News generation triggered!" if the status pill already updated.
+        }
         // But we refresh to get the definite state from the server.
         await fetchChannels();
       } else {
@@ -267,6 +272,14 @@ export default function DashboardPage() {
                     <Activity size={18} />
                     <span>🛰️ Automator: ACTIVE</span>
                   </div>
+                  <button
+                    onClick={() => handleTriggerNews(channel.id)}
+                    disabled={processing === channel.id}
+                    className="bg-green-500/10 hover:bg-green-600 border border-green-500/30 hover:border-green-600 text-green-500 hover:text-white px-5 rounded-xl font-bold transition flex items-center justify-center disabled:opacity-50"
+                    title="Trigger News Generation"
+                  >
+                    <Play fill="currentColor" size={14} />
+                  </button>
                   <button
                     onClick={() => handleStopChannel(channel.id)}
                     className="bg-red-500/10 hover:bg-red-600 border border-red-500/30 hover:border-red-600 text-red-500 hover:text-white px-5 rounded-xl font-bold transition flex items-center justify-center"

@@ -7,6 +7,8 @@ services:
       POSTGRES_USER: root
       POSTGRES_PASSWORD: password
       POSTGRES_DB: temporal
+    ports:
+      - "5432:5432"
     volumes:
       - postgres_data_v4:/var/lib/postgresql/data
     healthcheck:

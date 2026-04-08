@@ -45,7 +45,7 @@ class NewsProductionWorkflow:
             {
                 "channel_id": channel_id,
                 "stream_key": stream_key,
-                "video_url": "/app/videos/promo.mp4",
+                "video_url": "/app/anchor.mp4",
                 "is_promo": True
             },
             start_to_close_timeout=timedelta(seconds=60)
