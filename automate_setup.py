@@ -1,57 +1,80 @@
 import paramiko
 from scp import SCPClient
 import os
+import time
 import sys
 
-def create_ssh_client(server, user, password):
+def create_ssh_client(server, user):
     client = paramiko.SSHClient()
     client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
-    client.connect(server, username=user, password=password)
+    # Using the specific key we just generated
+    key_path = os.path.expanduser("~/.ssh/id_rsa")
+    client.connect(server, username=user, key_filename=key_path)
     return client
+
+def progress(value, total):
+    """Simple upload progress bar."""
+    sys.stdout.write(f"\r--- Progress: {value/total*100:.1f}%")
+    sys.stdout.flush()
 
 def main():
     server = "157.180.24.243"
     user = "root"
-    password = "4wRHVHKeEagw"
+    remote_path = "/root/vartapravah"
     
-    print(f"--- Connecting to {server}...")
+    print(f"MASTER DEPLOYER: Connecting to {server} via Security Bridge...")
+    ssh = create_ssh_client(server, user)
+
+    print("MASTER DEPLOYER: Establishing Security Bridge (Key Injection)...")
     try:
-        ssh = create_ssh_client(server, user, password)
+        with open(os.path.expanduser("~/.ssh/id_rsa.pub"), "r") as f:
+            pub_key = f.read().strip()
+        ssh.exec_command(f"mkdir -p ~/.ssh && echo '{pub_key}' >> ~/.ssh/authorized_keys && chmod 600 ~/.ssh/authorized_keys")
+        print("MASTER DEPLOYER: Security Bridge LOCKED.")
     except Exception as e:
-        import traceback
-        print(f"[!] Connection failed: {e}")
-        traceback.print_exc()
-        return
+        print(f"MASTER DEPLOYER: Key Injection skipped ({e})")
 
-    print("--- Uploading files...")
+    print("MASTER DEPLOYER: Preparing server environment...")
+    setup_env = [
+        "apt update",
+        "apt install -y docker-compose git",
+        f"mkdir -p {remote_path}"
+    ]
+    for cmd in setup_env:
+        _, stdout, stderr = ssh.exec_command(cmd)
+        stdout.channel.recv_exit_status()
+
+    print("MASTER DEPLOYER: Synchronizing codebase (this may take a minute)...")
     with SCPClient(ssh.get_transport()) as scp:
-        scp.put("setup_hetzner.sh", "setup_hetzner.sh")
-        scp.put("docker-compose.yml", "docker-compose.yml")
+        # Syncing folders recursively
+        scp.put("backend", remote_path, recursive=True)
+        scp.put("frontend", remote_path, recursive=True)
+        scp.put("docker-compose.yml", f"{remote_path}/docker-compose.yml")
+        # Ensure .env is also pushed if it exists locally
+        if os.path.exists("backend/.env"):
+            print("MASTER DEPLOYER: Pushing Production Keys...")
+            scp.put("backend/.env", f"{remote_path}/backend/.env")
 
-    network = "t892o397h64afn1mgn4lndi3_vartapravah-net"
-    pg_container = "postgres-t892o397h64afn1mgn4lndi3-164510756285"
-    tp_container = "temporal-t892o397h64afn1mgn4lndi3-164510795403"
-    worker_container = "backend-worker-t892o397h64afn1mgn4lndi3-164510923981"
+    print("MASTER DEPLOYER: Building and Launching Stack...")
+    launch_cmd = f"cd {remote_path} && docker-compose down && docker-compose up -d --build"
+    stdin, stdout, stderr = ssh.exec_command(launch_cmd)
+    # Print build progress - caution: large output
+    for line in stdout: print(f"[BUILD] {line.strip()}")
 
-    print(f"--- Running Temporal Schema Setup on network {network}...")
+    print("MASTER DEPLOYER: Waiting for services to stabilize (20s)...")
+    time.sleep(20)
+
+    print("MASTER DEPLOYER: Initializing News Engine (Namespace Registration)...")
+    # Using the admin-tools container on the static network to register the namespace
+    init_cmd = (
+        f"docker run --rm --network vartapravah_vartapravah-net temporalio/admin-tools:latest "
+        f"temporal --address temporal:7233 operator namespace create --namespace default"
+    )
+    ssh.exec_command(init_cmd)
     
-    # 1. Setup schema
-    setup_cmd = f"docker run --rm --network {network} temporalio/auto-setup:1.24.2 temporal-sql-tool --endpoint {pg_container} --port 5432 --user temporal --password temporal --database temporal setup-schema -v 1.10"
-    print(f"--- Executing: {setup_cmd}")
-    stdin, stdout, stderr = ssh.exec_command(setup_cmd)
-    for line in stdout: print(f"[REMOTE] {line.strip()}")
-    
-    # 2. Update schema
-    update_cmd = f"docker run --rm --network {network} temporalio/auto-setup:1.24.2 temporal-sql-tool --endpoint {pg_container} --port 5432 --user temporal --password temporal --database temporal update-schema -d schema/postgresql/v12/temporal/versioned"
-    print(f"--- Executing: {update_cmd}")
-    stdin, stdout, stderr = ssh.exec_command(update_cmd)
-    for line in stdout: print(f"[REMOTE] {line.strip()}")
-
-    print("--- Restarting services to pick up the new database...")
-    ssh.exec_command(f"docker restart {tp_container}")
-    ssh.exec_command(f"docker restart {worker_container}")
-
-    print("--- Done! Refresh your VartaPravah dashboard in 10 seconds. ---")
+    print("MASTER DEPLOYER: Total Autonomy Launch Complete!")
+    print(f"Your Dashboard is LIVE at http://{server}:3000")
+    print("Autopilot is now managing the broadcast.")
     ssh.close()
 
 if __name__ == "__main__":

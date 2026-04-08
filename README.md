@@ -43,6 +43,14 @@ VartaPravah is a fully automated AI news broadcasting platform focusing on regio
 The `streamer.py` script is managed by the backend or can be run manually for testing:
 `python streamer.py`
 
+### 5. Production Deployment
+- Use `docker compose up -d --build` on the target server.
+- Ensure `backend/.env` is populated with production values and keep it out of Git.
+- Remove or do not set `SQLITE_URL` in production; use PostgreSQL via `DATABASE_URL`.
+- Set `TEMPORAL_ADDRESS=temporal:7233`, and ensure `temporal` and `postgres` services are reachable from `backend`.
+- Open only the public ports you need: `3000`, `8000`, `8088`, and `7233` as required.
+- For Coolify, use the project Docker Compose file and configure env vars in the platform UI.
+
 ## 🧩 Tech Stack
 - **Next.js**: Modern dashboard with Tailwind CSS.
 - **Temporal**: Robust workflow management for long-running video generation tasks.
