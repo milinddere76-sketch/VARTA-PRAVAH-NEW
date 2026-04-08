@@ -19,13 +19,14 @@ from .activities import (
 
 # Hardened Imports for Docker Subdirectory execution
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-from database import SessionLocal
+from database import get_session_local
 from models import Channel, User
 from sqlalchemy.orm import Session
 import temporal_utils
 
 async def seed_database():
     """Integrated Seeder: Ensure Channel 1 exists immediately on deployment."""
+    SessionLocal = get_session_local()
     db: Session = SessionLocal()
     try:
         # 1. System User
