@@ -1,0 +1,10 @@
+fastapi>=0.108.0
+uvicorn[standard]>=0.26.1
+sqlalchemy>=1.4.0
+psycopg2-binary>=2.9.9
+python-dotenv>=1.0.0
+temporalio>=1.4.0
+requests>=2.31.0
+groq>=0.7.0
+gtts>=2.3.0
+pydantic>=1.10.0
