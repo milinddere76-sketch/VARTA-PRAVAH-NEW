@@ -1,7 +1,17 @@
 import os
 import asyncio
+import socket
 from temporalio.client import Client
 from temporalio.service import RPCError
+
+def is_port_open(host_port, timeout=0.5):
+    """Quick socket probe to see if a port is alive without waiting for SDK timeouts."""
+    try:
+        host, port = host_port.split(':')
+        with socket.create_connection((host, int(port)), timeout=timeout):
+            return True
+    except:
+        return False
 
 async def get_temporal_client(max_retries=24, delay=5):
     """
@@ -23,14 +33,19 @@ async def get_temporal_client(max_retries=24, delay=5):
     host_list = [h for h in addresses_to_try if h]
     
     for host in host_list:
-        for i in range(3): # Quick 3-time retry for each host
+        print(f"📡 Speed Probing Temporal at {host}...")
+        if not is_port_open(host):
+            print(f"⏩ Skipping {host} (Port closed/Unreachable)")
+            continue
+
+        for i in range(2): # Quick 2-time retry for each responsive host
             try:
-                print(f"📡 Probing Temporal at {host}...")
+                print(f"🔌 Connecting to Temporal on {host}...")
                 client = await Client.connect(host)
                 print(f"✅ Connected to Temporal on {host}!")
                 return client
             except Exception as e:
-                print(f"❌ Host {host} failed: {str(e)}")
-                await asyncio.sleep(1)
+                print(f"❌ Connection to {host} failed: {str(e)[:50]}")
+                await asyncio.sleep(0.5)
             
-    raise ConnectionError(f"Critical: Failed to connect to Temporal after probing {len(host_list)} addresses.")
+    raise ConnectionError(f"Critical: Failed to connect to Temporal after probing {len(host_list)} addresses. Ensure Temporal container is healthy.")
