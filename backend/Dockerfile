@@ -12,6 +12,11 @@ RUN pip install --no-cache-dir -r requirements.txt
 # Hard copy all modules, assets, and AI scripts
 COPY . .
 
+# Explicitly copy video files that might be excluded by .dockerignore patterns
+COPY *.mp4 /app/
+COPY *.jpg /app/
+COPY *.png /app/
+
 # Native port for FastAPI binding
 EXPOSE 8000
 
