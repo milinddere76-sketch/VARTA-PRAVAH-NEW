@@ -266,6 +266,7 @@ async def generate_news_video_activity(input_data: dict) -> str:
         tmp_dir = "/tmp/news_video"
         os.makedirs(tmp_dir, exist_ok=True)
         headline_img_path = os.path.join(tmp_dir, "news_headline.jpg")
+        studio_img = studio_img.resize((1920, 1080), Image.LANCZOS)
         studio_img.save(headline_img_path)
         
         # Resolve audio source
@@ -419,7 +420,7 @@ async def ensure_promo_video_activity() -> bool:
                 "-f", "lavfi", "-i", "anullsrc=channel_layout=stereo:sample_rate=44100",
                 "-i", logo_path,
                 "-t", "15",
-                "-filter_complex", "[0:v]scale=1280:720,format=yuv420p[bg];[bg][2:v]overlay=W-w-20:20:format=auto",
+                "-filter_complex", "[0:v]scale=1920:1080,format=yuv420p[bg];[bg][2:v]overlay=W-w-20:20:format=auto",
                 "-c:v", "libx264", "-preset", "ultrafast",
                 "-c:a", "aac", "-b:a", "128k", "-shortest",
                 promo_path
@@ -430,7 +431,7 @@ async def ensure_promo_video_activity() -> bool:
                 "-loop", "1", "-i", image_path,
                 "-f", "lavfi", "-i", "anullsrc=channel_layout=stereo:sample_rate=44100",
                 "-t", "15",
-                "-vf", "scale=1280:720,format=yuv420p",
+                "-vf", "scale=1920:1080,format=yuv420p",
                 "-c:v", "libx264", "-preset", "ultrafast",
                 "-c:a", "aac", "-b:a", "128k", "-shortest",
                 promo_path
