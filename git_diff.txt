@@ -1,0 +1,261 @@
+diff --git a/backend/temporal/activities.py b/backend/temporal/activities.py
+index efef640..581fccf 100644
+--- a/backend/temporal/activities.py
++++ b/backend/temporal/activities.py
+@@ -32,6 +32,20 @@ LANGUAGE_CONFIG = {
+     "English": {"code": "en", "region": "India"},
+ }
+ 
++STREAM_PROCESSES: dict[int, subprocess.Popen] = {}
++
++def _terminate_stream_process(channel_id: int):
++    process = STREAM_PROCESSES.pop(channel_id, None)
++    if not process:
++        return
++    try:
++        process.terminate()
++        process.wait(timeout=10)
++    except subprocess.TimeoutExpired:
++        process.kill()
++    except Exception as e:
++        print(f"Error terminating existing stream process for channel {channel_id}: {e}")
++
+ @activity.defn
+ async def fetch_news_activity(language: str) -> dict:
+     load_dotenv(override=True)
+@@ -171,7 +185,7 @@ async def synclabs_lip_sync_activity(data: dict) -> str:
+     }
+     payload = {
+         "audioUrl": data['audio_url'], 
+-        "videoUrl": os.getenv("SYNC_LABS_BASE_VIDEO_URL"),
++        "videoUrl": os.getenv("SYNC_LABS_BASE_VIDEO_URL", "/app/videos/promo.mp4"),
+         "synergize": True
+     }
+     
+@@ -181,92 +195,22 @@ async def synclabs_lip_sync_activity(data: dict) -> str:
+         job_id = r.json().get("id")
+         return job_id
+     except Exception as e:
+-        print(f"SyncLabs currently unreachable or no credits: {e}. Falling back to dynamic mock generator.")
+-        
+-        script = data.get("script", "")
+-        if not script:
+-            return "mock_job_fallback"
+-            
+-        job_id = f"mock_job_fallback_{uuid.uuid4().hex}"
+-        out_audio = f"/app/{job_id}.mp3"
+-        out_video = f"/app/{job_id}.mp4"
+-        
+-        try:
+-            # 1. Generate Marathi Audio via Edge TTS
+-            # Wait, data dict doesn't natively carry is_female unless we pass it from generate_script_activity. 
+-            # In workflows.py, we passed is_female to generate_script_activity, but synclabs_lip_sync_activity receives the output of generate_script_activity.
+-            # We MUST extract is_female from data.
+-            is_female = data.get("is_female", False)
+-            voice = "mr-IN-AarohiNeural" if is_female else "mr-IN-ManoharNeural"
+-            subprocess.run(["python", "-m", "edge_tts", "--voice", voice, "--text", script, "--write-media", out_audio], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+-            
+-            anchor_name = "anchor_female.mp4" if is_female else "anchor.mp4"
+-            anchor_mp4 = f"/app/{anchor_name}"
+-            
+-            # Sanitize the headline for FFmpeg (escape single quotes)
+-            headline_text = data.get("headline", "VARTA PRAVAH NEWS LIVE").replace("'", "\\'")
+-            
+-            # 2. Overlay anchor video over studio backdrop + generated audio + logo + professional news graphics
+-            # News display and tickers are drawn directly with drawtext filters
+-            # Ticker scrolling is achieved via 'mod(t*speed, text_w)' logic
+-            # 2. Overlay anchor video over studio backdrop + generated audio + logo + professional news graphics
+-            # News display and tickers are drawn directly with drawtext filters
+-            # We mix in music.mp3 at a low volume if it exists
+-            music_input = []
+-            audio_filter = "[3:a]volume=1.0[v];" # Default: only voice
+-            
+-            if os.path.exists("/app/music.mp3"):
+-                music_input = ["-i", "/app/music.mp3"]
+-                audio_filter = "[3:a]volume=1.2[v];[4:a]volume=0.1[m];[v][m]amix=inputs=2:duration=first[outa];"
+-            
+-            cmd = [
+-                "ffmpeg", "-y", 
+-                "-loop", "1", "-i", "/app/studio.jpg", # 0. Background
+-                "-stream_loop", "-1", "-i", anchor_mp4, # 1. Anchor
+-                "-i", "/app/logo.png", # 2. Logo
+-                "-i", out_audio # 3. Audio track (Voice)
+-            ] + music_input + [
+-                "-filter_complex", 
+-                # a) Scale background and core overlays to strict 720p (1280x720)
+-                "[0:v]scale=1280:720,setsar=1[bg];"
+-                "[1:v]colorkey=0x00FF00:0.3:0.2,scale=1280:720[anchor];"
+-                "[bg][anchor]overlay=(W-w)/2:(H-h)/2[base];"
+-                "[2:v]scale=180:-1[logoscale];"
+-                "[base][logoscale]overlay=W-w-140:40[withlogo];"
+-                # b) Draw News Ticker Bar (Bottom red bar)
+-                "[withlogo]drawbox=y=ih-110:w=iw:h=110:color=red@0.9:t=fill[tickerbg];"
+-                # c) Dynamic Headline (Stationary bold news title on the left)
+-                f"[tickerbg]drawtext=text='{headline_text}':fontcolor=white:fontsize=48:fontfile=/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf:x=40:y=h-95:shadowcolor=black:shadowx=2:shadowy=2[withheadline];"
+-                # d) Scrolling Bottom Ticker (White sub-text moving right to left)
+-                "[withheadline]drawtext=text='VARTA PRAVAH NEWS - LIVE - FAST 100 - UPDATES EVERY 30 MINS - STAY TUNED':fontcolor=white:fontsize=32:x=w-mod(t*220,w+tw):y=h-40:shadowcolor=black:shadowx=2:shadowy=2[outv];" + 
+-                (audio_filter if music_input else "[3:a]volume=1.2[outa]"),
+-                "-map", "[outv]", "-map", "[outa]",
+-                "-c:v", "libx264", "-preset", "veryfast", "-c:a", "aac",
+-                "-shortest", 
+-                "-pix_fmt", "yuv420p", # Essential for streaming compatibility
+-                out_video
+-            ]
+-            process = subprocess.run(cmd, capture_output=True, text=True)
+-            if process.returncode != 0:
+-                print(f"ERROR: Local video generation failed! StdErr: {process.stderr}")
+-                raise Exception(f"FFmpeg generator failed with code {process.returncode}")
+-                
+-            if not os.path.exists(out_video) or os.path.getsize(out_video) < 1000:
+-                raise Exception("News segment file is missing or too small after generation.")
+-                
+-            return job_id
+-        except Exception as fallback_e:
+-            print(f"Failed to generate dynamic local video: {fallback_e}")
+-            return "mock_job_fallback"
++        print(f"SyncLabs currently unreachable or no credits: {e}. Falling back to promo stream.")
++        return "mock_job_fallback_promo"
+ 
+ @activity.defn
+ async def check_sync_labs_status_activity(job_id: str) -> dict:
+     if os.getenv("MOCK_MODE", "false").lower() == "true":
++        if job_id == "mock_job_123":
++            return {"status": "completed", "video_url": "/app/videos/news_ready.mp4"}
+         return {"status": "completed", "video_url": "https://example.com/mock_segment.mp4"}
+ 
+     if job_id == "mock_job_fallback":
+         return {"status": "completed", "video_url": os.getenv("SYNC_LABS_BASE_VIDEO_URL")}
+         
++    if job_id == "mock_job_fallback_promo":
++        return {"status": "completed", "video_url": "/app/videos/promo.mp4"}
++        
+     if job_id.startswith("mock_job_fallback_"):
+         return {"status": "completed", "video_url": f"/app/{job_id}.mp4"}
+ 
+@@ -281,8 +225,8 @@ async def check_sync_labs_status_activity(job_id: str) -> dict:
+             "video_url": data.get("videoUrl") if data.get("status") == "completed" else ""
+         }
+     except Exception as e:
+-        print(f"Error checking SyncLabs status: {e}. Defaulting to base video.")
+-        return {"status": "completed", "video_url": os.getenv("SYNC_LABS_BASE_VIDEO_URL")}
++        print(f"Error checking SyncLabs status: {e}. Defaulting to promo video.")
++        return {"status": "completed", "video_url": "/app/videos/promo.mp4"}
+ 
+ @activity.defn
+ async def upload_to_s3_activity(video_url: str) -> str:
+@@ -341,22 +285,20 @@ async def start_stream_activity(data: dict) -> str:
+         print(f"[MOCK] Starting stream for channel {channel_id}")
+         return "mock_stream_started"
+ 
+-    # 1. Management: Cleanly annihilate any existing streamer for this channel
+-    playlist_name = f"playlist_{channel_id}.txt"
+-    try:
+-        print(f"Refreshing encoder for Channel {channel_id} to ensure 24/7 stability...")
+-        # Kill BOTH the bash while-true loop AND the child ffmpeg processes.
+-        subprocess.run(f"pkill -9 -f {playlist_name}", shell=True)
+-        # Give a small 2s buffer for ports/keys to clear
+-        time.sleep(2)
+-    except Exception as e:
+-        print(f"Check error (ignoring): {e}")
++    # 1. Management: Cleanly terminate any existing streamer for this channel
++    _terminate_stream_process(channel_id)
++    time.sleep(2)
+ 
+     # 2. Start fresh streamer (Initial start or Force Restart)
+     try:
++        if video_url.startswith("/app/") and not os.path.exists(video_url):
++            print(f"Video path {video_url} is missing. Falling back to promo video.")
++            video_url = "/app/videos/promo.mp4"
++
+         streamer = Streamer(stream_key, channel_id)
+         streamer.create_initial_playlist(video_url)
+         streamer.start_stream()
++        STREAM_PROCESSES[channel_id] = streamer.process
+         return "stream_started"
+     except Exception as e:
+         activity.logger.error(f"Failed to start stream: {e}")
+@@ -364,10 +306,9 @@ async def start_stream_activity(data: dict) -> str:
+ 
+ @activity.defn
+ async def stop_stream_activity(channel_id: int) -> str:
+-    playlist_name = f"playlist_{channel_id}.txt"
+     try:
+         print(f"Force stopping stream for channel {channel_id}")
+-        subprocess.run(f"pkill -9 -f {playlist_name}", shell=True)
++        _terminate_stream_process(channel_id)
+         return "stream_stopped"
+     except Exception as e:
+         print(f"Error stopping stream: {e}")
+diff --git a/backend/temporal/workflows.py b/backend/temporal/workflows.py
+index b27c6b3..497704d 100644
+--- a/backend/temporal/workflows.py
++++ b/backend/temporal/workflows.py
+@@ -1,4 +1,5 @@
+-from datetime import timedelta
++from datetime import datetime, timedelta
++from zoneinfo import ZoneInfo
+ from temporalio import workflow
+ from temporalio.common import RetryPolicy
+ from .activities import (
+@@ -45,25 +46,19 @@ class NewsProductionWorkflow:
+             {
+                 "channel_id": channel_id,
+                 "stream_key": stream_key,
+-                "video_url": "/app/anchor.mp4",
++                "video_url": "/app/videos/promo.mp4",
+                 "is_promo": True
+             },
+             start_to_close_timeout=timedelta(seconds=60)
+         )
+-        
+-        
+-        # Tracking variables
++        last_cleanup_day = -1
+         is_female_anchor = False
+-        import datetime
+-        from zoneinfo import ZoneInfo
+         ist = ZoneInfo("Asia/Kolkata")
+-        
+-        last_cleanup_day = -1
+         while True:
+             try:
+                 # --- ADS & CUSTOM VIDEOS CHECK ---
+                 # Check for ads scheduled for this hour
+-                now = datetime.datetime.now(ist)
++                now = datetime.now(ist)
+                 current_hour_str = now.strftime("%H") # Just the hour "08", "12", etc.
+                 
+                 ad_segments = await workflow.execute_activity(
+@@ -133,7 +128,13 @@ class NewsProductionWorkflow:
+                     )
+                     status = result.get("status", "pending")
+                     final_video_url = result.get("video_url", "")
+-                    
++
++                # If the news generator returns an empty video URL, keep promo until next cycle.
++                if not final_video_url:
++                    print(f"News job completed without a valid video URL for channel {channel_id}. Keeping promo until next cycle.")
++                    await workflow.sleep(timedelta(minutes=5))
++                    continue
++
+                 # 5. Upload to S3
+                 s3_url = await workflow.execute_activity(
+                     upload_to_s3_activity,
+@@ -155,7 +156,7 @@ class NewsProductionWorkflow:
+                 )
+                 
+                 # 7. Periodic Cleanup (Once per day)
+-                now = datetime.datetime.now(ist)
++                now = datetime.now(ist)
+                 if now.day != last_cleanup_day:
+                     await workflow.execute_activity(
+                         cleanup_old_videos_activity,
+@@ -190,7 +191,7 @@ class NewsProductionWorkflow:
+                         {
+                             "channel_id": channel_id,
+                             "stream_key": stream_key,
+-                            "video_url": "/app/promo.mp4",
++                            "video_url": "/app/videos/promo.mp4",
+                             "is_promo": True
+                         },
+                         start_to_close_timeout=timedelta(seconds=60)
