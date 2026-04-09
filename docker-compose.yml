@@ -92,6 +92,7 @@ services:
   backend:
     container_name: vartapravah_backend
     build: ./backend
+    working_dir: /app
     restart: always
     command: uvicorn main:app --host 0.0.0.0 --port 8000
     ports:
@@ -120,8 +121,9 @@ services:
   backend-worker:
     container_name: vartapravah_worker
     build: ./backend
+    working_dir: /app
     restart: always
-    command: python -m temporal.worker
+    command: ["python", "-m", "temporal.worker"]
     env_file:
       - ./backend/.env
     environment:

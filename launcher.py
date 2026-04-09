@@ -41,13 +41,13 @@ def launch_services():
     
     # Opening separate terminal windows for the worker and backend on Windows
     # 1. Temporal Worker
-    subprocess.Popen(["start", "cmd", "/k", "python", "-m", "temporal.worker"], shell=True, cwd="backend")
+    subprocess.Popen('start cmd /k "python -m temporal.worker"', shell=True, cwd="backend")
     
     # 2. FastAPI Backend
-    subprocess.Popen(["start", "cmd", "/k", "uvicorn", "main:app", "--reload"], shell=True, cwd="backend")
+    subprocess.Popen('start cmd /k "uvicorn main:app --reload"', shell=True, cwd="backend")
     
     # 3. Next.js Frontend
-    subprocess.Popen(["start", "cmd", "/k", "npm", "run", "dev"], shell=True, cwd="frontend")
+    subprocess.Popen('start cmd /k "npm run dev"', shell=True, cwd="frontend")
 
     print("\nVartaPravah is launching!")
     print("Dashboard: http://localhost:3000/dashboard")
