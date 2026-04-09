@@ -1,8 +1,10 @@
+version: "3.9"
+
 services:
   postgres:
     image: postgres:15
     container_name: postgres
-    restart: always
+    restart: unless-stopped
     environment:
       POSTGRES_USER: root
       POSTGRES_PASSWORD: password
@@ -15,18 +17,14 @@ services:
       test: ["CMD-SHELL", "pg_isready -U root -d temporal"]
       interval: 10s
       timeout: 5s
-      retries: 20
-      start_period: 600s
-    dns:
-      - 8.8.8.8
-      - 1.1.1.1
+      retries: 10
     networks:
       - vartapravah-net
 
   temporal:
     container_name: temporal
     image: temporalio/auto-setup:1.24.2
-    restart: always
+    restart: unless-stopped
     environment:
       - DB=postgres12
       - DB_PORT=5432
@@ -34,17 +32,13 @@ services:
       - POSTGRES_PWD=password
       - POSTGRES_SEEDS=postgres
       - TEMPORAL_VISIBILITY_STORE_TYPE=postgres
+
+      # 🔥 FIX (MOST IMPORTANT)
+      - SKIP_SCHEMA_SETUP=true
+      - SKIP_DB_CREATE=true
+
     ports:
       - "7233:7233"
-    healthcheck:
-      test: ["CMD-SHELL", "timeout 5 bash -c 'cat < /dev/null > /dev/tcp/localhost/7233'"]
-      interval: 10s
-      timeout: 5s
-      retries: 10
-      start_period: 30s
-    dns:
-      - 8.8.8.8
-      - 1.1.1.1
     depends_on:
       postgres:
         condition: service_healthy
@@ -54,38 +48,14 @@ services:
   temporal-ui:
     container_name: temporal-ui
     image: temporalio/ui:latest
-    restart: always
+    restart: unless-stopped
     environment:
       - TEMPORAL_ADDRESS=temporal:7233
-      - TEMPORAL_GRPC_ENDPOINT=temporal:7233
-      - TEMPORAL_NOTIFY_ON_NEW_VERSION=false
-      - TEMPORAL_DISABLE_USAGE_COLLECTION=true
       - TEMPORAL_UI_PORT=8080
-      - TEMPORAL_GRPC_TIMEOUT=300s
-      - TEMPORAL_UI_LOCAL_AUTH=true
     ports:
       - "8088:8080"
-    dns:
-      - 8.8.8.8
-      - 1.1.1.1
     depends_on:
       - temporal
-    networks:
-      - vartapravah-net
-
-  frontend:
-    container_name: vartapravah_frontend
-    build: ./frontend
-    restart: always
-    ports:
-      - "3000:3000"
-    environment:
-      - NEXT_PUBLIC_API_URL=http://backend:8000
-    dns:
-      - 8.8.8.8
-      - 1.1.1.1
-    depends_on:
-      - backend
     networks:
       - vartapravah-net
 
@@ -93,28 +63,22 @@ services:
     container_name: vartapravah_backend
     build: ./backend
     working_dir: /app
-    restart: always
+    restart: unless-stopped
     command: uvicorn main:app --host 0.0.0.0 --port 8000
     ports:
       - "8000:8000"
-    env_file:
-      - ./backend/.env
     environment:
       - DATABASE_URL=postgresql://root:password@postgres:5432/temporal
       - TEMPORAL_ADDRESS=temporal:7233
-      - TEMPORAL_HOST=temporal:7233
       - PYTHONUNBUFFERED=1
-      - PYTHONPATH=/app
     volumes:
+      - ./backend:/app
       - ./backend/videos:/app/videos
-    dns:
-      - 8.8.8.8
-      - 1.1.1.1
     depends_on:
-      temporal:
-        condition: service_started
       postgres:
         condition: service_healthy
+      temporal:
+        condition: service_started
     networks:
       - vartapravah-net
 
@@ -122,30 +86,33 @@ services:
     container_name: vartapravah_worker
     build: ./backend
     working_dir: /app
-    restart: always
+    restart: unless-stopped
     command: ["python", "-m", "temporal.worker"]
-    env_file:
-      - ./backend/.env
     environment:
       - DATABASE_URL=postgresql://root:password@postgres:5432/temporal
       - TEMPORAL_ADDRESS=temporal:7233
-      - TEMPORAL_HOST=temporal:7233
-      - PYTHONUNBUFFERED=1
-      - PYTHONPATH=/app
       - AUTO_START_CHANNEL_ID=1
       - DEFAULT_LANGUAGE=mr
     volumes:
       - ./backend:/app
-    dns:
-      - 8.8.8.8
-      - 1.1.1.1
     depends_on:
       backend:
         condition: service_started
       temporal:
         condition: service_started
-      postgres:
-        condition: service_healthy
+    networks:
+      - vartapravah-net
+
+  frontend:
+    container_name: vartapravah_frontend
+    build: ./frontend
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    environment:
+      - NEXT_PUBLIC_API_URL=http://backend:8000
+    depends_on:
+      - backend
     networks:
       - vartapravah-net
 
