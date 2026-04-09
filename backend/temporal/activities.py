@@ -174,6 +174,106 @@ async def generate_script_activity(input_data: dict) -> dict:
     }
 
 @activity.defn
+async def generate_news_video_activity(input_data: dict) -> str:
+    """Generate simple news video locally without SyncLabs lip-sync capability."""
+    import subprocess
+    from PIL import Image, ImageDraw, ImageFont
+    import textwrap
+    
+    try:
+        news_title = input_data.get("title", "Breaking News")
+        audio_url = input_data.get("audio_url", "")
+        
+        output_path = "/app/videos/news_generated.mp4"
+        os.makedirs("/app/videos", exist_ok=True)
+        
+        # Create news headline image overlay
+        studio_img = Image.open("/app/studio.jpg")
+        draw = ImageDraw.Draw(studio_img)
+        
+        # Try to use a nice font, fallback to default
+        try:
+            font_size = 80
+            font = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf", font_size)
+        except:
+            font = ImageFont.load_default()
+        
+        # Wrap text to fit the image width
+        max_width = 60  # characters per line
+        wrapped_lines = textwrap.wrap(news_title, width=max_width)
+        
+        # Draw headline text in center with white color and black outline
+        y_position = 250
+        for line in wrapped_lines:
+            bbox = draw.textbbox((0, 0), line, font=font)
+            text_width = bbox[2] - bbox[0]
+            text_height = bbox[3] - bbox[1]
+            x_position = (1280 - text_width) // 2
+            
+            # Draw black outline
+            for adj_x in [-2, -1, 0, 1, 2]:
+                for adj_y in [-2, -1, 0, 1, 2]:
+                    draw.text((x_position + adj_x, y_position + adj_y), line, font=font, fill="black")
+            
+            # Draw white text
+            draw.text((x_position, y_position), line, font=font, fill="white")
+            y_position += text_height + 20
+        
+        # Save headline image
+        headline_img_path = "/tmp/news_headline.jpg"
+        studio_img.save(headline_img_path)
+        
+        # Download audio file if URL provided
+        audio_path = "/tmp/news_audio.mp3"
+        if audio_url and audio_url.startswith("http"):
+            try:
+                import urllib.request
+                urllib.request.urlretrieve(audio_url, audio_path)
+            except:
+                # If download fails, create silent audio
+                subprocess.run([
+                    "ffmpeg", "-f", "lavfi", "-i", "anullsrc=r=44100:cl=mono", 
+                    "-t", "10", "-q:a", "9", "-acode", "libmp3lame", audio_path
+                ], capture_output=True, check=False)
+        else:
+            # Create 10-second silent audio as fallback
+            subprocess.run([
+                "ffmpeg", "-f", "lavfi", "-i", "anullsrc=r=44100:cl=mono",
+                "-t", "10", "-q:a", "9", "-acode", "libmp3lame", audio_path
+            ], capture_output=True, check=False)
+        
+        # Create video from image + audio using FFmpeg
+        # Use image for 10 seconds duration to match audio
+        ffmpeg_cmd = [
+            "ffmpeg",
+            "-loop", "1",
+            "-i", headline_img_path,
+            "-i", audio_path,
+            "-c:v", "libx264",
+            "-preset", "veryfast",
+            "-pix_fmt", "yuv420p",
+            "-c:a", "aac",
+            "-strict", "-2",
+            "-shortest",
+            "-t", "10",
+            "-y",
+            output_path
+        ]
+        
+        result = subprocess.run(ffmpeg_cmd, capture_output=True, text=True, timeout=30)
+        
+        if result.returncode == 0 and os.path.exists(output_path):
+            print(f"Successfully generated news video: {output_path}")
+            return output_path
+        else:
+            print(f"FFmpeg error generating news video: {result.stderr}")
+            return "/app/videos/promo.mp4"
+            
+    except Exception as e:
+        print(f"Error generating news video locally: {e}. Falling back to promo.")
+        return "/app/videos/promo.mp4"
+
+@activity.defn
 async def synclabs_lip_sync_activity(data: dict) -> str:
     if os.getenv("MOCK_MODE", "false").lower() == "true":
         return "mock_job_123"
