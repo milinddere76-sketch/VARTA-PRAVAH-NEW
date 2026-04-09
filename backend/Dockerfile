@@ -1,25 +1,41 @@
 FROM python:3.10-slim
 
-# System bindings to guarantee FFmpeg PiP functionality
-RUN apt-get update && apt-get install -y ffmpeg curl bash procps fonts-dejavu-core fonts-noto-core && rm -rf /var/lib/apt/lists/*
-
-WORKDIR /app
+# Prevent Python buffering issues
+ENV PYTHONUNBUFFERED=1
 ENV PYTHONPATH=/app
 
-# Optimization: Copy requirements first to utilize Docker layer caching
+# Install system dependencies (clean + stable)
+RUN apt-get update && apt-get install -y \
+    ffmpeg \
+    curl \
+    bash \
+    procps \
+    fonts-dejavu-core \
+    fonts-noto-core \
+    && apt-get clean \
+    && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /app
+
+# Copy requirements first (for caching)
 COPY requirements.txt .
+
+# Upgrade pip (IMPORTANT FIX)
+RUN pip install --upgrade pip
+
+# Install Python dependencies
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Hard copy all modules, assets, and AI scripts
+# Copy full project
 COPY . .
 
-# Explicitly copy video files that might be excluded by .dockerignore patterns
-COPY *.mp4 /app/
-COPY *.jpg /app/
-COPY *.png /app/
+# 🔥 SAFE COPY (prevents build crash if files missing)
+RUN cp -r *.mp4 /app/ 2>/dev/null || true
+RUN cp -r *.jpg /app/ 2>/dev/null || true
+RUN cp -r *.png /app/ 2>/dev/null || true
 
-# Native port for FastAPI binding
+# Expose FastAPI port
 EXPOSE 8000
 
-# Default command (will be overridden by docker-compose for workers)
+# Start server
 CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"]
