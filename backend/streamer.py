@@ -40,7 +40,7 @@ class Streamer:
                 "-stream_loop", "-1",  # Loop the input indefinitely
                 "-i", self.current_video,
                 "-i", logo_path,
-                "-filter_complex", "[0:v]scale=1280:720:force_original_aspect_ratio=decrease,pad=1280:720:(ow-iw)/2:(oh-ih)/2[scaled];[scaled][1:v]overlay=W-w-20:20:format=auto[outv]",
+                "-filter_complex", "[0:v]scale=1280:720:force_original_aspect_ratio=decrease,pad=1280:720:(ow-iw)/2:(oh-ih)/2[scaled];[1:v]scale=200:-1[logo];[scaled][logo]overlay=W-w-20:20:format=auto[outv]",
                 "-map", "[outv]",
                 "-map", "0:a?",
                 "-c:v", "libx264",

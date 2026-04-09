@@ -132,24 +132,34 @@ async def generate_script_activity(input_data: dict) -> dict:
         content_type = "Summary of the day's major events"
 
     is_female = input_data.get("is_female", False)
-    anchor_gender = "महिला (Female)" if is_female else "पुरुष (Male)"
-    gender_instruction = f"* व्याकरण (Grammar): अत्यंत शुद्ध आणि व्यावसायिक {language} भाषेचा वापर करा. कोणतीही व्याकरणीय चूक नको.\n* लिंग (Gender Rule): अँकर {anchor_gender} आहे. त्यामुळे स्वतःबद्दल बोलताना क्रियापदे '{anchor_gender}' लिंगानुसारच वापरा (उदा. पुरुष असल्यास 'मी सांगतो', 'माझा', महिला असल्यास 'मी सांगते', 'माझी'). हे अत्यंत महत्त्वाचे आहे!"
+    anchor_gender = "महिला" if is_female else "पुरुष"
+    gender_instruction = f"* अँकर {anchor_gender} आहे. स्वतःविषयी बोलताना मराठी व्याकरणानुसार योग्य क्रियापदे वापरा (उदा. पुरुष असल्यास 'मी सांगतो', महिला असल्यास 'मी सांगते')."
 
-    system_prompt = f"""तुम्ही एक व्यावसायिक {language} वृत्तवाहिनीचे अँकर आहात. आता '{bulletin_name}' बुलेटिनची वेळ आहे.
+    system_prompt = f"""तुम्ही एक व्यावसायिक मराठी वृत्तवाहिनीचे मुख्य अँकर आहात.
+
+तुमची भाषा पूर्णपणे शुद्ध, अधिकृत आणि वृत्तात्मक असावी.
 
 नियम:
-* भाषा पूर्णपणे शुद्ध आणि अधिकृत {language} असावी. वाक्यरचना अचूक आणि बातमीदाराला शोभेल अशी असावी.
-* उच्चार स्पष्ट आणि प्रभावी असावेत
-* बातमी सादरीकरणाचा वेग मध्यम असावा
-* आवाजात आत्मविश्वास आणि गांभीर्य असावे
-* सादरीकरण पुर्णपणे '{content_type}' या शैलीत असावे.
-* केवळ बातमी (STRICT RULE): DO NOT add any greetings like "Namaskar", DO NOT introduce yourself or the channel, DO NOT add closing remarks, DO NOT add conversational fillers. YOU MUST START READING THE CORE SCRIPT DIRECTLY.
+* फक्त मराठीच वापरा. इंग्रजी शब्दांचा किंवा ट्रान्सलिटरेशनचा वापर करू नका.
+* व्याकरण पूर्णपणे बरोबर असावे.
+* शिस्तबद्ध, तथ्यात्मक आणि ताणलेले आशय द्या.
+* परिचय, अभिवादन, समारोप किंवा वैयक्तिक टिप्पणी वापरू नका.
+* प्रसारमाध्यमीय वृत्तनिबंध शैलीत लिहा.
+* प्रत्येक वाक्य स्पष्ट आणि अचूक असावे.
+* कोणतीही गोंधळ किंवा शिथिलता असू नये.
 {gender_instruction}
 """
-    user_prompt = f"""बातमी:
+    user_prompt = f"""तुम्हाला खालील बातमीच्या मुख्य मुद्द्यांवर आधारीत व्यावसायिक, अधिकृत आणि व्याकरणदृष्ट्या अचूक मराठी वृत्त स्क्रिप्ट तयार करायची आहे.
+
+बातमी:
 {news_data['headline']} - {news_data['description']}
 
-कृपया वरील बातमीसाठी 'Varta Pravah - {bulletin_name}' या बुलेटिनची स्क्रिप्ट तयार करा. फक्त बातमीचा मजकूर द्या, दुसरे काहीही नाही:"""
+* फक्त महत्वाचे मुद्दे समाविष्ट करा.
+* कमीतकमी 3-4 वाक्यांचा प्रवाही रिपोर्ट द्या.
+* कोणतेही स्वागत/परिचय/समारोप टाळा.
+* मजकूर पूर्णपणे मराठी असावा.
+
+'Varta Pravah - {bulletin_name}' या बुलेटिनसाठी स्क्रिप्ट तयार करा."""
 
     groq_client = Groq(api_key=os.getenv("GROQ_API_KEY"))
     completion = groq_client.chat.completions.create(
@@ -158,20 +168,50 @@ async def generate_script_activity(input_data: dict) -> dict:
             {"role": "system", "content": system_prompt},
             {"role": "user", "content": user_prompt}
         ],
-        temperature=0.7,
+        temperature=0.3,
         max_tokens=1024,
     )
     script = completion.choices[0].message.content
     # Debug log removed to avoid Windows console UnicodeEncodeError
     
-    # Placeholder for TTS (Google Cloud / ElevenLabs)
-    audio_url = "https://example.com/audio.mp3"
-    
     return {
         "script": script,
-        "audio_url": audio_url,
         "is_female": is_female
     }
+
+@activity.defn
+async def generate_audio_activity(input_data: dict) -> str:
+    """Generate TTS audio locally from the script."""
+    import subprocess
+    import tempfile
+
+    try:
+        script = input_data.get("script", "")
+        language = input_data.get("language", "Marathi")
+        lang_code = LANGUAGE_CONFIG.get(language, {"code": "mr"})["code"]
+
+        os.makedirs("/tmp", exist_ok=True)
+        audio_path = os.path.join("/tmp", f"news_audio_{uuid.uuid4().hex}.mp3")
+        
+        try:
+            tts = gTTS(text=script or "Breaking news update.", lang=lang_code)
+            tts.save(audio_path)
+            if os.path.exists(audio_path):
+                print(f"Generated TTS audio: {audio_path}")
+                return audio_path
+        except Exception as e:
+            print(f"Error generating TTS audio: {e}. Falling back to silent audio.")
+
+        subprocess.run([
+            "ffmpeg", "-y", "-f", "lavfi", "-i", "anullsrc=r=44100:cl=mono",
+            "-t", "10", "-c:a", "libmp3lame", audio_path
+        ], capture_output=True, check=False)
+        if os.path.exists(audio_path):
+            return audio_path
+        raise RuntimeError("Failed to create fallback silent audio")
+    except Exception as e:
+        print(f"generate_audio_activity failed: {e}")
+        return "/app/videos/promo.mp4"
 
 @activity.defn
 async def generate_news_video_activity(input_data: dict) -> str:
@@ -191,12 +231,15 @@ async def generate_news_video_activity(input_data: dict) -> str:
         studio_img = Image.open("/app/studio.jpg")
         draw = ImageDraw.Draw(studio_img)
         
-        # Try to use a nice font, fallback to default
+        # Try to use a Devanagari-capable font, fallback to DejaVu if not available
         try:
-            font_size = 80
-            font = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf", font_size)
-        except:
-            font = ImageFont.load_default()
+            font_size = 70
+            font = ImageFont.truetype("/usr/share/fonts/truetype/noto/NotoSansDevanagari-Bold.ttf", font_size)
+        except Exception:
+            try:
+                font = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf", font_size)
+            except Exception:
+                font = ImageFont.load_default()
         
         # Wrap text to fit the image width
         max_width = 60  # characters per line
@@ -220,32 +263,39 @@ async def generate_news_video_activity(input_data: dict) -> str:
             y_position += text_height + 20
         
         # Save headline image
-        headline_img_path = "/tmp/news_headline.jpg"
+        tmp_dir = "/tmp/news_video"
+        os.makedirs(tmp_dir, exist_ok=True)
+        headline_img_path = os.path.join(tmp_dir, "news_headline.jpg")
         studio_img.save(headline_img_path)
         
-        # Download audio file if URL provided
-        audio_path = "/tmp/news_audio.mp3"
-        if audio_url and audio_url.startswith("http"):
+        # Resolve audio source
+        audio_path = input_data.get("audio_url", "")
+        if audio_path and os.path.isfile(audio_path):
+            print(f"Using existing audio file: {audio_path}")
+        elif audio_path and audio_path.startswith("http"):
+            audio_downloaded = os.path.join(tmp_dir, "news_audio_downloaded.mp3")
             try:
                 import urllib.request
-                urllib.request.urlretrieve(audio_url, audio_path)
-            except:
-                # If download fails, create silent audio
-                subprocess.run([
-                    "ffmpeg", "-f", "lavfi", "-i", "anullsrc=r=44100:cl=mono", 
-                    "-t", "10", "-q:a", "9", "-acode", "libmp3lame", audio_path
-                ], capture_output=True, check=False)
-        else:
-            # Create 10-second silent audio as fallback
-            subprocess.run([
-                "ffmpeg", "-f", "lavfi", "-i", "anullsrc=r=44100:cl=mono",
-                "-t", "10", "-q:a", "9", "-acode", "libmp3lame", audio_path
-            ], capture_output=True, check=False)
+                urllib.request.urlretrieve(audio_path, audio_downloaded)
+                audio_path = audio_downloaded
+            except Exception as e:
+                print(f"Failed to download audio URL {audio_path}: {e}")
+                audio_path = ""
         
+        if not audio_path or not os.path.isfile(audio_path):
+            audio_path = os.path.join(tmp_dir, "news_audio_fallback.mp3")
+            subprocess.run([
+                "ffmpeg", "-y", "-f", "lavfi", "-i", "anullsrc=r=44100:cl=mono",
+                "-t", "10", "-c:a", "libmp3lame", audio_path
+            ], capture_output=True, check=False)
+
+        if not os.path.isfile(audio_path):
+            raise RuntimeError(f"Audio path missing after fallback creation: {audio_path}")
+
         # Create video from image + audio using FFmpeg
-        # Use image for 10 seconds duration to match audio
         ffmpeg_cmd = [
             "ffmpeg",
+            "-y",
             "-loop", "1",
             "-i", headline_img_path,
             "-i", audio_path,
@@ -253,10 +303,8 @@ async def generate_news_video_activity(input_data: dict) -> str:
             "-preset", "veryfast",
             "-pix_fmt", "yuv420p",
             "-c:a", "aac",
-            "-strict", "-2",
             "-shortest",
             "-t", "10",
-            "-y",
             output_path
         ]
         

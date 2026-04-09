@@ -1,8 +1,5 @@
 <svg width="512" height="512" viewBox="0 0 512 512" xmlns="http://www.w3.org/2000/svg">
   <defs>
-    <style>
-      @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+Devanagari:wght@400;700;900&amp;display=swap');
-    </style>
     <linearGradient id="bgGradient" x1="0" y1="0" x2="0" y2="1">
       <stop offset="0%" stop-color="#05060b"/>
       <stop offset="100%" stop-color="#141822"/>
@@ -36,9 +33,9 @@
   <rect x="52" y="136" width="408" height="240" rx="28" fill="#111827" opacity="0.90"/>
 
   <g filter="url(#shadow)">
-    <text x="256" y="252" text-anchor="middle" font-family="'Noto Sans Devanagari', 'DejaVu Sans', sans-serif" font-size="96" font-weight="900" fill="#000" transform="translate(0,4)">वार्ता प्रवाह</text>
+    <text x="256" y="252" text-anchor="middle" font-family="'Noto Sans Devanagari', 'DejaVu Sans', sans-serif" font-size="76" font-weight="900" fill="#000" transform="translate(0,4)">वार्ता प्रवाह</text>
   </g>
-  <text x="256" y="244" text-anchor="middle" font-family="'Noto Sans Devanagari', 'DejaVu Sans', sans-serif" font-size="96" font-weight="900" fill="url(#titleGradient)" style="text-shadow: 0 2px 10px rgba(255,255,255,0.45)">वार्ता प्रवाह</text>
+  <text x="256" y="244" text-anchor="middle" font-family="'Noto Sans Devanagari', 'DejaVu Sans', sans-serif" font-size="76" font-weight="900" fill="url(#titleGradient)" style="text-shadow: 0 2px 10px rgba(255,255,255,0.45)">वार्ता प्रवाह</text>
 
   <g filter="url(#outerGlow)">
     <path d="M196 292 C226 262 286 262 316 292" fill="none" stroke="url(#neonGradient)" stroke-width="6" stroke-linecap="round" opacity="0.9"/>

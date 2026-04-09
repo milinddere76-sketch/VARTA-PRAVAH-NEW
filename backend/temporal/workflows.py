@@ -5,6 +5,7 @@ from temporalio.common import RetryPolicy
 from .activities import (
     fetch_news_activity,
     generate_script_activity,
+    generate_audio_activity,
     generate_news_video_activity,
     synclabs_lip_sync_activity,
     check_sync_labs_status_activity,
@@ -102,13 +103,20 @@ class NewsProductionWorkflow:
                     start_to_close_timeout=timedelta(minutes=5),
                     retry_policy=RetryPolicy(maximum_attempts=3)
                 )
+
+                audio_path = await workflow.execute_activity(
+                    generate_audio_activity,
+                    {"script": script_data.get("script", ""), "language": language},
+                    start_to_close_timeout=timedelta(minutes=120),
+                    retry_policy=RetryPolicy(maximum_attempts=2)
+                )
                 
                 # 3. Generate News Video (Local - no SyncLabs dependency)
                 final_video_url = await workflow.execute_activity(
                     generate_news_video_activity,
                     {
-                        "title": news_data.get("title", "Breaking News"),
-                        "audio_url": script_data.get("audio_url", ""),
+                        "title": news_data.get("headline", "Breaking News"),
+                        "audio_url": audio_path,
                         "script": script_data.get("script", "")
                     },
                     start_to_close_timeout=timedelta(minutes=5),
