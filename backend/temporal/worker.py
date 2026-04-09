@@ -20,117 +20,153 @@ from .activities import (
     cleanup_old_videos_activity
 )
 
-# Hardened Imports for Docker Subdirectory execution
+# Fix imports for Docker
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from database import get_session_local
 from models import Channel, User
 from sqlalchemy.orm import Session
 import temporal_utils
 
+
+# ================= DB SEED ================= #
+
 async def seed_database():
-    """Integrated Seeder: Ensure Channel 1 exists immediately on deployment."""
     SessionLocal = get_session_local()
     db: Session = SessionLocal()
     try:
-        # 1. System User
         user = db.query(User).filter(User.id == 1).first()
         if not user:
-            user = User(id=1, email="system@vartapravah.ai", hashed_password="seed_password_not_used")
+            user = User(
+                id=1,
+                email="system@vartapravah.ai",
+                hashed_password="seed_password"
+            )
             db.add(user)
             db.commit()
 
-        # 2. Channel 1
         channel = db.query(Channel).filter(Channel.id == 1).first()
         if not channel:
-            stream_key = os.getenv("YOUTUBE_STREAM_KEY", "qcu7-xesd-m4sv-9zvv-e335")
+            stream_key = os.getenv("YOUTUBE_STREAM_KEY", "")
             channel = Channel(
-                id=1, name="Varta Pravah Live", language="Marathi", 
-                youtube_stream_key=stream_key, owner_id=1
+                id=1,
+                name="Varta Pravah Live",
+                language="Marathi",
+                youtube_stream_key=stream_key,
+                owner_id=1
             )
             db.add(channel)
             db.commit()
-            print(f"BOOTSTRAP: Channel 1 seeded with key {stream_key[:4]}****")
+
+        print("✅ DB Seed completed")
+
     except Exception as e:
-        print(f"BOOTSTRAP: Seeding deferred (DB warming up...): {e}")
+        print(f"⚠️ DB Seed skipped: {e}")
+
     finally:
         db.close()
 
+
+# ================= AUTOSTART ================= #
+
 async def trigger_auto_start(client: Client):
-    """🚀 Autonomous Engine Ignition: Automatically starts news production on boot."""
     await seed_database()
-    channel_id = os.getenv("AUTO_START_CHANNEL_ID", "1")
-    language = os.getenv("DEFAULT_LANGUAGE", " Marathi").strip()
+
+    channel_id = int(os.getenv("AUTO_START_CHANNEL_ID", "1"))
+    language = os.getenv("DEFAULT_LANGUAGE", "Marathi").strip()
     stream_key = os.getenv("YOUTUBE_STREAM_KEY", "")
-    workflow_id = f"news-production-{channel_id}"
-    base_workflow_id = workflow_id
 
     if not stream_key:
-        print("🛰️ AUTOPILOT: Waiting for YOUTUBE_STREAM_KEY to be configured...")
+        print("⚠️ Missing YOUTUBE_STREAM_KEY")
         return
 
-    # 🔄 Attempt to start the workflow with retries
-    for attempt in range(5):
-        try:
-            print(f"🛰️ AUTOPILOT: Checking for active broadcast (Attempt {attempt+1}/5)...")
-            handle = client.get_workflow_handle(workflow_id)
-            desc = await handle.describe()
-            if desc.status.name == "RUNNING":
-                print(f"✅ AUTOPILOT: Channel {channel_id} is already LIVE. Resuming monitoring.")
-                return
-        except Exception:
-            # Workflow doesn't exist yet, or the ID is stale/failed
-            break
-        await asyncio.sleep(5)
+    workflow_id = f"news-production-{channel_id}"
 
+    # Check existing workflow
     try:
-        print(f"🚀 AUTOPILOT: Launching news production workflow for Channel {channel_id}...")
+        handle = client.get_workflow_handle(workflow_id)
+        desc = await handle.describe()
+        if desc.status.name == "RUNNING":
+            print("✅ Already running")
+            return
+    except Exception:
+        pass
+
+    # Start workflow
+    try:
         await client.start_workflow(
             NewsProductionWorkflow.run,
-            {"channel_id": int(channel_id), "language": language, "stream_key": stream_key},
-            id=workflow_id, task_queue="news-task-queue"
+            {
+                "channel_id": channel_id,
+                "language": language,
+                "stream_key": stream_key
+            },
+            id=workflow_id,
+            task_queue="news-task-queue"
         )
-        print("✅ AUTOPILOT: Workflow launched successfully!")
+        print("🚀 Workflow started")
+
     except Exception as e:
-        error_str = str(e).lower()
-        if "already started" in error_str or "workflowalreadystarted" in error_str:
-            workflow_id = f"{base_workflow_id}-{int(time.time())}"
-            try:
-                await client.start_workflow(
-                    NewsProductionWorkflow.run,
-                    {"channel_id": int(channel_id), "language": language, "stream_key": stream_key},
-                    id=workflow_id, task_queue="news-task-queue"
-                )
-                print(f"✅ AUTOPILOT: Started fresh workflow as {workflow_id} after stale workflow id conflict.")
-            except Exception as inner:
-                print(f"❌ AUTOPILOT ERROR on fresh workflow start: {inner}")
-        else:
-            print(f"❌ AUTOPILOT ERROR: {e}")
+        print(f"⚠️ Workflow start issue: {e}")
+
+
+# ================= MAIN ================= #
 
 async def main():
     from dotenv import load_dotenv
     load_dotenv()
-    
-    client = await temporal_utils.get_temporal_client()
-    
-    if not client: return
 
+    # Retry connect to Temporal
+    client = None
+    for i in range(10):
+        try:
+            client = await temporal_utils.get_temporal_client()
+            if client:
+                print("✅ Connected to Temporal")
+                break
+        except Exception as e:
+            print(f"Retry Temporal connect {i+1}/10...")
+            await asyncio.sleep(5)
+
+    if not client:
+        raise RuntimeError("❌ Cannot connect to Temporal")
+
+    # Start auto workflow in background
     asyncio.create_task(trigger_auto_start(client))
-    
+
     worker = Worker(
-        client, task_queue="news-task-queue",
+        client,
+        task_queue="news-task-queue",
         workflows=[NewsProductionWorkflow, StopStreamWorkflow],
         activities=[
-            fetch_news_activity, generate_script_activity, generate_audio_activity,
-            generate_news_video_activity, synclabs_lip_sync_activity,
-            check_sync_labs_status_activity, upload_to_s3_activity,
-            start_stream_activity, ensure_promo_video_activity,
-            stop_stream_activity, check_scheduled_ads_activity,
+            fetch_news_activity,
+            generate_script_activity,
+            generate_audio_activity,
+            generate_news_video_activity,
+            synclabs_lip_sync_activity,
+            check_sync_labs_status_activity,
+            upload_to_s3_activity,
+            start_stream_activity,
+            ensure_promo_video_activity,
+            stop_stream_activity,
+            check_scheduled_ads_activity,
             cleanup_old_videos_activity
         ],
         workflow_runner=UnsandboxedWorkflowRunner()
     )
-    print("News Worker Online.")
-    await worker.run()
+
+    print("🚀 Worker started")
+
+    try:
+        await worker.run()
+    except Exception as e:
+        print(f"❌ Worker crashed: {e}")
+        raise
+
+
+# ================= ENTRY ================= #
 
 if __name__ == "__main__":
-    asyncio.run(main())
+    try:
+        asyncio.run(main())
+    except Exception as e:
+        print(f"❌ Fatal error: {e}")
