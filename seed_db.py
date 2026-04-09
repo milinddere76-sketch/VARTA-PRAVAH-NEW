@@ -1,50 +1,97 @@
 #!/usr/bin/env python3
 import os
 import sys
+
 sys.path.append('.')
 
-# Set environment variables for local testing
-os.environ['DATABASE_URL'] = 'postgresql://root:password@localhost:5432/temporal'
-os.environ['SQLITE_URL'] = 'sqlite:///dev.db'
+# ---------------------------
+# ENV SETUP (SAFE)
+# ---------------------------
+if not os.getenv("DATABASE_URL"):
+    os.environ["DATABASE_URL"] = "postgresql://root:password@localhost:5432/temporal"
 
-from database import get_engine
+if not os.getenv("SQLITE_URL"):
+    os.environ["SQLITE_URL"] = "sqlite:///dev.db"
+
+# ---------------------------
+# IMPORTS
+# ---------------------------
+from database import get_engine, get_session_local
 from models import Channel, User, Base
 
-# Create tables
+# ---------------------------
+# INIT DB
+# ---------------------------
+print("🔧 Initializing database...")
 engine = get_engine()
 Base.metadata.create_all(bind=engine)
 
-# Seed database
-from database import get_session_local
 SessionLocal = get_session_local()
 db = SessionLocal()
 
-# Check existing data
-users = db.query(User).all()
-channels = db.query(Channel).all()
+try:
+    # -----------------------
+    # CHECK USERS
+    # -----------------------
+    users = db.query(User).all()
 
-print("Database status:")
-print(f"Users: {len(users)}")
-for user in users:
-    print(f"  - {user.email} (ID: {user.id})")
+    if not users:
+        print("⚠️ No users found. Creating default user...")
 
-print(f"Channels: {len(channels)}")
-for channel in channels:
-    print(f"  - {channel.name} (ID: {channel.id}, streaming: {channel.is_streaming})")
+        default_user = User(
+            id=1,
+            email="admin@vartapravah.com",
+            hashed_password="admin123",
+            full_name="Admin",
+            is_active=True
+        )
 
-if not channels:
-    print("No channels found, creating one...")
-    # Create a test channel
-    channel = Channel(
-        name="Test Channel",
-        youtube_stream_key="test-key",
-        is_streaming=False,
-        owner_id=users[0].id if users else 1
-    )
-    db.add(channel)
-    db.commit()
-    print(f"Created channel: {channel.name} (ID: {channel.id})")
-else:
-    print("Channels already exist.")
+        db.add(default_user)
+        db.commit()
+        db.refresh(default_user)
 
-db.close()
+        users = [default_user]
+
+    # -----------------------
+    # CHECK CHANNELS
+    # -----------------------
+    channels = db.query(Channel).all()
+
+    print("\n📊 Database Status:")
+    print(f"Users: {len(users)}")
+    for user in users:
+        print(f"  - {user.email} (ID: {user.id})")
+
+    print(f"Channels: {len(channels)}")
+    for channel in channels:
+        print(f"  - {channel.name} (ID: {channel.id}, streaming: {channel.is_streaming})")
+
+    # -----------------------
+    # CREATE CHANNEL IF NONE
+    # -----------------------
+    if not channels:
+        print("\n⚠️ No channels found. Creating default channel...")
+
+        channel = Channel(
+            name="Varta Pravah Live",
+            language="Marathi",
+            youtube_stream_key="your-stream-key-here",
+            is_streaming=False,
+            owner_id=users[0].id
+        )
+
+        db.add(channel)
+        db.commit()
+        db.refresh(channel)
+
+        print(f"✅ Created channel: {channel.name} (ID: {channel.id})")
+
+    else:
+        print("\n✅ Channels already exist.")
+
+except Exception as e:
+    print(f"❌ Error: {e}")
+
+finally:
+    db.close()
+    print("\n🔒 Database session closed.")
