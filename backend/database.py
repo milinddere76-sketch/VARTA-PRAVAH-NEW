@@ -2,9 +2,8 @@ import os
 import time
 import socket
 from sqlalchemy import create_engine
-from sqlalchemy.orm import sessionmaker, Session
+from sqlalchemy.orm import sessionmaker, Session, declarative_base
 from sqlalchemy.exc import OperationalError
-from sqlalchemy.ext.declarative import declarative_base
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -14,76 +13,119 @@ Base = declarative_base()
 engine = None
 SessionLocal = None
 
+
+# ================= SOCKET CHECK ================= #
+
 def is_db_open(url, timeout=0.5):
-    """Quick socket probe for Postgres."""
     try:
-        # Extract host and port from postgresql://root:password@host:port/dbname
         host_port = url.split('@')[-1].split('/')[0]
+
         if ':' in host_port:
             host, port = host_port.split(':')
         else:
             host, port = host_port, 5432
+
         with socket.create_connection((host, int(port)), timeout=timeout):
             return True
-    except:
+
+    except (socket.timeout, ConnectionRefusedError, OSError):
         return False
 
+
+# ================= ENGINE BUILDER ================= #
+
 def get_engine():
-    """
-    🏗️ Steel-Hardened Database Prober
-    Finds the correct Postgres connection in any environment (Coolify, Local, or Docker).
-    """
+    global engine
+
     possible_urls = [
         os.getenv("DATABASE_URL"),
         os.getenv("SQLITE_URL"),
         "postgresql://root:password@postgres:5432/temporal",
         "postgresql://root:password@localhost:5432/temporal",
-        "postgresql://root:password@postgres-t892o397h64afn1mgn4lndi3-234723873492:5432/temporal"
     ]
-    
-    for url in [u for u in possible_urls if u]:
-        if url.startswith("sqlite"):
-            print(f"📦 Using local SQLite database at {url}")
-            return create_engine(url, connect_args={"check_same_thread": False}, pool_pre_ping=True)
 
-        print(f"📡 Speed Probing Database at {url.split('@')[-1]}...")
+    for url in filter(None, possible_urls):
+
+        if url.startswith("sqlite"):
+            print(f"📦 Using SQLite: {url}")
+            engine = create_engine(
+                url,
+                connect_args={"check_same_thread": False},
+                pool_pre_ping=True
+            )
+            return engine
+
+        host_info = url.split('@')[-1]
+        print(f"📡 Checking DB: {host_info}")
+
         if not is_db_open(url):
-            print(f"⏩ Skipping {url.split('@')[-1]} (Port closed/Unreachable)")
+            print(f"⏩ Skipping {host_info} (unreachable)")
             continue
 
         try:
-            engine = create_engine(url, pool_pre_ping=True)
-            with engine.connect() as conn:
-                print(f"✅ Database Connected Successfully at {url.split('@')[-1]}!")
+            engine = create_engine(
+                url,
+                pool_pre_ping=True,
+                pool_size=5,
+                max_overflow=10
+            )
+
+            with engine.connect():
+                print(f"✅ Connected to {host_info}")
                 return engine
-        except (OperationalError, Exception) as e:
-            print(f"❌ Connection failed for {url.split('@')[-1]}: {str(e)[:50]}...")
+
+        except OperationalError as e:
+            print(f"❌ DB error {host_info}: {str(e)[:60]}")
             continue
 
-    sqlite_path = os.getenv("SQLITE_URL") or f"sqlite:///{os.path.join(os.path.dirname(os.path.abspath(__file__)), 'dev.db')}"
-    print(f"📦 No PostgreSQL host reachable; falling back to local SQLite at {sqlite_path}")
-    return create_engine(sqlite_path, connect_args={"check_same_thread": False}, pool_pre_ping=True)
+    # ================= FALLBACK ================= #
 
+    sqlite_path = os.getenv("SQLITE_URL")
+
+    if not sqlite_path:
+        sqlite_path = "sqlite:///./dev.db"  # safer for Docker
+
+    print(f"⚠️ Falling back to SQLite: {sqlite_path}")
+
+    engine = create_engine(
+        sqlite_path,
+        connect_args={"check_same_thread": False},
+        pool_pre_ping=True
+    )
+
+    return engine
+
+
+# ================= SESSION ================= #
 
 def get_session_local():
-    global engine, SessionLocal
+    global SessionLocal
+
     if engine is None:
-        engine = get_engine()
+        get_engine()
+
     if SessionLocal is None:
-        SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
+        SessionLocal = sessionmaker(
+            autocommit=False,
+            autoflush=False,
+            bind=engine
+        )
+
     return SessionLocal
 
 
+# ================= DEPENDENCY ================= #
+
 def get_db():
-    SessionLocal = get_session_local()
-    db = SessionLocal()
+    db = get_session_local()()
     try:
         yield db
     finally:
         db.close()
 
 
+# ================= INIT ================= #
+
 def init_db():
-    """Create all tables with safety checks."""
-    get_session_local()
+    get_engine()
     Base.metadata.create_all(bind=engine)
