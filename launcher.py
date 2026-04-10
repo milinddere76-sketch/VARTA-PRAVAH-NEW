@@ -2,59 +2,151 @@ import os
 import subprocess
 import time
 import sys
+import platform
 
+# ---------------------------
+# RUN COMMAND SAFELY
+# ---------------------------
 def run_command(command, cwd=None):
-    print(f"Running: {command} in {cwd or os.getcwd()}")
-    return subprocess.run(command, shell=True, cwd=cwd)
+    print(f"\n🚀 Running: {command}")
+    try:
+        result = subprocess.run(command, shell=True, cwd=cwd)
+        if result.returncode != 0:
+            print(f"❌ Command failed: {command}")
+            sys.exit(1)
+        return result
+    except Exception as e:
+        print(f"❌ Error running command: {e}")
+        sys.exit(1)
 
+
+# ---------------------------
+# DETECT OS
+# ---------------------------
+IS_WINDOWS = platform.system() == "Windows"
+
+
+# ---------------------------
+# SETUP ENVIRONMENT
+# ---------------------------
 def setup_environment():
-    # 1. Install Backend Dependencies
-    print("--- Installing Backend Dependencies ---")
-    run_command("pip install -r backend/requirements.txt")
+    # Check folders
+    if not os.path.exists("backend"):
+        print("❌ backend folder not found")
+        sys.exit(1)
 
-    # 2. Install Frontend Dependencies
-    print("--- Installing Frontend Dependencies ---")
-    run_command("cmd /c npm install", cwd="frontend")
+    if not os.path.exists("frontend"):
+        print("❌ frontend folder not found")
+        sys.exit(1)
 
-    # 3. Check and Install FFmpeg
-    print("--- Checking FFmpeg ---")
-    res = subprocess.run("ffmpeg -version", shell=True, capture_output=True)
-    if res.returncode != 0:
-        print("FFmpeg not found. Attempting install via winget...")
-        run_command("winget install --id=Gyan.FFmpeg -e --accept-source-agreements --accept-package-agreements")
+    # -----------------------
+    # Backend Dependencies
+    # -----------------------
+    print("\n--- Installing Backend Dependencies ---")
+    run_command("pip install -r requirements.txt", cwd="backend")
+
+    # -----------------------
+    # Frontend Dependencies
+    # -----------------------
+    print("\n--- Installing Frontend Dependencies ---")
+    if IS_WINDOWS:
+        run_command("npm install", cwd="frontend")
     else:
-        print("FFmpeg is already installed.")
+        run_command("npm install", cwd="frontend")
 
-    # 4. Start Docker Infrastructure
-    print("--- Starting Docker (PostgreSQL + Temporal) ---")
-    run_command("docker-compose up -d")
-    
-    # Wait for database/temporal to be ready
-    print("Waiting for infrastructure to stabilize (10s)...")
-    time.sleep(10)
+    # -----------------------
+    # FFmpeg Check
+    # -----------------------
+    print("\n--- Checking FFmpeg ---")
+    res = subprocess.run("ffmpeg -version", shell=True, capture_output=True)
 
+    if res.returncode != 0:
+        print("⚠️ FFmpeg not found.")
+
+        if IS_WINDOWS:
+            print("Installing via winget...")
+            run_command(
+                "winget install --id=Gyan.FFmpeg -e --accept-source-agreements --accept-package-agreements"
+            )
+        else:
+            print("Installing via apt...")
+            run_command("sudo apt update && sudo apt install -y ffmpeg")
+    else:
+        print("✅ FFmpeg already installed")
+
+    # -----------------------
+    # Docker Infrastructure
+    # -----------------------
+    print("\n--- Starting Docker (PostgreSQL + Temporal) ---")
+
+    # Try modern docker first
+    docker_cmd = "docker compose"
+
+    result = subprocess.run(f"{docker_cmd} version", shell=True, capture_output=True)
+
+    if result.returncode != 0:
+        docker_cmd = "docker-compose"
+
+    run_command(f"{docker_cmd} up -d")
+
+    print("⏳ Waiting for services (15s)...")
+    time.sleep(15)
+
+
+# ---------------------------
+# LAUNCH SERVICES
+# ---------------------------
 def launch_services():
-    print("--- Launching VartaPravah Ecosystem ---")
-    
-    # In a real environment, we'd use a process manager like PM2 or supervisor
-    # For local dev, we'll suggest opening separate terminals for monitoring.
-    
-    # Opening separate terminal windows for the worker and backend on Windows
-    # 1. Temporal Worker
-    subprocess.Popen('start cmd /k "python -m temporal.worker"', shell=True, cwd="backend")
-    
-    # 2. FastAPI Backend
-    subprocess.Popen('start cmd /k "uvicorn main:app --reload"', shell=True, cwd="backend")
-    
-    # 3. Next.js Frontend
-    subprocess.Popen('start cmd /k "npm run dev"', shell=True, cwd="frontend")
+    print("\n--- Launching VartaPravah Ecosystem ---")
 
-    print("\nVartaPravah is launching!")
-    print("Dashboard: http://localhost:3000/dashboard")
-    print("FastAPI: http://localhost:8000/docs")
-    print("Temporal UI: http://localhost:8080")
+    if IS_WINDOWS:
+        # Windows terminals
+        subprocess.Popen(
+            'start cmd /k "python -m temporal.worker"',
+            shell=True,
+            cwd="backend"
+        )
 
+        subprocess.Popen(
+            'start cmd /k "uvicorn main:app --reload"',
+            shell=True,
+            cwd="backend"
+        )
+
+        subprocess.Popen(
+            'start cmd /k "npm run dev"',
+            shell=True,
+            cwd="frontend"
+        )
+
+    else:
+        # Linux / Mac (background processes)
+        subprocess.Popen(
+            ["python", "-m", "temporal.worker"],
+            cwd="backend"
+        )
+
+        subprocess.Popen(
+            ["uvicorn", "main:app", "--reload"],
+            cwd="backend"
+        )
+
+        subprocess.Popen(
+            ["npm", "run", "dev"],
+            cwd="frontend"
+        )
+
+    print("\n🎉 VartaPravah is launching!")
+    print("🌐 Dashboard: http://localhost:3000/dashboard")
+    print("⚙️ FastAPI: http://localhost:8000/docs")
+    print("📡 Temporal UI: http://localhost:8088")
+
+
+# ---------------------------
+# ENTRY POINT
+# ---------------------------
 if __name__ == "__main__":
     if "--no-setup" not in sys.argv:
         setup_environment()
+
     launch_services()
