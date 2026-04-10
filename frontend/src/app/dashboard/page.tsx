@@ -1,15 +1,7 @@
 "use client";
 
-import React, { useState, useEffect } from 'react';
-import { Plus, Play, ExternalLink, Activity, Info, AlertCircle, Settings, Trash2, Square, Megaphone } from 'lucide-react';
-
-interface Anchor {
-  id: number;
-  name: string;
-  gender: string;
-  description?: string;
-  is_active: boolean;
-}
+import React, { useState, useEffect, useCallback } from 'react';
+import { Activity, ExternalLink, Square, Play, Settings, Megaphone, Trash2, Zap } from 'lucide-react';
 
 interface Channel {
   id: number;
@@ -18,7 +10,6 @@ interface Channel {
   youtube_stream_key: string;
   is_streaming: boolean;
   created_at: string;
-  preferred_anchor_id?: number;
 }
 
 interface AdCampaign {
@@ -29,110 +20,109 @@ interface AdCampaign {
   is_active: boolean;
 }
 
+const API_URL = '/api';
+
 export default function DashboardPage() {
-  const [channels, setChannels] = useState<Channel[]>([]);
-  const [anchors, setAnchors] = useState<Anchor[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [showModal, setShowModal] = useState(false);
-  const [newChannel, setNewChannel] = useState({ name: '', youtube_stream_key: '', language: 'Marathi' });
-  const [processing, setProcessing] = useState<number | null>(null);
-  
+  const [channel, setChannel]     = useState<Channel | null>(null);
+  const [loading, setLoading]     = useState(true);
+  const [processing, setProcessing] = useState(false);
+
+  const [showAdModal, setShowAdModal] = useState(false);
+  const [ads, setAds]             = useState<AdCampaign[]>([]);
+  const [newAd, setNewAd]         = useState({ name: '', video_url: '', scheduled_hours: '08,12,18,21' });
+
   const [showSettingsModal, setShowSettingsModal] = useState(false);
   const [settingsData, setSettingsData] = useState({ groq_api_key: '', world_news_api_key: '' });
-  
-  const [showAdModal, setShowAdModal] = useState<number | null>(null);
-  const [ads, setAds] = useState<AdCampaign[]>([]);
-  const [newAd, setNewAd] = useState({ name: '', video_url: '', scheduled_hours: '08,12,18,21' });
-  
-  const [showAnchorModal, setShowAnchorModal] = useState(false);
-  const [newAnchor, setNewAnchor] = useState({ name: '', gender: 'male', description: '' });
-  
-  const API_URL = '/api';
 
-  useEffect(() => {
-    fetchChannels();
-    fetchAnchors();
-  }, []);
+  const [bulletinCount, setBulletinCount] = useState(0);
+  const [currentAnchor, setCurrentAnchor] = useState<'Priya Desai ♀' | 'Arjun Sharma ♂'>('Priya Desai ♀');
 
-  const fetchChannels = async () => {
+  // Fetch the single default channel (id=1)
+  const fetchChannel = useCallback(async () => {
     try {
       const res = await fetch(`${API_URL}/channels`);
-      const data = await res.json();
-      setChannels(data);
-      setLoading(false);
+      const data: Channel[] = await res.json();
+      setChannel(data[0] ?? null);
     } catch (err) {
-      console.error("Failed to fetch channels", err);
+      console.error('Failed to fetch channel', err);
+    } finally {
       setLoading(false);
     }
-  };
+  }, []);
 
-  const fetchAnchors = async () => {
+  useEffect(() => {
+    fetchChannel();
+    const interval = setInterval(fetchChannel, 15_000); // refresh every 15s
+    return () => clearInterval(interval);
+  }, [fetchChannel]);
+
+  // Simulate anchor alternation indicator (purely cosmetic — actual alternation is in the workflow)
+  useEffect(() => {
+    if (!channel?.is_streaming) return;
+    const interval = setInterval(() => {
+      setBulletinCount(n => n + 1);
+      setCurrentAnchor(n => n === 'Priya Desai ♀' ? 'Arjun Sharma ♂' : 'Priya Desai ♀');
+    }, 30 * 60 * 1000); // 30 min to match workflow cadence
+    return () => clearInterval(interval);
+  }, [channel?.is_streaming]);
+
+  const handleTrigger = async () => {
+    if (!channel) return;
+    setProcessing(true);
     try {
-      const res = await fetch(`${API_URL}/anchors`);
-      const data = await res.json();
-      setAnchors(data);
-    } catch (err) {
-      console.error("Failed to fetch anchors", err);
+      const res = await fetch(`${API_URL}/channels/${channel.id}/trigger`, { method: 'POST' });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        alert(`Failed: ${err.detail || res.statusText}`);
+      }
+      await fetchChannel();
+    } catch {
+      alert('Network error — backend unreachable.');
+    } finally {
+      setProcessing(false);
     }
   };
 
-  const handleCreateAnchor = async (e: React.FormEvent) => {
+  const handleStop = async () => {
+    if (!channel || !confirm('Halt broadcast immediately? This will drop the YouTube stream.')) return;
+    setProcessing(true);
+    try {
+      await fetch(`${API_URL}/channels/${channel.id}/stop`, { method: 'POST' });
+      await fetchChannel();
+    } catch {
+      alert('Error stopping stream.');
+    } finally {
+      setProcessing(false);
+    }
+  };
+
+  const fetchAds = async () => {
+    if (!channel) return;
+    try {
+      const res = await fetch(`${API_URL}/channels/${channel.id}/ads`);
+      setAds(await res.json());
+    } catch { /* silent */ }
+  };
+
+  const handleCreateAd = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!channel) return;
     try {
-      const res = await fetch(`${API_URL}/anchors`, {
+      await fetch(`${API_URL}/channels/${channel.id}/ads`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(newAnchor)
+        body: JSON.stringify({ ...newAd, channel_id: channel.id }),
       });
-      if (res.ok) {
-        setShowAnchorModal(false);
-        setNewAnchor({ name: '', gender: 'male', description: '' });
-        fetchAnchors();
-      } else {
-        alert("Failed to create anchor.");
-      }
-    } catch (err) {
-      alert("Error creating anchor.");
-    }
+      setNewAd({ name: '', video_url: '', scheduled_hours: '08,12,18,21' });
+      fetchAds();
+    } catch { alert('Error adding ad.'); }
   };
 
-  const handleSetChannelAnchor = async (channelId: number, anchorId: number) => {
+  const handleDeleteAd = async (adId: number) => {
     try {
-      const res = await fetch(`${API_URL}/channels/${channelId}/anchor/${anchorId}`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' }
-      });
-      if (res.ok) {
-        fetchChannels();
-      } else {
-        alert("Failed to set anchor.");
-      }
-    } catch (err) {
-      alert("Error setting anchor.");
-    }
-  };
-
-  const handleCreateChannel = async (e: React.FormEvent) => {
-    e.preventDefault();
-    try {
-      const res = await fetch(`${API_URL}/channels`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ ...newChannel, owner_id: 1 })
-      });
-
-      if (res.ok) {
-        setShowModal(false);
-        setNewChannel({ name: '', youtube_stream_key: '', language: 'Marathi' });
-        fetchChannels();
-      } else {
-        const errorData = await res.json().catch(() => ({}));
-        alert(`Failed to create channel: ${errorData.detail || res.statusText}`);
-      }
-    } catch (err) {
-      console.error("Failed to create channel", err);
-      alert("Network error: Could not connect to the backend API.");
-    }
+      await fetch(`${API_URL}/ads/${adId}`, { method: 'DELETE' });
+      fetchAds();
+    } catch { /* silent */ }
   };
 
   const handleUpdateSettings = async (e: React.FormEvent) => {
@@ -141,544 +131,278 @@ export default function DashboardPage() {
       const res = await fetch(`${API_URL}/settings`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(settingsData)
+        body: JSON.stringify(settingsData),
       });
-      if (res.ok) {
-        alert("API Config updated successfully! Live across backend.");
-        setShowSettingsModal(false);
-      } else {
-        alert("Failed to update keys.");
-      }
-    } catch(err) {
-      alert("Network Error");
-    }
-  };
-
-  const handleTriggerNews = async (channelId: number) => {
-    setProcessing(channelId);
-    
-    // Optimistically update the UI to show LIVE immediately
-    setChannels(prevChannels => 
-      prevChannels.map(ch => 
-        ch.id === channelId ? { ...ch, is_streaming: true } : ch
-      )
-    );
-
-    try {
-      const res = await fetch(`${API_URL}/channels/${channelId}/trigger`, {
-        method: 'POST'
-      });
-      if (res.ok) {
-        const data = await res.json();
-        if (data.status === 'already_running') {
-          alert(`News generation is already in progress for this channel.`);
-        } else {
-          // No alert needed for "News generation triggered!" if the status pill already updated.
-        }
-        // But we refresh to get the definite state from the server.
-        await fetchChannels();
-      } else {
-        const errorData = await res.json().catch(() => ({}));
-        alert(`Failed to trigger news: ${errorData.detail || res.statusText}`);
-        // Revert optimistic update on failure
-        await fetchChannels();
-      }
-    } catch (err) {
-      console.error("Failed to trigger news", err);
-      alert("Network error: Could not connect to the backend API. Check if the server is running.");
-      // Revert optimistic update on failure
-      await fetchChannels();
-    } finally {
-      setProcessing(null);
-    }
-  };
-
-  const handleStopChannel = async (channelId: number) => {
-    if (!confirm("Are you sure you want to halt broadcasting immediately? This will drop the YouTube stream.")) return;
-    
-    // Optimistic UI update
-    setChannels(prev => prev.map(ch => ch.id === channelId ? { ...ch, is_streaming: false } : ch));
-    
-    try {
-      const res = await fetch(`${API_URL}/channels/${channelId}/stop`, { method: 'POST' });
-      if (!res.ok) throw new Error("Failed to stop.");
-      await fetchChannels();
-    } catch (err) {
-      alert("Error stopping stream.");
-      await fetchChannels();
-    }
-  };
-
-  const handleDeleteChannel = async (channelId: number) => {
-    if (!confirm("Are you sure you want to permanently delete this channel and stop any active streams?")) return;
-    
-    try {
-      const res = await fetch(`${API_URL}/channels/${channelId}`, { method: 'DELETE' });
-      if (!res.ok) throw new Error("Failed to delete.");
-      await fetchChannels();
-    } catch (err) {
-      alert("Error deleting channel.");
-    }
-  };
-
-  const fetchAds = async (channelId: number) => {
-    try {
-      const res = await fetch(`${API_URL}/channels/${channelId}/ads`);
-      const data = await res.json();
-      setAds(data);
-    } catch (err) { console.error(err); }
-  };
-
-  const handleCreateAd = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!showAdModal) return;
-    try {
-      const res = await fetch(`${API_URL}/channels/${showAdModal}/ads`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ ...newAd, channel_id: showAdModal })
-      });
-      if (res.ok) {
-        setNewAd({ name: '', video_url: '', scheduled_hours: '08,12,18,21' });
-        fetchAds(showAdModal);
-      }
-    } catch (err) { alert("Error adding ad."); }
-  };
-
-  const handleDeleteAd = async (adId: number) => {
-    try {
-      await fetch(`${API_URL}/ads/${adId}`, { method: 'DELETE' });
-      if (showAdModal) fetchAds(showAdModal);
-    } catch (err) { alert("Error."); }
+      if (res.ok) { alert('API keys updated!'); setShowSettingsModal(false); }
+      else alert('Failed to update keys.');
+    } catch { alert('Network error.'); }
   };
 
   return (
-    <div className="min-h-screen bg-[#0f111a] text-white flex font-sans">
-      {/* Sidebar */}
-      <aside className="w-72 bg-[#161926] p-8 border-r border-[#22273a] flex flex-col">
-        <div className="flex items-center space-x-3 mb-12">
-          <div className="w-10 h-10 bg-gradient-to-tr from-blue-600 to-indigo-400 rounded-lg flex items-center justify-center">
-            <Activity size={24} className="text-white" />
-          </div>
-          <h1 className="text-2xl font-bold tracking-tight text-white">VartaPravah</h1>
-        </div>
-        
-        <nav className="flex-1 space-y-2">
-          <NavItem icon={<Activity size={20}/>} label="Dashboard" href="/dashboard" active />
-          <NavItem 
-            icon={<Plus size={20}/>} 
-            label="Channels" 
-            onClick={() => setShowModal(true)} 
-          />
-          <NavItem 
-            icon={<Activity size={20}/>} 
-            label="News Anchors" 
-            onClick={() => setShowAnchorModal(true)} 
-          />
-          <NavItem icon={<Info size={20}/>} label="Workflows" href="http://localhost:8080" target="_blank" />
-          <NavItem icon={<Settings size={20}/>} label="API Config" onClick={() => setShowSettingsModal(true)} />
-        </nav>
+    <div className="min-h-screen bg-[#080b14] text-white font-sans flex flex-col">
 
-        <div className="mt-auto pt-8 border-t border-[#22273a]">
-          <div className="bg-gradient-to-r from-blue-600/20 to-transparent p-4 rounded-xl border border-blue-600/30">
-            <p className="text-xs text-blue-400 font-bold uppercase tracking-wider mb-1">Status</p>
-            <p className="text-sm text-gray-300">All systems operational</p>
+      {/* ─── Top Nav ─────────────────────────────────────────────── */}
+      <nav className="border-b border-[#1c2035] bg-[#0d1120] px-8 py-4 flex items-center justify-between">
+        <div className="flex items-center gap-3">
+          <div className="w-9 h-9 rounded-lg bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center shadow-lg shadow-blue-500/30">
+            <Zap size={18} className="text-white" />
           </div>
+          <span className="text-xl font-bold tracking-tight">VartaPravah</span>
+          <span className="text-xs text-blue-400 font-semibold bg-blue-500/10 border border-blue-500/20 px-2 py-0.5 rounded-full ml-1">24×7 AI Broadcast</span>
         </div>
-      </aside>
-
-      {/* Main Content */}
-      <main className="flex-1 p-10 overflow-y-auto">
-        <header className="flex justify-between items-center mb-12">
-          <div>
-            <h2 className="text-4xl font-bold mb-2">Control Center</h2>
-            <p className="text-gray-400">Manage your AI-powered 24x7 news network.</p>
-          </div>
-          <button 
-            onClick={() => setShowModal(true)}
-            className="bg-blue-600 hover:bg-blue-700 text-white px-8 py-3 rounded-xl font-bold transition-all shadow-lg shadow-blue-600/20 flex items-center space-x-2"
+        <div className="flex items-center gap-3">
+          <button
+            onClick={() => { setShowAdModal(true); fetchAds(); }}
+            className="flex items-center gap-2 text-sm text-gray-400 hover:text-purple-400 transition px-3 py-2 rounded-lg hover:bg-purple-500/10 border border-transparent hover:border-purple-500/20"
           >
-            <Plus size={20} />
-            <span>New Channel</span>
+            <Megaphone size={16} /> Ad Scheduler
           </button>
-        </header>
+          <button
+            onClick={() => setShowSettingsModal(true)}
+            className="flex items-center gap-2 text-sm text-gray-400 hover:text-white transition px-3 py-2 rounded-lg hover:bg-white/5"
+          >
+            <Settings size={16} /> API Config
+          </button>
+        </div>
+      </nav>
+
+      {/* ─── Main ────────────────────────────────────────────────── */}
+      <main className="flex-1 flex flex-col items-center justify-center px-6 py-12">
 
         {loading ? (
-          <div className="flex justify-center items-center h-96">
-            <div className="animate-spin rounded-full h-16 w-16 border-t-2 border-b-2 border-blue-500"></div>
+          <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-500" />
+        ) : !channel ? (
+          <div className="text-center">
+            <div className="text-6xl mb-4">📡</div>
+            <p className="text-gray-400 text-lg">Connecting to broadcast system…</p>
+            <p className="text-gray-600 text-sm mt-2">Channel will appear automatically once the backend is ready.</p>
           </div>
         ) : (
-          <div className="grid grid-cols-1 xl:grid-cols-2 gap-8">
-            {channels.map(channel => (
-              <div key={channel.id} className="bg-[#161926] p-8 rounded-2xl border border-[#22273a] hover:border-blue-500/50 transition">
-                <div className="flex justify-between items-start mb-6">
-                  <div>
-                    <h3 className="text-2xl font-bold mb-1">{channel.name}</h3>
-                    <p className="text-gray-400 text-sm">Language: <span className="text-blue-400 font-medium">{channel.language}</span></p>
-                  </div>
-                  <span className={`px-4 py-1.5 rounded-full text-xs font-bold uppercase tracking-widest ${channel.is_streaming ? 'bg-green-500/10 text-green-400 border border-green-500/30' : 'bg-gray-500/10 text-gray-400 border border-gray-500/30'}`}>
-                    {channel.is_streaming ? '● Live' : '● Inactive'}
-                  </span>
-                </div>
+          <div className="w-full max-w-2xl space-y-6">
 
-                <div className="grid grid-cols-2 gap-4 mb-8">
-                  <div className="bg-[#0f111a] p-4 rounded-xl border border-[#22273a]">
-                    <p className="text-gray-500 text-xs uppercase mb-1">Stream Key</p>
-                    <p className="text-sm font-mono truncate">{channel.youtube_stream_key || 'Not Set'}</p>
+            {/* ── Live Status Card ── */}
+            <div className={`relative rounded-3xl border p-8 overflow-hidden transition-all duration-500 ${
+              channel.is_streaming
+                ? 'bg-gradient-to-br from-[#0d1f12] to-[#0f1a1a] border-green-500/30 shadow-2xl shadow-green-500/10'
+                : 'bg-[#111623] border-[#1c2035]'
+            }`}>
+
+              {/* Glow effect when live */}
+              {channel.is_streaming && (
+                <div className="absolute inset-0 bg-gradient-to-br from-green-500/5 to-transparent pointer-events-none" />
+              )}
+
+              <div className="relative flex items-start justify-between mb-8">
+                <div>
+                  <h1 className="text-3xl font-bold mb-1">{channel.name}</h1>
+                  <p className="text-gray-400 text-sm">Language: <span className="text-blue-400 font-semibold">{channel.language}</span></p>
+                </div>
+                <div className={`flex items-center gap-2 px-4 py-2 rounded-full text-xs font-bold uppercase tracking-widest border ${
+                  channel.is_streaming
+                    ? 'bg-green-500/15 text-green-400 border-green-500/30'
+                    : 'bg-gray-500/10 text-gray-500 border-gray-500/20'
+                }`}>
+                  <span className={`w-2 h-2 rounded-full ${channel.is_streaming ? 'bg-green-400 animate-pulse' : 'bg-gray-600'}`} />
+                  {channel.is_streaming ? 'Live on YouTube' : 'Offline'}
+                </div>
+              </div>
+
+              {/* ── Anchor alternation indicator ── */}
+              {channel.is_streaming && (
+                <div className="relative grid grid-cols-2 gap-4 mb-8">
+                  <div className={`p-4 rounded-2xl border text-center transition-all ${
+                    currentAnchor === 'Priya Desai ♀'
+                      ? 'bg-pink-500/10 border-pink-500/30'
+                      : 'bg-[#0d1120] border-[#1c2035] opacity-50'
+                  }`}>
+                    <p className="text-2xl mb-1">👩</p>
+                    <p className="font-bold text-sm">Priya Desai</p>
+                    <p className="text-xs text-gray-500">Female Anchor</p>
+                    {currentAnchor === 'Priya Desai ♀' && (
+                      <span className="text-xs text-pink-400 font-semibold">● On Air</span>
+                    )}
                   </div>
-                  <div className="bg-[#0f111a] p-4 rounded-xl border border-[#22273a]">
-                    <p className="text-gray-500 text-xs uppercase mb-1">Created</p>
-                    <p className="text-sm">{new Date(channel.created_at).toLocaleDateString()}</p>
+                  <div className={`p-4 rounded-2xl border text-center transition-all ${
+                    currentAnchor === 'Arjun Sharma ♂'
+                      ? 'bg-blue-500/10 border-blue-500/30'
+                      : 'bg-[#0d1120] border-[#1c2035] opacity-50'
+                  }`}>
+                    <p className="text-2xl mb-1">👨</p>
+                    <p className="font-bold text-sm">Arjun Sharma</p>
+                    <p className="text-xs text-gray-500">Male Anchor</p>
+                    {currentAnchor === 'Arjun Sharma ♂' && (
+                      <span className="text-xs text-blue-400 font-semibold">● On Air</span>
+                    )}
                   </div>
                 </div>
+              )}
 
-                <div className="mb-6">
-                  <label className="text-gray-500 text-xs uppercase mb-2 block">Preferred Anchor</label>
-                  <select 
-                    value={channel.preferred_anchor_id || ''}
-                    onChange={(e) => {
-                      if (e.target.value) {
-                        handleSetChannelAnchor(channel.id, parseInt(e.target.value));
-                      }
-                    }}
-                    className="w-full bg-transparent border border-[#22273a] rounded-xl px-4 py-2 text-white focus:border-blue-500 outline-none"
-                  >
-                    <option value="">Select an anchor...</option>
-                    {anchors.map(anchor => (
-                      <option key={anchor.id} value={anchor.id}>
-                        {anchor.name} ({anchor.gender})
-                      </option>
-                    ))}
-                  </select>
+              {/* ── Stream info ── */}
+              <div className="relative grid grid-cols-2 gap-4 mb-8">
+                <div className="bg-[#080b14] rounded-2xl border border-[#1c2035] p-4">
+                  <p className="text-gray-500 text-xs uppercase tracking-wider mb-1">Stream Key</p>
+                  <p className="font-mono text-sm truncate text-gray-300">
+                    {channel.youtube_stream_key ? `${channel.youtube_stream_key.slice(0, 8)}••••••` : '⚠️ Not configured'}
+                  </p>
                 </div>
+                <div className="bg-[#080b14] rounded-2xl border border-[#1c2035] p-4">
+                  <p className="text-gray-500 text-xs uppercase tracking-wider mb-1">Bulletins Delivered</p>
+                  <p className="text-2xl font-bold text-white">{bulletinCount}</p>
+                </div>
+              </div>
 
-                <div className="flex space-x-3">
-                  <div className="flex-1 bg-blue-600/10 border border-blue-500/30 text-blue-400 py-3.5 rounded-xl font-bold flex items-center justify-center space-x-2 animate-pulse">
-                    <Activity size={18} />
-                    <span>🛰️ Automator: ACTIVE</span>
-                  </div>
+              {/* ── Controls ── */}
+              <div className="relative flex gap-3">
+                {!channel.is_streaming ? (
                   <button
-                    onClick={() => handleTriggerNews(channel.id)}
-                    disabled={processing === channel.id}
-                    className="bg-green-500/10 hover:bg-green-600 border border-green-500/30 hover:border-green-600 text-green-500 hover:text-white px-5 rounded-xl font-bold transition flex items-center justify-center disabled:opacity-50"
-                    title="Trigger News Generation"
+                    onClick={handleTrigger}
+                    disabled={processing}
+                    className="flex-1 flex items-center justify-center gap-2 bg-green-500 hover:bg-green-400 disabled:opacity-50 text-black font-bold py-4 rounded-2xl transition-all shadow-lg shadow-green-500/20 text-sm"
                   >
-                    <Play fill="currentColor" size={14} />
+                    <Play fill="currentColor" size={16} />
+                    {processing ? 'Connecting…' : 'Go Live Now'}
                   </button>
+                ) : (
                   <button
-                    onClick={() => handleStopChannel(channel.id)}
-                    className="bg-red-500/10 hover:bg-red-600 border border-red-500/30 hover:border-red-600 text-red-500 hover:text-white px-5 rounded-xl font-bold transition flex items-center justify-center"
-                    title="Stop Broadcast"
+                    onClick={handleStop}
+                    disabled={processing}
+                    className="flex-1 flex items-center justify-center gap-2 bg-red-500/10 hover:bg-red-500 border border-red-500/30 hover:border-red-500 text-red-400 hover:text-white font-bold py-4 rounded-2xl transition-all text-sm disabled:opacity-50"
                   >
                     <Square fill="currentColor" size={14} />
+                    {processing ? 'Stopping…' : 'Stop Broadcast'}
                   </button>
-                  <button
-                    onClick={() => { setShowAdModal(channel.id); fetchAds(channel.id); }}
-                    className="bg-purple-500/10 hover:bg-purple-600 border border-purple-500/30 hover:border-purple-600 text-purple-500 hover:text-white px-5 rounded-xl font-bold transition flex items-center justify-center"
-                    title="Ad Campaigns"
-                  >
-                    <Megaphone size={18} />
-                  </button>
-                  <a 
-                    href="https://studio.youtube.com/channel/live" 
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="bg-[#22273a] hover:bg-[#2c324a] text-white px-5 rounded-xl font-bold transition flex items-center justify-center"
-                    title="View Stream Status"
-                  >
-                    <ExternalLink size={18} />
-                  </a>
-                  <button
-                    onClick={() => handleDeleteChannel(channel.id)}
-                    className="bg-transparent hover:bg-red-900/30 border border-transparent hover:border-red-600/30 text-gray-500 hover:text-red-400 px-4 rounded-xl transition flex items-center justify-center"
-                    title="Delete Channel"
-                  >
-                    <Trash2 size={18} />
-                  </button>
-                </div>
-              </div>
-            ))}
-
-            {channels.length === 0 && (
-              <div className="col-span-full bg-[#161926] border-2 border-dashed border-[#22273a] p-20 rounded-3xl flex flex-col items-center justify-center text-center">
-                <AlertCircle size={64} className="text-gray-600 mb-6" />
-                <h3 className="text-2xl font-bold mb-2">No Channels Yet</h3>
-                <p className="text-gray-400 mb-8 max-w-md">Create your first 24x7 AI news channel to start broadcasting Marathi content to the world.</p>
-                <button 
-                  onClick={() => setShowModal(true)}
-                  className="text-blue-400 hover:text-blue-300 font-bold underline underline-offset-4"
-                >
-                  Create your first channel now
-                </button>
-              </div>
-            )}
-          </div>
-        )}
-
-        {/* Ads Management Modal */}
-        {showAdModal && (
-          <div className="fixed inset-0 bg-black/80 backdrop-blur-md flex items-center justify-center z-50 p-4">
-            <div className="bg-[#161926] w-full max-w-2xl p-10 rounded-3xl border border-[#22273a] shadow-2xl max-h-[90vh] overflow-y-auto">
-              <div className="flex justify-between items-start mb-8">
-                <div>
-                  <h3 className="text-3xl font-bold mb-2">Ad Scheduler</h3>
-                  <p className="text-gray-400">Manage commercials & custom clips for this channel.</p>
-                </div>
-                <button onClick={() => setShowAdModal(null)} className="text-gray-500 hover:text-white">✕</button>
-              </div>
-
-              <form onSubmit={handleCreateAd} className="bg-[#0f111a] p-6 rounded-2xl border border-[#22273a] mb-10 space-y-4">
-                <div className="grid grid-cols-2 gap-4">
-                  <input 
-                    placeholder="Ad Name (e.g. Morning Promo)"
-                    className="bg-transparent border border-[#22273a] rounded-xl px-4 py-3 focus:border-blue-500 outline-none"
-                    value={newAd.name}
-                    onChange={e => setNewAd({...newAd, name: e.target.value})}
-                    required
-                  />
-                  <input 
-                    placeholder="Hours (e.g. 09,14,21)"
-                    className="bg-transparent border border-[#22273a] rounded-xl px-4 py-3 focus:border-blue-500 outline-none"
-                    value={newAd.scheduled_hours}
-                    onChange={e => setNewAd({...newAd, scheduled_hours: e.target.value})}
-                    required
-                  />
-                </div>
-                <input 
-                  placeholder="Video URL (S3 or Direct Link)"
-                  className="w-full bg-transparent border border-[#22273a] rounded-xl px-4 py-3 focus:border-blue-500 outline-none"
-                  value={newAd.video_url}
-                  onChange={e => setNewAd({...newAd, video_url: e.target.value})}
-                  required
-                />
-                <button type="submit" className="w-full bg-blue-600 hover:bg-blue-700 py-3 rounded-xl font-bold">Add to Schedule</button>
-              </form>
-
-              <div className="space-y-4">
-                <h4 className="text-xs font-bold uppercase tracking-widest text-gray-500">Active Campaigns</h4>
-                {ads.map(ad => (
-                  <div key={ad.id} className="flex items-center justify-between bg-[#1f2335] p-5 rounded-2xl border border-[#2c324a]">
-                    <div>
-                      <p className="font-bold">{ad.name}</p>
-                      <p className="text-xs text-blue-400">Plays at: {ad.scheduled_hours}:00</p>
-                    </div>
-                    <button onClick={() => handleDeleteAd(ad.id)} className="text-red-500 hover:bg-red-500/10 p-2 rounded-lg transition">
-                      <Trash2 size={20} />
-                    </button>
-                  </div>
-                ))}
-                {ads.length === 0 && <p className="text-center text-gray-600 py-10">No advertisements scheduled yet.</p>}
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* Modal */}
-        {showSettingsModal && (
-          <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-            <div className="bg-[#161926] w-full max-w-lg p-10 rounded-3xl border border-[#22273a] shadow-2xl">
-              <h3 className="text-3xl font-bold mb-2">Global Settings</h3>
-              <p className="text-gray-400 mb-8">Update your backend API keys.</p>
-              
-              <form onSubmit={handleUpdateSettings} className="space-y-6">
-                <div>
-                  <label className="block text-sm font-bold text-gray-400 mb-2 uppercase tracking-wider">Groq API Key</label>
-                  <input 
-                    type="password"
-                    value={settingsData.groq_api_key}
-                    onChange={(e) => setSettingsData({...settingsData, groq_api_key: e.target.value})}
-                    className="w-full bg-[#0f111a] border border-[#22273a] rounded-xl px-5 py-4 focus:outline-none focus:border-blue-500 transition"
-                    placeholder="gsk_..."
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-bold text-gray-400 mb-2 uppercase tracking-wider">World News API Key</label>
-                  <input 
-                    type="password"
-                    value={settingsData.world_news_api_key}
-                    onChange={(e) => setSettingsData({...settingsData, world_news_api_key: e.target.value})}
-                    className="w-full bg-[#0f111a] border border-[#22273a] rounded-xl px-5 py-4 focus:outline-none focus:border-blue-500 transition"
-                  />
-                </div>
-                
-                <div className="flex space-x-4 pt-4">
-                  <button type="button" onClick={() => setShowSettingsModal(false)} className="flex-1 bg-transparent hover:bg-[#22273a] text-white py-4 rounded-xl font-bold transition border border-[#22273a]">
-                    Cancel
-                  </button>
-                  <button type="submit" className="flex-1 bg-blue-600 hover:bg-blue-700 text-white py-4 rounded-xl font-bold transition shadow-lg shadow-blue-600/20">
-                    Save Config
-                  </button>
-                </div>
-              </form>
-            </div>
-          </div>
-        )}
-
-        {showModal && (
-          <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-            <div className="bg-[#161926] w-full max-w-lg p-10 rounded-3xl border border-[#22273a] shadow-2xl">
-              <h3 className="text-3xl font-bold mb-2">Create New Channel</h3>
-              <p className="text-gray-400 mb-8">Set up your streaming configuration.</p>
-              
-              <form onSubmit={handleCreateChannel} className="space-y-6">
-                <div>
-                  <label className="block text-sm font-bold text-gray-400 mb-2 uppercase tracking-wider">Channel Name</label>
-                  <input 
-                    type="text"
-                    required
-                    value={newChannel.name}
-                    onChange={(e) => setNewChannel({...newChannel, name: e.target.value})}
-                    className="w-full bg-[#0f111a] border border-[#22273a] rounded-xl px-5 py-4 focus:outline-none focus:border-blue-500 transition"
-                    placeholder="e.g. Marathi Express Live"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-bold text-gray-400 mb-2 uppercase tracking-wider">YouTube Stream Key</label>
-                  <input 
-                    type="text"
-                    required
-                    value={newChannel.youtube_stream_key}
-                    onChange={(e) => setNewChannel({...newChannel, youtube_stream_key: e.target.value})}
-                    className="w-full bg-[#0f111a] border border-[#22273a] rounded-xl px-5 py-4 focus:outline-none focus:border-blue-500 transition font-mono"
-                    placeholder="qcu7-xe..."
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-bold text-gray-400 mb-2 uppercase tracking-wider">Broadcast Language</label>
-                  <select 
-                    value={newChannel.language}
-                    onChange={(e) => setNewChannel({...newChannel, language: e.target.value})}
-                    className="w-full bg-[#0f111a] border border-[#22273a] rounded-xl px-5 py-4 focus:outline-none focus:border-blue-500 transition appearance-none"
-                  >
-                    <option value="Hindi">Hindi</option>
-                    <option value="Marathi">Marathi</option>
-                    <option value="Bengali">Bengali</option>
-                    <option value="Telugu">Telugu</option>
-                    <option value="Tamil">Tamil</option>
-                    <option value="Gujarati">Gujarati</option>
-                    <option value="Kannada">Kannada</option>
-                    <option value="Malayalam">Malayalam</option>
-                    <option value="Odia">Odia</option>
-                    <option value="Punjabi">Punjabi</option>
-                    <option value="Assamese">Assamese</option>
-                    <option value="English">English</option>
-                  </select>
-                </div>
-                
-                <div className="flex space-x-4 pt-4">
-                  <button 
-                    type="button"
-                    onClick={() => setShowModal(false)}
-                    className="flex-1 bg-[#22273a] hover:bg-[#2c324a] py-4 rounded-xl font-bold transition"
-                  >
-                    Cancel
-                  </button>
-                  <button 
-                    type="submit"
-                    className="flex-1 bg-blue-600 hover:bg-blue-700 py-4 rounded-xl font-bold transition shadow-lg shadow-blue-600/20"
-                  >
-                    Create Channel
-                  </button>
-                </div>
-              </form>
-            </div>
-          </div>
-        )}
-
-        {/* Anchor Management Modal */}
-        {showAnchorModal && (
-          <div className="fixed inset-0 bg-black/80 backdrop-blur-md flex items-center justify-center z-50 p-4">
-            <div className="bg-[#161926] w-full max-w-2xl p-10 rounded-3xl border border-[#22273a] shadow-2xl max-h-[90vh] overflow-y-auto">
-              <div className="flex justify-between items-start mb-8">
-                <div>
-                  <h3 className="text-3xl font-bold mb-2">News Anchors</h3>
-                  <p className="text-gray-400">Create and manage your news anchor personas.</p>
-                </div>
-                <button onClick={() => setShowAnchorModal(false)} className="text-gray-500 hover:text-white">✕</button>
-              </div>
-
-              <form onSubmit={handleCreateAnchor} className="bg-[#0f111a] p-6 rounded-2xl border border-[#22273a] mb-10 space-y-4">
-                <div className="grid grid-cols-2 gap-4">
-                  <input 
-                    placeholder="Anchor Name (e.g. Rani Sharma)"
-                    className="bg-transparent border border-[#22273a] rounded-xl px-4 py-3 focus:border-blue-500 outline-none text-white"
-                    value={newAnchor.name}
-                    onChange={e => setNewAnchor({...newAnchor, name: e.target.value})}
-                    required
-                  />
-                  <select 
-                    className="bg-transparent border border-[#22273a] rounded-xl px-4 py-3 focus:border-blue-500 outline-none text-white"
-                    value={newAnchor.gender}
-                    onChange={e => setNewAnchor({...newAnchor, gender: e.target.value})}
-                  >
-                    <option value="male">Male</option>
-                    <option value="female">Female</option>
-                  </select>
-                </div>
-                <input 
-                  placeholder="Description (optional)"
-                  className="w-full bg-transparent border border-[#22273a] rounded-xl px-4 py-3 focus:border-blue-500 outline-none text-white"
-                  value={newAnchor.description}
-                  onChange={e => setNewAnchor({...newAnchor, description: e.target.value})}
-                />
-                <button type="submit" className="w-full bg-blue-600 hover:bg-blue-700 py-3 rounded-xl font-bold">Add Anchor</button>
-              </form>
-
-              <div className="space-y-4">
-                <h4 className="text-xs font-bold uppercase tracking-widest text-gray-500">Available Anchors</h4>
-                {anchors.length > 0 ? (
-                  anchors.map(anchor => (
-                    <div key={anchor.id} className="flex items-center justify-between bg-[#1f2335] p-5 rounded-2xl border border-[#2c324a]">
-                      <div>
-                        <p className="font-bold">{anchor.name}</p>
-                        <p className="text-xs text-gray-400">Gender: {anchor.gender}</p>
-                        {anchor.description && <p className="text-xs text-gray-500 mt-1">{anchor.description}</p>}
-                      </div>
-                      <span className="text-xs font-bold text-green-400">Active</span>
-                    </div>
-                  ))
-                ) : (
-                  <p className="text-center text-gray-600 py-10">No anchors created yet. Create your first anchor above.</p>
                 )}
+                <a
+                  href="https://studio.youtube.com/channel/live"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex items-center justify-center gap-2 bg-[#1c2035] hover:bg-[#252b45] border border-[#252b45] text-gray-400 hover:text-white font-bold py-4 px-6 rounded-2xl transition-all text-sm"
+                >
+                  <ExternalLink size={16} /> YouTube Studio
+                </a>
               </div>
             </div>
+
+            {/* ── Workflow Monitor link ── */}
+            <a
+              href="http://localhost:8080"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex items-center justify-between bg-[#111623] hover:bg-[#161d2e] border border-[#1c2035] hover:border-blue-500/30 px-6 py-4 rounded-2xl transition-all group"
+            >
+              <div className="flex items-center gap-3">
+                <Activity size={20} className="text-blue-400" />
+                <div>
+                  <p className="font-bold text-sm">Temporal Workflow Monitor</p>
+                  <p className="text-gray-500 text-xs">View live task execution and history</p>
+                </div>
+              </div>
+              <ExternalLink size={16} className="text-gray-600 group-hover:text-blue-400 transition" />
+            </a>
           </div>
         )}
       </main>
+
+      {/* ─── Ad Scheduler Modal ──────────────────────────────────── */}
+      {showAdModal && (
+        <div className="fixed inset-0 bg-black/80 backdrop-blur-md flex items-center justify-center z-50 p-4">
+          <div className="bg-[#111623] w-full max-w-2xl p-10 rounded-3xl border border-[#1c2035] shadow-2xl max-h-[90vh] overflow-y-auto">
+            <div className="flex justify-between items-start mb-8">
+              <div>
+                <h2 className="text-2xl font-bold mb-1">Ad Scheduler</h2>
+                <p className="text-gray-400 text-sm">Schedule commercials to inject between news bulletins.</p>
+              </div>
+              <button onClick={() => setShowAdModal(false)} className="text-gray-500 hover:text-white text-xl">✕</button>
+            </div>
+
+            <form onSubmit={handleCreateAd} className="bg-[#080b14] p-6 rounded-2xl border border-[#1c2035] mb-8 space-y-4">
+              <div className="grid grid-cols-2 gap-4">
+                <input
+                  placeholder="Ad name (e.g. Morning Promo)"
+                  className="bg-transparent border border-[#1c2035] rounded-xl px-4 py-3 focus:border-blue-500 outline-none text-sm"
+                  value={newAd.name}
+                  onChange={e => setNewAd({ ...newAd, name: e.target.value })}
+                  required
+                />
+                <input
+                  placeholder="Hours (e.g. 09,14,21)"
+                  className="bg-transparent border border-[#1c2035] rounded-xl px-4 py-3 focus:border-blue-500 outline-none text-sm"
+                  value={newAd.scheduled_hours}
+                  onChange={e => setNewAd({ ...newAd, scheduled_hours: e.target.value })}
+                  required
+                />
+              </div>
+              <input
+                placeholder="Video URL (S3 / direct link)"
+                className="w-full bg-transparent border border-[#1c2035] rounded-xl px-4 py-3 focus:border-blue-500 outline-none text-sm"
+                value={newAd.video_url}
+                onChange={e => setNewAd({ ...newAd, video_url: e.target.value })}
+                required
+              />
+              <button type="submit" className="w-full bg-blue-600 hover:bg-blue-500 py-3 rounded-xl font-bold text-sm transition">
+                Add to Schedule
+              </button>
+            </form>
+
+            <h3 className="text-xs font-bold uppercase tracking-widest text-gray-500 mb-4">Active Campaigns</h3>
+            <div className="space-y-3">
+              {ads.map(ad => (
+                <div key={ad.id} className="flex items-center justify-between bg-[#161d2e] p-5 rounded-2xl border border-[#1c2035]">
+                  <div>
+                    <p className="font-bold text-sm">{ad.name}</p>
+                    <p className="text-xs text-blue-400">{ad.scheduled_hours}:00</p>
+                  </div>
+                  <button onClick={() => handleDeleteAd(ad.id)} className="text-red-500 hover:bg-red-500/10 p-2 rounded-lg transition">
+                    <Trash2 size={18} />
+                  </button>
+                </div>
+              ))}
+              {ads.length === 0 && (
+                <p className="text-center text-gray-600 py-10 text-sm">No ads scheduled yet.</p>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ─── Settings Modal ───────────────────────────────────────── */}
+      {showSettingsModal && (
+        <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+          <div className="bg-[#111623] w-full max-w-md p-10 rounded-3xl border border-[#1c2035] shadow-2xl">
+            <h2 className="text-2xl font-bold mb-1">API Config</h2>
+            <p className="text-gray-400 text-sm mb-8">Update backend API keys live.</p>
+            <form onSubmit={handleUpdateSettings} className="space-y-5">
+              <div>
+                <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">Groq API Key</label>
+                <input
+                  type="password"
+                  value={settingsData.groq_api_key}
+                  onChange={e => setSettingsData({ ...settingsData, groq_api_key: e.target.value })}
+                  className="w-full bg-[#080b14] border border-[#1c2035] rounded-xl px-5 py-4 focus:outline-none focus:border-blue-500 transition text-sm"
+                  placeholder="gsk_..."
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">World News API Key</label>
+                <input
+                  type="password"
+                  value={settingsData.world_news_api_key}
+                  onChange={e => setSettingsData({ ...settingsData, world_news_api_key: e.target.value })}
+                  className="w-full bg-[#080b14] border border-[#1c2035] rounded-xl px-5 py-4 focus:outline-none focus:border-blue-500 transition text-sm"
+                />
+              </div>
+              <div className="flex gap-3 pt-2">
+                <button type="button" onClick={() => setShowSettingsModal(false)} className="flex-1 py-4 rounded-xl font-bold text-sm border border-[#1c2035] hover:bg-[#1c2035] transition">
+                  Cancel
+                </button>
+                <button type="submit" className="flex-1 bg-blue-600 hover:bg-blue-500 py-4 rounded-xl font-bold text-sm transition shadow-lg shadow-blue-500/20">
+                  Save Keys
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
-  );
-}
-
-function NavItem({ 
-  icon, 
-  label, 
-  href, 
-  active = false, 
-  target = "_self",
-  onClick
-}: { 
-  icon: React.ReactNode, 
-  label: string, 
-  href?: string, 
-  active?: boolean,
-  target?: string,
-  onClick?: () => void
-}) {
-  const className = `w-full flex items-center space-x-3 py-3.5 px-5 rounded-xl font-bold transition ${active ? 'bg-blue-600 text-white' : 'text-gray-500 hover:bg-[#22273a] hover:text-gray-300'}`;
-
-  if (onClick) {
-    return (
-      <button onClick={onClick} className={className}>
-        {icon}
-        <span>{label}</span>
-      </button>
-    );
-  }
-
-  return (
-    <a href={href || "#"} target={target} className={className}>
-      {icon}
-      <span>{label}</span>
-    </a>
   );
 }

@@ -26,7 +26,7 @@ if BASE_DIR not in sys.path:
     sys.path.insert(0, BASE_DIR)
 
 from database import get_session_local
-from models import Channel, User
+from models import Channel, User, Anchor
 from sqlalchemy.orm import Session
 import temporal_utils
 
@@ -34,19 +34,41 @@ import temporal_utils
 # ================= DB SEED ================= #
 
 async def seed_database():
+    """
+    Ensures the default user, 2 anchors (female + male), and default channel
+    all exist. Returns (anchor_female_id, anchor_male_id).
+    """
     SessionLocal = get_session_local()
     db: Session = SessionLocal()
+    anchor_female_id = None
+    anchor_male_id = None
     try:
+        # --- Default System User ---
         user = db.query(User).filter(User.id == 1).first()
         if not user:
-            user = User(
-                id=1,
-                email="system@vartapravah.ai",
-                hashed_password="seed_password"
-            )
+            user = User(id=1, email="system@vartapravah.ai", hashed_password="seed_password")
             db.add(user)
             db.commit()
 
+        # --- Female Anchor (Priya) ---
+        female = db.query(Anchor).filter(Anchor.gender == "female", Anchor.is_active == True).first()
+        if not female:
+            female = Anchor(name="Priya Desai", gender="female", description="Professional female news anchor", is_active=True)
+            db.add(female)
+            db.commit()
+            db.refresh(female)
+        anchor_female_id = female.id
+
+        # --- Male Anchor (Arjun) ---
+        male = db.query(Anchor).filter(Anchor.gender == "male", Anchor.is_active == True).first()
+        if not male:
+            male = Anchor(name="Arjun Sharma", gender="male", description="Professional male news anchor", is_active=True)
+            db.add(male)
+            db.commit()
+            db.refresh(male)
+        anchor_male_id = male.id
+
+        # --- Default Channel ---
         channel = db.query(Channel).filter(Channel.id == 1).first()
         if not channel:
             stream_key = os.getenv("YOUTUBE_STREAM_KEY", "")
@@ -55,16 +77,24 @@ async def seed_database():
                 name="Varta Pravah Live",
                 language="Marathi",
                 youtube_stream_key=stream_key,
-                owner_id=1
+                owner_id=1,
+                preferred_anchor_id=anchor_female_id
             )
             db.add(channel)
             db.commit()
+        else:
+            # Always keep stream key in sync with env var
+            env_key = os.getenv("YOUTUBE_STREAM_KEY", "")
+            if env_key and channel.youtube_stream_key != env_key:
+                channel.youtube_stream_key = env_key
+                db.commit()
 
-        print("✅ DB Seed completed")
+        print(f"✅ DB Seed complete — Female anchor id: {anchor_female_id}, Male anchor id: {anchor_male_id}")
+        return anchor_female_id, anchor_male_id
 
     except Exception as e:
-        print(f"⚠️ DB Seed skipped: {e}")
-
+        print(f"⚠️ DB Seed error: {e}")
+        return None, None
     finally:
         db.close()
 
@@ -72,44 +102,48 @@ async def seed_database():
 # ================= AUTOSTART ================= #
 
 async def trigger_auto_start(client: Client):
-    await seed_database()
+    anchor_female_id, anchor_male_id = await seed_database()
 
     channel_id = int(os.getenv("AUTO_START_CHANNEL_ID", "1"))
     language = os.getenv("DEFAULT_LANGUAGE", "Marathi").strip()
     stream_key = os.getenv("YOUTUBE_STREAM_KEY", "")
 
     if not stream_key:
-        print("⚠️ Missing YOUTUBE_STREAM_KEY")
+        print("⚠️ Missing YOUTUBE_STREAM_KEY — cannot start stream")
         return
 
     workflow_id = f"news-production-{channel_id}"
 
-    # Check existing workflow
+    # Check if already running
     try:
         handle = client.get_workflow_handle(workflow_id)
         desc = await handle.describe()
         if desc.status.name == "RUNNING":
-            print("✅ Already running")
+            print("✅ Workflow already running")
             return
     except Exception:
         pass
 
-    # Start workflow
+    # Start workflow — pass both anchor IDs so it alternates them
     try:
         await client.start_workflow(
             NewsProductionWorkflow.run,
             {
                 "channel_id": channel_id,
                 "language": language,
-                "stream_key": stream_key
+                "stream_key": stream_key,
+                "anchor_ids": [anchor_female_id, anchor_male_id]
             },
             id=workflow_id,
             task_queue="news-task-queue"
         )
-        print("🚀 Workflow started")
+        print("🚀 Varta Pravah workflow started — connecting to YouTube immediately")
 
     except Exception as e:
-        print(f"⚠️ Workflow start issue: {e}")
+        if "already started" in str(e).lower():
+            print("✅ Workflow already running (race condition caught)")
+        else:
+            print(f"⚠️ Workflow start issue: {e}")
 
 
 # ================= MAIN ================= #
@@ -118,11 +152,6 @@ async def main():
     from dotenv import load_dotenv
     load_dotenv()
 
-    # Initialize DB (Safe Migration)
-    # import database (Removed to prevent race conditions with main app)
-    # database.init_db()
-
-    # Retry connect to Temporal
     client = None
     for i in range(10):
         try:
@@ -137,7 +166,7 @@ async def main():
     if not client:
         raise RuntimeError("❌ Cannot connect to Temporal")
 
-    # Start auto workflow in background
+    # Start workflow in background (non-blocking so worker registers immediately)
     asyncio.create_task(trigger_auto_start(client))
 
     worker = Worker(
@@ -161,7 +190,7 @@ async def main():
         workflow_runner=UnsandboxedWorkflowRunner()
     )
 
-    print("🚀 Worker started")
+    print("🚀 Worker started and polling")
 
     try:
         await worker.run()
