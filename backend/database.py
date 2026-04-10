@@ -18,12 +18,12 @@ SessionLocal = None
 
 def is_db_open(url, timeout=0.5):
     try:
-        host_port = url.split('@')[-1].split('/')[0]
+        host_info = url.split('@')[-1].split('/')[0]
 
-        if ':' in host_port:
-            host, port = host_port.split(':')
+        if ':' in host_info:
+            host, port = host_info.split(':')
         else:
-            host, port = host_port, 5432
+            host, port = host_info, 5432
 
         with socket.create_connection((host, int(port)), timeout=timeout):
             return True
@@ -127,5 +127,35 @@ def get_db():
 # ================= INIT ================= #
 
 def init_db():
-    get_engine()
+    from sqlalchemy import text
+    engine = get_engine()
+    
+    # 1. Create missing tables (e.g., 'anchors')
+    print("📦 Initializing database tables...")
     Base.metadata.create_all(bind=engine)
+    
+    # 2. Add missing columns (Self-Healing Migration)
+    with engine.connect() as conn:
+        # Check and add 'preferred_anchor_id' to 'channels'
+        try:
+            print("📝 Syncing 'channels' schema...")
+            conn.execute(text("ALTER TABLE channels ADD COLUMN preferred_anchor_id INTEGER REFERENCES anchors(id)"))
+            conn.commit()
+            print("✅ Added 'preferred_anchor_id' to 'channels'")
+        except Exception as e:
+            if "already exists" not in str(e).lower():
+                print(f"⚠️ Warning updating 'channels': {e}")
+            else:
+                print("✅ 'channels' schema is up to date.")
+
+        # Check and add 'preferred_anchor_id' to 'ad_campaigns'
+        try:
+            print("📝 Syncing 'ad_campaigns' schema...")
+            conn.execute(text("ALTER TABLE ad_campaigns ADD COLUMN preferred_anchor_id INTEGER REFERENCES anchors(id)"))
+            conn.commit()
+            print("✅ Added 'preferred_anchor_id' to 'ad_campaigns'")
+        except Exception as e:
+            if "already exists" not in str(e).lower():
+                print(f"⚠️ Warning updating 'ad_campaigns': {e}")
+            else:
+                print("✅ 'ad_campaigns' schema is up to date.")

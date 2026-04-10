@@ -115,6 +115,10 @@ async def main():
     from dotenv import load_dotenv
     load_dotenv()
 
+    # Initialize DB (Safe Migration)
+    import database
+    database.init_db()
+
     # Retry connect to Temporal
     client = None
     for i in range(10):
