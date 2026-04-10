@@ -30,3 +30,5 @@ news-ai/videos/
 # OS Files
 .DS_Store
 Thumbs.db
+backend/dev.db
+*.db

@@ -3,6 +3,7 @@ import subprocess
 import time
 from pathlib import Path
 import sys
+import threading
 
 
 class Streamer:
@@ -12,6 +13,8 @@ class Streamer:
         self.rtmp_url = f"rtmp://a.rtmp.youtube.com/live2/{youtube_key}"
         self.current_video = None
         self.process = None
+        self.monitor_thread = None
+        self.stop_event = threading.Event()
 
     def create_initial_playlist(self, initial_video: str):
         self.current_video = initial_video
@@ -81,36 +84,64 @@ class Streamer:
 
         print(f"🚀 Starting stream: {self.current_video}", flush=True)
 
-        # ✅ FIX: direct subprocess (NO bash loop)
+        # ✅ FIX: Capture stderr to help debug conversion/auth issues
         self.process = subprocess.Popen(
             command,
-            stdout=sys.stdout,
-            stderr=sys.stderr
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT, # Merge stderr into stdout
+            text=True,
+            bufsize=1,
+            universal_newlines=True
         )
 
-        # ✅ AUTO-RESTART LOOP (SAFE WAY)
-        self._monitor()
+        # Start a thread to read logs so they appear in docker logs
+        threading.Thread(target=self._read_logs, daemon=True).start()
+
+        # ✅ AUTO-RESTART LOOP (NON-BLOCKING)
+        self.stop_event.clear()
+        if not self.monitor_thread or not self.monitor_thread.is_alive():
+            self.monitor_thread = threading.Thread(target=self._monitor, daemon=True)
+            self.monitor_thread.start()
+
+    def _read_logs(self):
+        """Forward FFmpeg output to sys.stdout"""
+        if not self.process:
+            return
+        for line in iter(self.process.stdout.readline, ''):
+            if self.stop_event.is_set():
+                break
+            # Filter out too much noise but keep errors
+            if "error" in line.lower() or "warning" in line.lower() or "frame=" in line[:6]:
+                print(f"[FFMPEG] {line.strip()}", flush=True)
 
     def _monitor(self):
-        """Restart FFmpeg if it stops"""
-        while True:
-            if self.process.poll() is not None:
-                print("⚠️ Stream stopped. Restarting in 5 seconds...", flush=True)
-                time.sleep(5)
-                self.start_stream()
+        """Restart FFmpeg if it stops unexpectedly"""
+        while not self.stop_event.is_set():
+            if self.process and self.process.poll() is not None:
+                # Process stopped
+                if not self.stop_event.is_set():
+                    print("⚠️ FFmpeg process stopped unexpectedly. Restarting in 5 seconds...", flush=True)
+                    time.sleep(5)
+                    try:
+                        self.start_stream()
+                    except Exception as e:
+                        print(f"❌ Failed to restart stream: {e}", flush=True)
                 break
             time.sleep(2)
 
     def stop_stream(self):
+        self.stop_event.set()
         if self.process:
-            print("🛑 Stopping stream...", flush=True)
+            print("🛑 Stopping stream process...", flush=True)
             try:
                 self.process.terminate()
                 self.process.wait(timeout=5)
             except subprocess.TimeoutExpired:
                 self.process.kill()
+            except Exception as e:
+                print(f"Error stopping process: {e}")
             self.process = None
 
 
 if __name__ == "__main__":
-    YOUTUBE_KEY
+    print("Streamer module loaded.")

@@ -34,19 +34,16 @@ LANGUAGE_CONFIG = {
     "English": {"code": "en", "region": "India"},
 }
 
-STREAM_PROCESSES: dict[int, subprocess.Popen] = {}
+STREAMER_INSTANCES: dict[int, Streamer] = {}
 
 def _terminate_stream_process(channel_id: int):
-    process = STREAM_PROCESSES.pop(channel_id, None)
-    if not process:
+    streamer = STREAMER_INSTANCES.pop(channel_id, None)
+    if not streamer:
         return
     try:
-        process.terminate()
-        process.wait(timeout=10)
-    except subprocess.TimeoutExpired:
-        process.kill()
+        streamer.stop_stream()
     except Exception as e:
-        print(f"Error terminating existing stream process for channel {channel_id}: {e}")
+        print(f"Error terminating existing streamer for channel {channel_id}: {e}")
 
 @activity.defn
 async def fetch_news_activity(language: str) -> dict:
@@ -589,10 +586,16 @@ async def start_stream_activity(data: dict) -> str:
             print(f"Video path {video_url} is missing. Falling back to promo video.")
             video_url = "/app/videos/promo.mp4"
 
+        if not stream_key or len(stream_key) < 5:
+            activity.logger.error(f"Invalid stream key for channel {channel_id}")
+            return "failed_invalid_key"
+
         streamer = Streamer(stream_key, channel_id)
         streamer.create_initial_playlist(video_url)
         streamer.start_stream()
-        STREAM_PROCESSES[channel_id] = streamer.process
+        
+        # Store the whole instance so we can stop the monitor thread later
+        STREAMER_INSTANCES[channel_id] = streamer
         return "stream_started"
     except Exception as e:
         activity.logger.error(f"Failed to start stream: {e}")
