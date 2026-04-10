@@ -22,8 +22,20 @@ class Channel(Base):
     is_streaming = Column(Boolean, default=False)
     created_at = Column(DateTime, default=datetime.utcnow)
     owner_id = Column(Integer, ForeignKey("users.id"))
+    preferred_anchor_id = Column(Integer, ForeignKey("anchors.id"), nullable=True)
 
     owner = relationship("User")
+    preferred_anchor = relationship("Anchor")
+
+class Anchor(Base):
+    __tablename__ = "anchors"
+
+    id = Column(Integer, primary_key=True, index=True)
+    name = Column(String)
+    gender = Column(String)  # "male" or "female"
+    description = Column(String, nullable=True)
+    is_active = Column(Boolean, default=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
 
 class AdCampaign(Base):
     __tablename__ = "ad_campaigns"
@@ -34,5 +46,7 @@ class AdCampaign(Base):
     scheduled_hours = Column(String)  # e.g., "08,12,18,21"
     is_active = Column(Boolean, default=True)
     channel_id = Column(Integer, ForeignKey("channels.id"))
+    preferred_anchor_id = Column(Integer, ForeignKey("anchors.id"), nullable=True)
 
     channel = relationship("Channel")
+    preferred_anchor = relationship("Anchor")

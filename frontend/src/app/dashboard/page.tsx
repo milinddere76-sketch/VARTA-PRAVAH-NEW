@@ -3,6 +3,14 @@
 import React, { useState, useEffect } from 'react';
 import { Plus, Play, ExternalLink, Activity, Info, AlertCircle, Settings, Trash2, Square, Megaphone } from 'lucide-react';
 
+interface Anchor {
+  id: number;
+  name: string;
+  gender: string;
+  description?: string;
+  is_active: boolean;
+}
+
 interface Channel {
   id: number;
   name: string;
@@ -10,6 +18,7 @@ interface Channel {
   youtube_stream_key: string;
   is_streaming: boolean;
   created_at: string;
+  preferred_anchor_id?: number;
 }
 
 interface AdCampaign {
@@ -22,6 +31,7 @@ interface AdCampaign {
 
 export default function DashboardPage() {
   const [channels, setChannels] = useState<Channel[]>([]);
+  const [anchors, setAnchors] = useState<Anchor[]>([]);
   const [loading, setLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
   const [newChannel, setNewChannel] = useState({ name: '', youtube_stream_key: '', language: 'Marathi' });
@@ -34,10 +44,14 @@ export default function DashboardPage() {
   const [ads, setAds] = useState<AdCampaign[]>([]);
   const [newAd, setNewAd] = useState({ name: '', video_url: '', scheduled_hours: '08,12,18,21' });
   
+  const [showAnchorModal, setShowAnchorModal] = useState(false);
+  const [newAnchor, setNewAnchor] = useState({ name: '', gender: 'male', description: '' });
+  
   const API_URL = '/api';
 
   useEffect(() => {
     fetchChannels();
+    fetchAnchors();
   }, []);
 
   const fetchChannels = async () => {
@@ -49,6 +63,52 @@ export default function DashboardPage() {
     } catch (err) {
       console.error("Failed to fetch channels", err);
       setLoading(false);
+    }
+  };
+
+  const fetchAnchors = async () => {
+    try {
+      const res = await fetch(`${API_URL}/anchors`);
+      const data = await res.json();
+      setAnchors(data);
+    } catch (err) {
+      console.error("Failed to fetch anchors", err);
+    }
+  };
+
+  const handleCreateAnchor = async (e: React.FormEvent) => {
+    e.preventDefault();
+    try {
+      const res = await fetch(`${API_URL}/anchors`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(newAnchor)
+      });
+      if (res.ok) {
+        setShowAnchorModal(false);
+        setNewAnchor({ name: '', gender: 'male', description: '' });
+        fetchAnchors();
+      } else {
+        alert("Failed to create anchor.");
+      }
+    } catch (err) {
+      alert("Error creating anchor.");
+    }
+  };
+
+  const handleSetChannelAnchor = async (channelId: number, anchorId: number) => {
+    try {
+      const res = await fetch(`${API_URL}/channels/${channelId}/anchor/${anchorId}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' }
+      });
+      if (res.ok) {
+        fetchChannels();
+      } else {
+        alert("Failed to set anchor.");
+      }
+    } catch (err) {
+      alert("Error setting anchor.");
     }
   };
 
@@ -210,6 +270,11 @@ export default function DashboardPage() {
             label="Channels" 
             onClick={() => setShowModal(true)} 
           />
+          <NavItem 
+            icon={<Activity size={20}/>} 
+            label="News Anchors" 
+            onClick={() => setShowAnchorModal(true)} 
+          />
           <NavItem icon={<Info size={20}/>} label="Workflows" href="http://localhost:8080" target="_blank" />
           <NavItem icon={<Settings size={20}/>} label="API Config" onClick={() => setShowSettingsModal(true)} />
         </nav>
@@ -265,6 +330,26 @@ export default function DashboardPage() {
                     <p className="text-gray-500 text-xs uppercase mb-1">Created</p>
                     <p className="text-sm">{new Date(channel.created_at).toLocaleDateString()}</p>
                   </div>
+                </div>
+
+                <div className="mb-6">
+                  <label className="text-gray-500 text-xs uppercase mb-2 block">Preferred Anchor</label>
+                  <select 
+                    value={channel.preferred_anchor_id || ''}
+                    onChange={(e) => {
+                      if (e.target.value) {
+                        handleSetChannelAnchor(channel.id, parseInt(e.target.value));
+                      }
+                    }}
+                    className="w-full bg-transparent border border-[#22273a] rounded-xl px-4 py-2 text-white focus:border-blue-500 outline-none"
+                  >
+                    <option value="">Select an anchor...</option>
+                    {anchors.map(anchor => (
+                      <option key={anchor.id} value={anchor.id}>
+                        {anchor.name} ({anchor.gender})
+                      </option>
+                    ))}
+                  </select>
                 </div>
 
                 <div className="flex space-x-3">
@@ -496,6 +581,66 @@ export default function DashboardPage() {
                   </button>
                 </div>
               </form>
+            </div>
+          </div>
+        )}
+
+        {/* Anchor Management Modal */}
+        {showAnchorModal && (
+          <div className="fixed inset-0 bg-black/80 backdrop-blur-md flex items-center justify-center z-50 p-4">
+            <div className="bg-[#161926] w-full max-w-2xl p-10 rounded-3xl border border-[#22273a] shadow-2xl max-h-[90vh] overflow-y-auto">
+              <div className="flex justify-between items-start mb-8">
+                <div>
+                  <h3 className="text-3xl font-bold mb-2">News Anchors</h3>
+                  <p className="text-gray-400">Create and manage your news anchor personas.</p>
+                </div>
+                <button onClick={() => setShowAnchorModal(false)} className="text-gray-500 hover:text-white">✕</button>
+              </div>
+
+              <form onSubmit={handleCreateAnchor} className="bg-[#0f111a] p-6 rounded-2xl border border-[#22273a] mb-10 space-y-4">
+                <div className="grid grid-cols-2 gap-4">
+                  <input 
+                    placeholder="Anchor Name (e.g. Rani Sharma)"
+                    className="bg-transparent border border-[#22273a] rounded-xl px-4 py-3 focus:border-blue-500 outline-none text-white"
+                    value={newAnchor.name}
+                    onChange={e => setNewAnchor({...newAnchor, name: e.target.value})}
+                    required
+                  />
+                  <select 
+                    className="bg-transparent border border-[#22273a] rounded-xl px-4 py-3 focus:border-blue-500 outline-none text-white"
+                    value={newAnchor.gender}
+                    onChange={e => setNewAnchor({...newAnchor, gender: e.target.value})}
+                  >
+                    <option value="male">Male</option>
+                    <option value="female">Female</option>
+                  </select>
+                </div>
+                <input 
+                  placeholder="Description (optional)"
+                  className="w-full bg-transparent border border-[#22273a] rounded-xl px-4 py-3 focus:border-blue-500 outline-none text-white"
+                  value={newAnchor.description}
+                  onChange={e => setNewAnchor({...newAnchor, description: e.target.value})}
+                />
+                <button type="submit" className="w-full bg-blue-600 hover:bg-blue-700 py-3 rounded-xl font-bold">Add Anchor</button>
+              </form>
+
+              <div className="space-y-4">
+                <h4 className="text-xs font-bold uppercase tracking-widest text-gray-500">Available Anchors</h4>
+                {anchors.length > 0 ? (
+                  anchors.map(anchor => (
+                    <div key={anchor.id} className="flex items-center justify-between bg-[#1f2335] p-5 rounded-2xl border border-[#2c324a]">
+                      <div>
+                        <p className="font-bold">{anchor.name}</p>
+                        <p className="text-xs text-gray-400">Gender: {anchor.gender}</p>
+                        {anchor.description && <p className="text-xs text-gray-500 mt-1">{anchor.description}</p>}
+                      </div>
+                      <span className="text-xs font-bold text-green-400">Active</span>
+                    </div>
+                  ))
+                ) : (
+                  <p className="text-center text-gray-600 py-10">No anchors created yet. Create your first anchor above.</p>
+                )}
+              </div>
             </div>
           </div>
         )}

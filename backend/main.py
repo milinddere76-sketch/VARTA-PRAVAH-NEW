@@ -74,10 +74,58 @@ async def create_channel(
 ):
     # 1. Create channel in DB
     db_channel = models.Channel(**channel.dict())
+    
+    # 2. Auto-assign anchor if not provided
+    if not db_channel.preferred_anchor_id:
+        # Try to assign the first available anchor
+        default_anchor = db.query(models.Anchor).filter(models.Anchor.is_active == True).first()
+        if default_anchor:
+            db_channel.preferred_anchor_id = default_anchor.id
+        else:
+            # Create a default male anchor if none exist
+            default = models.Anchor(name="Default Anchor", gender="male", is_active=True)
+            db.add(default)
+            db.flush()
+            db_channel.preferred_anchor_id = default.id
+    
     db.add(db_channel)
     db.commit()
     db.refresh(db_channel)
     return db_channel
+
+# --- Anchor Endpoints ---
+@app.post("/anchors", response_model=schemas.AnchorResponse)
+async def create_anchor(
+    anchor: schemas.AnchorCreate,
+    db: Session = Depends(database.get_db)
+):
+    db_anchor = models.Anchor(**anchor.dict())
+    db.add(db_anchor)
+    db.commit()
+    db.refresh(db_anchor)
+    return db_anchor
+
+@app.get("/anchors", response_model=list[schemas.AnchorResponse])
+async def list_anchors(db: Session = Depends(database.get_db)):
+    return db.query(models.Anchor).filter(models.Anchor.is_active == True).all()
+
+@app.put("/channels/{channel_id}/anchor/{anchor_id}")
+async def set_channel_anchor(
+    channel_id: int,
+    anchor_id: int,
+    db: Session = Depends(database.get_db)
+):
+    channel = db.query(models.Channel).filter(models.Channel.id == channel_id).first()
+    if not channel:
+        raise HTTPException(status_code=404, detail="Channel not found")
+    
+    anchor = db.query(models.Anchor).filter(models.Anchor.id == anchor_id).first()
+    if not anchor:
+        raise HTTPException(status_code=404, detail="Anchor not found")
+    
+    channel.preferred_anchor_id = anchor_id
+    db.commit()
+    return {"status": "success", "message": f"Channel anchor updated to {anchor.name}"}
 
 # --- Advertising Endpoints ---
 @app.post("/channels/{channel_id}/ads", response_model=schemas.AdCampaignResponse)

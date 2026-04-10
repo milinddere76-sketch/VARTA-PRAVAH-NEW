@@ -13,6 +13,8 @@ import sys
 # Import Streamer from parent directory (since worker is in temporal/)
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from streamer import Streamer
+import database
+import models
 
 # Initialize AI Clients
 load_dotenv()
@@ -97,6 +99,30 @@ async def fetch_news_activity(language: str) -> dict:
     }
 
 @activity.defn
+async def get_channel_anchor_activity(channel_id: int) -> dict:
+    """Fetch the preferred anchor for a channel."""
+    try:
+        db = database.SessionLocal()
+        channel = db.query(models.Channel).filter(models.Channel.id == channel_id).first()
+        db.close()
+        
+        if not channel or not channel.preferred_anchor_id:
+            # Default to male if no anchor is set
+            return {"gender": "male", "anchor_id": None, "name": "Default"}
+        
+        db = database.SessionLocal()
+        anchor = db.query(models.Anchor).filter(models.Anchor.id == channel.preferred_anchor_id).first()
+        db.close()
+        
+        if anchor:
+            return {"gender": anchor.gender, "anchor_id": anchor.id, "name": anchor.name}
+        else:
+            return {"gender": "male", "anchor_id": None, "name": "Default"}
+    except Exception as e:
+        print(f"Error fetching anchor for channel {channel_id}: {e}")
+        return {"gender": "male", "anchor_id": None, "name": "Default"}
+
+@activity.defn
 async def generate_script_activity(input_data: dict) -> dict:
     load_dotenv(override=True)
     news_data = input_data["news_data"]
@@ -135,29 +161,55 @@ async def generate_script_activity(input_data: dict) -> dict:
     anchor_gender = "महिला" if is_female else "पुरुष"
     gender_instruction = f"* अँकर {anchor_gender} आहे. स्वतःविषयी बोलताना मराठी व्याकरणानुसार योग्य क्रियापदे वापरा (उदा. पुरुष असल्यास 'मी सांगतो', महिला असल्यास 'मी सांगते')."
 
-    system_prompt = f"""तुम्ही एक व्यावसायिक मराठी वृत्तवाहिनीचे मुख्य अँकर आहात.
+    system_prompt = f"""तुम्ही एक अभिज्ञ व्यावसायिक मराठी समाचार अँकर आहात ज्यांचा समाचार प्रसारणामध्ये 10 वर्षांचा अनुभव आहे.
 
-तुमची भाषा पूर्णपणे शुद्ध, अधिकृत आणि वृत्तात्मक असावी.
+तुमचे मुख्य उद्देश्य:
+1. समाचार स्पष्ट, पूर्ण आणि तार्किक पद्धतीने सादर करणे
+2. प्रत्येक घटनेचा संपूर्ण संदर्भ समजावून सांगणे
+3. श्रोत्यांना संपूर्ण माहिती देणे
 
-नियम:
-* फक्त मराठीच वापरा. इंग्रजी शब्दांचा किंवा ट्रान्सलिटरेशनचा वापर करू नका.
-* व्याकरण पूर्णपणे बरोबर असावे.
-* शिस्तबद्ध, तथ्यात्मक आणि ताणलेले आशय द्या.
-* परिचय, अभिवादन, समारोप किंवा वैयक्तिक टिप्पणी वापरू नका.
-* प्रसारमाध्यमीय वृत्तनिबंध शैलीत लिहा.
-* प्रत्येक वाक्य स्पष्ट आणि अचूक असावे.
-* कोणतीही गोंधळ किंवा शिथिलता असू नये.
+तुमची भाषा नियमावली:
+* फक्त शुद्ध, व्याकरणदृष्ट्या अचूक मराठी वापरा. कोणतेही इंग्रजी किंवा हिंदी शब्द नका.
+* सरल पण व्यावसायिक शब्दावली वापरा
+* लांब परंतु सहज समजणाऱ्या वाक्यांचा उपयोग करा
+* प्रत्येक तपशिल स्पष्ट आणि अचूकरित्या समजावून सांगा
+* दुरुस्त शब्द चयन आणि उच्चारण शैलीचा कठोर पालन करा
+
+स्क्रिप्ट संरचना:
+1. मुख्य बातमी - संपूर्ण, अर्थपूर्ण आणि तार्किक हेडलाइन
+2. विस्तृत विवरण - प्रत्येक महत्वाचा बिंदू वेगळ्या पाराग्राफमध्ये
+3. पार्श्वभूमी - संदर्भ, तारीख, स्थाने, व्यक्तींची माहिती
+4. परिणाम - घटनेचे संभावित परिणाम आणि प्रभाव
+
+महत्वाचे नियम:
+* शुरुवात आणि अंतचे अभिवादन टाळा
+* केवळ बातमीचा मजकूर द्या
+* तर्कसंगत आणि तार्किक क्रमानुसार सामग्री व्यवस्थित करा
+* प्रत्येक वाक्य पूर्ण आणि स्वतंत्र असावा
+* भावनिक किंवा पूर्वाग्रही भाषा टाळा
+
 {gender_instruction}
-"""
-    user_prompt = f"""तुम्हाला खालील बातमीच्या मुख्य मुद्द्यांवर आधारीत व्यावसायिक, अधिकृत आणि व्याकरणदृष्ट्या अचूक मराठी वृत्त स्क्रिप्ट तयार करायची आहे.
+
+तुम्ही समाचार सादर करत आहात {bulletin_name} या वेळी, ज्यात {content_type} दिली जातात."""
+    user_prompt = f"""तुम्हाला खालील बातमीच्या आधारावर व्यावसायिक, अधिकृत मराठी वृत्त स्क्रिप्ट तयार करायची आहे.
 
 बातमी:
-{news_data['headline']} - {news_data['description']}
+{news_data['headline']} 
+विस्तार: {news_data['description']}
 
-* फक्त महत्वाचे मुद्दे समाविष्ट करा.
-* कमीतकमी 3-4 वाक्यांचा प्रवाही रिपोर्ट द्या.
-* कोणतेही स्वागत/परिचय/समारोप टाळा.
-* मजकूर पूर्णपणे मराठी असावा.
+स्क्रिप्ट संरचना:
+१. मुख्य बातमी (खोल हेडलाइन): एक पूर्ण, सविस्तर आणि अर्थपूर्ण मुख्य वाक्य जो संपूर्ण घटनेचा सारांश देते.
+२. महत्वाचे तपशील: प्रत्येक महत्वाचा मुद्दा विस्तारपूर्वक समजावून सांगा (कारण, परिणाम, संदर्भ).
+३. अतिरिक्त संदर्भ: संबंधित पार्श्वभूमी माहिती, तारीख, स्थाने, व्यक्तींची नावे आणि प्रभाव.
+
+आवश्यक गोष्टी:
+* मुख्य हेडलाइन 15-25 शब्दांची असावी आणि संपूर्ण घटना स्पष्ट करावी
+* प्रत्येक तपशिल 2-3 संपूर्ण वाक्यांमध्ये उचल अशा प्रकारे समजावून सांगा
+* कमीत कमी 4-5 मुख्य मुद्दे समाविष्ट करा
+* तर्कसंगत क्रमाने मुद्दे व्यवस्थित करा (महत्वाचे ते कमी महत्वाचे)
+* पूर्ण, सार्थक वाक्य वापरा
+* कोणतेही स्वागत, अभिवादन किंवा समारोप टाळा
+* सर्व मजकूर शुद्ध मराठीमध्ये असावा
 
 'Varta Pravah - {bulletin_name}' या बुलेटिनसाठी स्क्रिप्ट तयार करा."""
 
@@ -169,7 +221,7 @@ async def generate_script_activity(input_data: dict) -> dict:
             {"role": "user", "content": user_prompt}
         ],
         temperature=0.3,
-        max_tokens=1024,
+        max_tokens=2048,
     )
     script = completion.choices[0].message.content
     # Debug log removed to avoid Windows console UnicodeEncodeError
@@ -215,7 +267,7 @@ async def generate_audio_activity(input_data: dict) -> str:
 
 @activity.defn
 async def generate_news_video_activity(input_data: dict) -> str:
-    """Generate simple news video locally without SyncLabs lip-sync capability."""
+    """Generate professional news studio video like real news channels."""
     import subprocess
     from PIL import Image, ImageDraw, ImageFont
     import textwrap
@@ -226,51 +278,125 @@ async def generate_news_video_activity(input_data: dict) -> str:
         
         output_path = "/app/videos/news_generated.mp4"
         os.makedirs("/app/videos", exist_ok=True)
-        
-        # Create news headline image overlay
-        studio_img = Image.open("/app/studio.jpg")
-        draw = ImageDraw.Draw(studio_img)
-        
-        # Try to use a Devanagari-capable font, fallback to DejaVu if not available
-        try:
-            font_size = 70
-            font = ImageFont.truetype("/usr/share/fonts/truetype/noto/NotoSansDevanagari-Bold.ttf", font_size)
-        except Exception:
-            try:
-                font = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf", font_size)
-            except Exception:
-                font = ImageFont.load_default()
-        
-        # Wrap text to fit the image width
-        max_width = 60  # characters per line
-        wrapped_lines = textwrap.wrap(news_title, width=max_width)
-        
-        # Draw headline text in center with white color and black outline
-        y_position = 250
-        for line in wrapped_lines:
-            bbox = draw.textbbox((0, 0), line, font=font)
-            text_width = bbox[2] - bbox[0]
-            text_height = bbox[3] - bbox[1]
-            x_position = (1280 - text_width) // 2
-            
-            # Draw black outline
-            for adj_x in [-2, -1, 0, 1, 2]:
-                for adj_y in [-2, -1, 0, 1, 2]:
-                    draw.text((x_position + adj_x, y_position + adj_y), line, font=font, fill="black")
-            
-            # Draw white text
-            draw.text((x_position, y_position), line, font=font, fill="white")
-            y_position += text_height + 20
-        
-        # Save headline image
         tmp_dir = "/tmp/news_video"
         os.makedirs(tmp_dir, exist_ok=True)
-        headline_img_path = os.path.join(tmp_dir, "news_headline.jpg")
-        studio_img = studio_img.resize((1920, 1080), Image.LANCZOS)
-        studio_img.save(headline_img_path)
+        
+        # Create professional news studio background
+        width, height = 1920, 1080
+        
+        # Create gradient background (dark to lighter gradient like professional news channels)
+        studio_img = Image.new('RGB', (width, height), color=(15, 25, 45))
+        draw = ImageDraw.Draw(studio_img)
+        
+        # Draw gradient background (dark navy to dark blue)
+        for y in range(height):
+            # Create gradient from top (15,25,45) to bottom (30,50,80)
+            ratio = y / height
+            r = int(15 + (30 - 15) * ratio)
+            g = int(25 + (50 - 25) * ratio)
+            b = int(45 + (80 - 45) * ratio)
+            draw.line([(0, y), (width, y)], fill=(r, g, b))
+        
+        # Add accent bar (blue/cyan line) at top
+        accent_height = 8
+        draw.rectangle([(0, 0), (width, accent_height)], fill=(0, 180, 255))
+        
+        # Add background graphics elements
+        # Left side accent bar
+        draw.rectangle([(0, accent_height), (12, height)], fill=(0, 180, 255))
+        
+        # Professional news ticker background at bottom
+        ticker_height = 100
+        draw.rectangle([(0, height - ticker_height), (width, height)], fill=(20, 35, 60))
+        
+        # Separator line above ticker
+        draw.line([(0, height - ticker_height), (width, height - ticker_height)], fill=(0, 180, 255), width=3)
+        
+        # Load fonts
+        try:
+            title_font_size = 90
+            title_font = ImageFont.truetype("/usr/share/fonts/truetype/noto/NotoSansDevanagari-Bold.ttf", title_font_size)
+        except Exception:
+            try:
+                title_font = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf", 90)
+            except Exception:
+                title_font = ImageFont.load_default()
+        
+        try:
+            ticker_font = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf", 32)
+        except Exception:
+            ticker_font = ImageFont.load_default()
+        
+        # Main headline - wrap and center
+        max_width = 45  # characters per line
+        wrapped_lines = textwrap.wrap(news_title, width=max_width)
+        
+        # Calculate headline area position and size
+        headline_start_y = 150
+        line_spacing = 110
+        
+        # Draw main headline
+        for i, line in enumerate(wrapped_lines):
+            bbox = draw.textbbox((0, 0), line, font=title_font)
+            text_width = bbox[2] - bbox[0]
+            text_height = bbox[3] - bbox[1]
+            
+            # Position from left with padding
+            x_position = 100
+            y_position = headline_start_y + (i * line_spacing)
+            
+            # Draw white text with shadow effect
+            shadow_offset = 4
+            draw.text((x_position + shadow_offset, y_position + shadow_offset), line, font=title_font, fill=(0, 0, 0, 70))
+            draw.text((x_position, y_position), line, font=title_font, fill=(255, 255, 255))
+        
+        # Add "LIVE" indicator if breaking news
+        if "Breaking" in news_title or "तातडीचे" in news_title:
+            live_x = 1700
+            live_y = 50
+            draw.ellipse([(live_x, live_y), (live_x + 40, live_y + 40)], fill=(255, 50, 50))
+            try:
+                live_font = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf", 20)
+            except:
+                live_font = ImageFont.load_default()
+            draw.text((live_x + 50, live_y + 5), "LIVE", font=live_font, fill=(255, 50, 50))
+        
+        # Add logo/channel name in top right corner
+        try:
+            logo_font = ImageFont.truetype("/usr/share/fonts/truetype/noto/NotoSansDevanagari-Bold.ttf", 36)
+        except:
+            try:
+                logo_font = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf", 36)
+            except:
+                logo_font = ImageFont.load_default()
+        
+        channel_text = "वार्ता प्रवाह"
+        text_bbox = draw.textbbox((0, 0), channel_text, font=logo_font)
+        text_width = text_bbox[2] - text_bbox[0]
+        logo_x = width - text_width - 50
+        logo_y = 30
+        draw.text((logo_x, logo_y), channel_text, font=logo_font, fill=(0, 180, 255))
+        
+        # Add news ticker text at bottom
+        ticker_text = "आज की मुख्य बातमियां | वार्ता प्रवाह - आपका विश्वसनीय समाचार स्रोत"
+        ticker_x = 30
+        ticker_y = height - ticker_height + 25
+        draw.text((ticker_x, ticker_y), ticker_text, font=ticker_font, fill=(200, 200, 200))
+        
+        # Add time display in bottom right
+        from datetime import datetime, timezone, timedelta
+        ist = timezone(timedelta(hours=5, minutes=30))
+        current_time = datetime.now(ist).strftime("%H:%M")
+        time_bbox = draw.textbbox((0, 0), current_time, font=ticker_font)
+        time_width = time_bbox[2] - time_bbox[0]
+        draw.text((width - time_width - 30, ticker_y), current_time, font=ticker_font, fill=(100, 200, 255))
+        
+        # Save the professional studio frame
+        headline_img_path = os.path.join(tmp_dir, "news_studio_frame.jpg")
+        studio_img.save(headline_img_path, quality=95)
         
         # Resolve audio source
-        audio_path = input_data.get("audio_url", "")
+        audio_path = audio_url
         if audio_path and os.path.isfile(audio_path):
             print(f"Using existing audio file: {audio_path}")
         elif audio_path and audio_path.startswith("http"):
@@ -293,7 +419,7 @@ async def generate_news_video_activity(input_data: dict) -> str:
         if not os.path.isfile(audio_path):
             raise RuntimeError(f"Audio path missing after fallback creation: {audio_path}")
 
-        # Create video from image + audio using FFmpeg
+        # Create video from professional studio frame + audio using FFmpeg
         ffmpeg_cmd = [
             "ffmpeg",
             "-y",
@@ -312,7 +438,7 @@ async def generate_news_video_activity(input_data: dict) -> str:
         result = subprocess.run(ffmpeg_cmd, capture_output=True, text=True, timeout=30)
         
         if result.returncode == 0 and os.path.exists(output_path):
-            print(f"Successfully generated news video: {output_path}")
+            print(f"Successfully generated professional news video: {output_path}")
             return output_path
         else:
             print(f"FFmpeg error generating news video: {result.stderr}")

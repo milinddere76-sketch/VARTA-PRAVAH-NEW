@@ -14,7 +14,8 @@ from .activities import (
     ensure_promo_video_activity,
     stop_stream_activity,
     check_scheduled_ads_activity,
-    cleanup_old_videos_activity
+    cleanup_old_videos_activity,
+    get_channel_anchor_activity
 )
 
 @workflow.defn
@@ -54,10 +55,17 @@ class NewsProductionWorkflow:
             start_to_close_timeout=timedelta(seconds=60)
         )
         last_cleanup_day = -1
-        is_female_anchor = False
         ist = ZoneInfo("Asia/Kolkata")
         while True:
             try:
+                # --- FETCH CHANNEL'S PREFERRED ANCHOR ---
+                anchor_info = await workflow.execute_activity(
+                    get_channel_anchor_activity,
+                    channel_id,
+                    start_to_close_timeout=timedelta(seconds=10)
+                )
+                is_female_anchor = anchor_info.get("gender") == "female"
+                
                 # --- ADS & CUSTOM VIDEOS CHECK ---
                 # Check for ads scheduled for this hour
                 now = datetime.now(ist)
@@ -84,9 +92,6 @@ class NewsProductionWorkflow:
                         )
                         # Give it a 30s min buffer for ads
                         await workflow.sleep(timedelta(seconds=35))
-                
-                # Toggle anchor for each loop iteration to add variety
-                is_female_anchor = not is_female_anchor
                 
                 # 1. Fetch News
                 news_data = await workflow.execute_activity(
