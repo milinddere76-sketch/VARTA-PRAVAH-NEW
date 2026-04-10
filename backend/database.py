@@ -136,26 +136,33 @@ def init_db():
     
     # 2. Add missing columns (Self-Healing Migration)
     with engine.connect() as conn:
-        # Check and add 'preferred_anchor_id' to 'channels'
-        try:
-            print("📝 Syncing 'channels' schema...")
-            conn.execute(text("ALTER TABLE channels ADD COLUMN preferred_anchor_id INTEGER REFERENCES anchors(id)"))
-            conn.commit()
-            print("✅ Added 'preferred_anchor_id' to 'channels'")
-        except Exception as e:
-            if "already exists" not in str(e).lower():
-                print(f"⚠️ Warning updating 'channels': {e}")
-            else:
-                print("✅ 'channels' schema is up to date.")
+        # --- CHANNELS TABLE ---
+        columns_to_add = [
+            ("owner_id", "INTEGER REFERENCES users(id)"),
+            ("preferred_anchor_id", "INTEGER REFERENCES anchors(id)"),
+            ("youtube_stream_key", "VARCHAR")
+        ]
+        
+        for col_name, col_type in columns_to_add:
+            try:
+                print(f"📝 Syncing 'channels.{col_name}' schema...")
+                conn.execute(text(f"ALTER TABLE channels ADD COLUMN {col_name} {col_type}"))
+                conn.commit()
+                print(f"✅ Added '{col_name}' to 'channels'")
+            except Exception as e:
+                if "already exists" in str(e).lower() or "duplicate column" in str(e).lower():
+                    print(f"✅ 'channels.{col_name}' schema is up to date.")
+                else:
+                    print(f"⚠️ Warning updating 'channels.{col_name}': {e}")
 
-        # Check and add 'preferred_anchor_id' to 'ad_campaigns'
+        # --- AD_CAMPAIGNS TABLE ---
         try:
             print("📝 Syncing 'ad_campaigns' schema...")
             conn.execute(text("ALTER TABLE ad_campaigns ADD COLUMN preferred_anchor_id INTEGER REFERENCES anchors(id)"))
             conn.commit()
             print("✅ Added 'preferred_anchor_id' to 'ad_campaigns'")
         except Exception as e:
-            if "already exists" not in str(e).lower():
-                print(f"⚠️ Warning updating 'ad_campaigns': {e}")
-            else:
+            if "already exists" in str(e).lower() or "duplicate column" in str(e).lower():
                 print("✅ 'ad_campaigns' schema is up to date.")
+            else:
+                print(f"⚠️ Warning updating 'ad_campaigns': {e}")

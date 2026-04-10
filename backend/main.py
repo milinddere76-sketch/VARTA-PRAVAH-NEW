@@ -72,26 +72,35 @@ async def create_channel(
     channel: schemas.ChannelCreate,
     db: Session = Depends(database.get_db)
 ):
-    # 1. Create channel in DB
-    db_channel = models.Channel(**channel.dict())
-    
-    # 2. Auto-assign anchor if not provided
-    if not db_channel.preferred_anchor_id:
-        # Try to assign the first available anchor
-        default_anchor = db.query(models.Anchor).filter(models.Anchor.is_active == True).first()
-        if default_anchor:
-            db_channel.preferred_anchor_id = default_anchor.id
-        else:
-            # Create a default male anchor if none exist
-            default = models.Anchor(name="Default Anchor", gender="male", is_active=True)
-            db.add(default)
-            db.flush()
-            db_channel.preferred_anchor_id = default.id
-    
-    db.add(db_channel)
-    db.commit()
-    db.refresh(db_channel)
-    return db_channel
+    try:
+        # 1. Create channel in DB
+        db_channel = models.Channel(**channel.dict())
+        
+        # 2. Auto-assign anchor if not provided
+        if not db_channel.preferred_anchor_id:
+            # Try to assign the first available anchor
+            default_anchor = db.query(models.Anchor).filter(models.Anchor.is_active == True).first()
+            if default_anchor:
+                db_channel.preferred_anchor_id = default_anchor.id
+            else:
+                # Create a default male anchor if none exist
+                default = models.Anchor(name="Default Anchor", gender="male", is_active=True)
+                db.add(default)
+                db.flush()
+                db_channel.preferred_anchor_id = default.id
+        
+        db.add(db_channel)
+        db.commit()
+        db.refresh(db_channel)
+        return db_channel
+    except Exception as e:
+        db.rollback()
+        error_msg = str(e)
+        print(f"❌ Error creating channel: {error_msg}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"Database error while creating channel: {error_msg}. Please check if all required columns (owner_id, youtube_stream_key) exist in the 'channels' table."
+        )
 
 # --- Anchor Endpoints ---
 @app.post("/anchors", response_model=schemas.AnchorResponse)
