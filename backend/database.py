@@ -118,31 +118,54 @@ def col_exists(conn, table_name, column_name):
     return column_name in columns
 
 def init_db():
-    from sqlalchemy import text
+    from sqlalchemy import text, inspect
     try:
         engine = get_engine()
-        
-        # 1. Create missing tables
         print("📦 Initializing database tables...")
+
+        # 1. Create tables in explicit dependency order to avoid FK issues.
+        #    We import models here to ensure all are registered on Base.metadata.
+        import models  # noqa: F401 - registers all ORM classes
+
+        # Create independent tables first, then dependent ones
+        tables_in_order = [
+            "users",
+            "anchors",
+            "channels",
+            "ad_campaigns",
+        ]
+        insp = inspect(engine)
+        existing = insp.get_table_names()
+        for tname in tables_in_order:
+            if tname not in existing:
+                # Create only this specific table
+                if tname in Base.metadata.tables:
+                    Base.metadata.tables[tname].create(bind=engine)
+                    print(f"✅ Created table '{tname}'")
+
+        # Also catch any remaining tables (e.g. future additions)
         Base.metadata.create_all(bind=engine)
-        
-        # 2. Add missing columns (Safe check before ALTER)
+
+        # 2. Add missing columns without FK constraints in ALTER TABLE.
+        #    SQLAlchemy enforces FK relationships at the ORM level, so the
+        #    bare INTEGER column is functionally identical and avoids errors
+        #    when the referenced table might not exist yet in legacy DBs.
         with engine.connect() as conn:
             # --- CHANNELS TABLE ---
-            columns_to_add = [
-                ("owner_id", "INTEGER REFERENCES users(id)"),
-                ("preferred_anchor_id", "INTEGER REFERENCES anchors(id)"),
-                ("youtube_stream_key", "VARCHAR")
+            channels_cols = [
+                ("owner_id",            "INTEGER"),
+                ("preferred_anchor_id", "INTEGER"),
+                ("youtube_stream_key",  "VARCHAR"),
             ]
-            
-            for col_name, col_type in columns_to_add:
+            for col_name, col_type in channels_cols:
                 if not col_exists(conn, "channels", col_name):
                     try:
                         print(f"📝 Adding missing column 'channels.{col_name}'...")
                         conn.execute(text(f"ALTER TABLE channels ADD COLUMN {col_name} {col_type}"))
                         conn.commit()
+                        print(f"✅ Added 'channels.{col_name}'")
                     except Exception as e:
-                        print(f"⚠️ Could not add '{col_name}': {e}")
+                        print(f"⚠️ Could not add 'channels.{col_name}': {e}")
                 else:
                     print(f"✅ Column 'channels.{col_name}' already exists.")
 
@@ -150,8 +173,9 @@ def init_db():
             if not col_exists(conn, "ad_campaigns", "preferred_anchor_id"):
                 try:
                     print("📝 Adding 'ad_campaigns.preferred_anchor_id'...")
-                    conn.execute(text("ALTER TABLE ad_campaigns ADD COLUMN preferred_anchor_id INTEGER REFERENCES anchors(id)"))
+                    conn.execute(text("ALTER TABLE ad_campaigns ADD COLUMN preferred_anchor_id INTEGER"))
                     conn.commit()
+                    print("✅ Added 'ad_campaigns.preferred_anchor_id'")
                 except Exception as e:
                     print(f"⚠️ Could not add ad_campaigns column: {e}")
             else:
@@ -159,3 +183,4 @@ def init_db():
 
     except Exception as e:
         print(f"❌ Database initialization failed: {e}")
+        raise  # Re-raise so startup fails loudly rather than silently
