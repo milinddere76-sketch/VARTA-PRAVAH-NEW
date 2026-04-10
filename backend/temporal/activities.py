@@ -11,7 +11,9 @@ from dotenv import load_dotenv
 import sys
 
 # Import Streamer from parent directory (since worker is in temporal/)
-sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+if BASE_DIR not in sys.path:
+    sys.path.insert(0, BASE_DIR)
 from streamer import Streamer
 import database
 import models

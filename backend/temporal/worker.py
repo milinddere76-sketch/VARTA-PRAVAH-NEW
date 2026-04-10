@@ -20,8 +20,11 @@ from .activities import (
     cleanup_old_videos_activity
 )
 
-# Fix imports for Docker
-sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+# Fix imports for Docker/Production
+BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+if BASE_DIR not in sys.path:
+    sys.path.insert(0, BASE_DIR)
+
 from database import get_session_local
 from models import Channel, User
 from sqlalchemy.orm import Session
