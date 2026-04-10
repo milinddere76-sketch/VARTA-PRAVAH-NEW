@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useEffect, useCallback } from 'react';
-import { Activity, ExternalLink, Square, Play, Settings, Megaphone, Trash2, Zap } from 'lucide-react';
+import { Activity, ExternalLink, Square, Play, Settings, Megaphone, Trash2 } from 'lucide-react';
 
 interface Channel {
   id: number;
@@ -145,7 +145,7 @@ export default function DashboardPage() {
       <nav className="border-b border-[#1c2035] bg-[#0d1120] px-8 py-4 flex items-center justify-between">
         <div className="flex items-center gap-3">
           <div className="w-9 h-9 rounded-lg bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center shadow-lg shadow-blue-500/30">
-            <Zap size={18} className="text-white" />
+            <Activity size={18} className="text-white" />
           </div>
           <span className="text-xl font-bold tracking-tight">VartaPravah</span>
           <span className="text-xs text-blue-400 font-semibold bg-blue-500/10 border border-blue-500/20 px-2 py-0.5 rounded-full ml-1">24×7 AI Broadcast</span>
