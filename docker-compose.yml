@@ -99,7 +99,8 @@ services:
       - DATABASE_URL=postgresql://root:password@postgres:5432/temporal
       - TEMPORAL_ADDRESS=temporal:7233
       - AUTO_START_CHANNEL_ID=1
-      - DEFAULT_LANGUAGE=mr
+      - DEFAULT_LANGUAGE=Marathi
+      - YOUTUBE_STREAM_KEY=qcu7-xesd-m4sv-9zvv-e335
       - PYTHONPATH=/app
     volumes:
       - ./backend/videos:/app/videos
