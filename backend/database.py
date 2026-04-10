@@ -110,77 +110,78 @@ def get_db():
 
 # ================= INIT ================= #
 
-def col_exists(conn, table_name, column_name):
-    """Check if a column exists in a table (SQLAlchemy 2.0 compatible)"""
-    from sqlalchemy import inspect
-    inspector = inspect(conn)
-    columns = [c['name'] for c in inspector.get_columns(table_name)]
-    return column_name in columns
+def col_exists(eng, table_name, column_name):
+    """
+    Check if a column exists in a table.
+    IMPORTANT: In SQLAlchemy 2.0, inspect() must receive the ENGINE, not a Connection.
+    """
+    from sqlalchemy import inspect as sa_inspect
+    try:
+        inspector = sa_inspect(eng)
+        columns = [c['name'] for c in inspector.get_columns(table_name)]
+        return column_name in columns
+    except Exception:
+        # Table doesn't exist or other error — treat as "column doesn't exist"
+        return False
+
+def _safe_add_column(engine, conn, table: str, col_name: str, col_type: str):
+    """Add a column to a table if it doesn't already exist. Never raises."""
+    from sqlalchemy import text
+    try:
+        if not col_exists(engine, table, col_name):
+            print(f"📝 Adding missing column '{table}.{col_name}'...")
+            conn.execute(text(f"ALTER TABLE {table} ADD COLUMN {col_name} {col_type}"))
+            conn.commit()
+            print(f"✅ Added '{table}.{col_name}'")
+        else:
+            print(f"✅ Column '{table}.{col_name}' already exists.")
+    except Exception as e:
+        print(f"⚠️ Could not add '{table}.{col_name}': {e}")
 
 def init_db():
-    from sqlalchemy import text, inspect
+    from sqlalchemy import inspect as sa_inspect
     try:
-        engine = get_engine()
+        eng = get_engine()
         print("📦 Initializing database tables...")
 
-        # 1. Create tables in explicit dependency order to avoid FK issues.
-        #    We import models here to ensure all are registered on Base.metadata.
-        import models  # noqa: F401 - registers all ORM classes
+        # 1. Import all models so they register on Base.metadata
+        import models  # noqa: F401
 
-        # Create independent tables first, then dependent ones
-        tables_in_order = [
-            "users",
-            "anchors",
-            "channels",
-            "ad_campaigns",
-        ]
-        insp = inspect(engine)
+        # 2. Create tables in dependency order (avoids FK resolution issues)
+        tables_in_order = ["users", "anchors", "channels", "ad_campaigns"]
+        insp = sa_inspect(eng)
         existing = insp.get_table_names()
         for tname in tables_in_order:
             if tname not in existing:
-                # Create only this specific table
                 if tname in Base.metadata.tables:
-                    Base.metadata.tables[tname].create(bind=engine)
+                    Base.metadata.tables[tname].create(bind=eng)
                     print(f"✅ Created table '{tname}'")
 
-        # Also catch any remaining tables (e.g. future additions)
-        Base.metadata.create_all(bind=engine)
+        # Catch any remaining tables not in the ordered list
+        Base.metadata.create_all(bind=eng)
 
-        # 2. Add missing columns without FK constraints in ALTER TABLE.
-        #    SQLAlchemy enforces FK relationships at the ORM level, so the
-        #    bare INTEGER column is functionally identical and avoids errors
-        #    when the referenced table might not exist yet in legacy DBs.
-        with engine.connect() as conn:
-            # --- CHANNELS TABLE ---
-            channels_cols = [
-                ("owner_id",            "INTEGER"),
-                ("preferred_anchor_id", "INTEGER"),
-                ("youtube_stream_key",  "VARCHAR"),
-            ]
-            for col_name, col_type in channels_cols:
-                if not col_exists(conn, "channels", col_name):
-                    try:
-                        print(f"📝 Adding missing column 'channels.{col_name}'...")
-                        conn.execute(text(f"ALTER TABLE channels ADD COLUMN {col_name} {col_type}"))
-                        conn.commit()
-                        print(f"✅ Added 'channels.{col_name}'")
-                    except Exception as e:
-                        print(f"⚠️ Could not add 'channels.{col_name}': {e}")
-                else:
-                    print(f"✅ Column 'channels.{col_name}' already exists.")
+        # 3. Add any missing columns (no FK in ALTER TABLE — SQLAlchemy ORM handles FKs)
+        with eng.connect() as conn:
+            # --- USERS ---
+            _safe_add_column(eng, conn, "users", "full_name",        "VARCHAR")
+            _safe_add_column(eng, conn, "users", "is_active",        "BOOLEAN DEFAULT TRUE")
 
-            # --- AD_CAMPAIGNS TABLE ---
-            if not col_exists(conn, "ad_campaigns", "preferred_anchor_id"):
-                try:
-                    print("📝 Adding 'ad_campaigns.preferred_anchor_id'...")
-                    conn.execute(text("ALTER TABLE ad_campaigns ADD COLUMN preferred_anchor_id INTEGER"))
-                    conn.commit()
-                    print("✅ Added 'ad_campaigns.preferred_anchor_id'")
-                except Exception as e:
-                    print(f"⚠️ Could not add ad_campaigns column: {e}")
-            else:
-                print("✅ Column 'ad_campaigns.preferred_anchor_id' already exists.")
+            # --- ANCHORS ---
+            _safe_add_column(eng, conn, "anchors", "description",    "VARCHAR")
+            _safe_add_column(eng, conn, "anchors", "is_active",      "BOOLEAN DEFAULT TRUE")
+            _safe_add_column(eng, conn, "anchors", "created_at",     "TIMESTAMP DEFAULT NOW()")
+
+            # --- CHANNELS ---
+            _safe_add_column(eng, conn, "channels", "owner_id",           "INTEGER")
+            _safe_add_column(eng, conn, "channels", "preferred_anchor_id","INTEGER")
+            _safe_add_column(eng, conn, "channels", "youtube_stream_key", "VARCHAR")
+
+            # --- AD_CAMPAIGNS ---
+            _safe_add_column(eng, conn, "ad_campaigns", "preferred_anchor_id", "INTEGER")
+
+        print("✅ Database initialization complete.")
 
     except Exception as e:
-        print(f"❌ Database initialization failed: {e}")
-        raise  # Re-raise so startup fails loudly rather than silently
+        # Log but NEVER raise — the app must start even if migration has issues.
+        # Individual request handlers will surface their own specific errors.
+        print(f"❌ Database initialization error (non-fatal): {e}")
