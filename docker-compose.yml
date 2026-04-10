@@ -64,13 +64,14 @@ services:
     build: ./backend
     working_dir: /app
     restart: unless-stopped
-    command: uvicorn main:app --host 0.0.0.0 --port 8000
+    command: /bin/bash -c "ls -la /app && uvicorn main:app --host 0.0.0.0 --port 8000"
     ports:
       - "8000:8000"
     environment:
       - DATABASE_URL=postgresql://root:password@postgres:5432/temporal
       - TEMPORAL_ADDRESS=temporal:7233
       - PYTHONUNBUFFERED=1
+      - PYTHONPATH=/app
     volumes:
       - ./backend:/app
       - ./backend/videos:/app/videos
@@ -93,7 +94,7 @@ services:
     build: ./backend
     working_dir: /app
     restart: unless-stopped
-    command: /bin/bash -c "ls -R /app && python -m streaming_engine.worker"
+    command: /bin/bash -c "ls -laR /app && python -m streaming_engine.worker"
     environment:
       - DATABASE_URL=postgresql://root:password@postgres:5432/temporal
       - TEMPORAL_ADDRESS=temporal:7233
