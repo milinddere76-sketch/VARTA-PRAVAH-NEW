@@ -93,7 +93,7 @@ services:
     build: ./backend
     working_dir: /app
     restart: unless-stopped
-    command: /bin/bash -c "export PYTHONPATH=$PYTHONPATH:/app && python -m temporal.worker"
+    command: /bin/bash -c "export PYTHONPATH=$PYTHONPATH:/app && python -m streaming_engine.worker"
     environment:
       - DATABASE_URL=postgresql://root:password@postgres:5432/temporal
       - TEMPORAL_ADDRESS=temporal:7233

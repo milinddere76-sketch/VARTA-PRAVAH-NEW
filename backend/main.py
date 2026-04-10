@@ -4,7 +4,7 @@ from sqlalchemy.orm import Session
 from temporalio.client import Client
 import database, models, schemas, temporal_utils
 from datetime import timedelta
-from temporal.workflows import NewsProductionWorkflow, StopStreamWorkflow
+from streaming_engine.workflows import NewsProductionWorkflow, StopStreamWorkflow
 
 from fastapi.middleware.cors import CORSMiddleware
 
