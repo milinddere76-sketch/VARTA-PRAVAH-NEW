@@ -34,8 +34,20 @@ def is_db_open(url, timeout=0.5):
 
 # ================= ENGINE BUILDER ================= #
 
+# ================= ENGINE BUILDER ================= #
+
+_CACHED_ENGINE_URL = None
+
 def get_engine():
-    global engine
+    global engine, _CACHED_ENGINE_URL
+    
+    if engine is not None:
+        return engine
+
+    # 1. PRIORITY: Use cached URL if we already found one that works
+    if _CACHED_ENGINE_URL:
+        engine = create_engine(_CACHED_ENGINE_URL, pool_pre_ping=True)
+        return engine
 
     possible_urls = [
         os.getenv("DATABASE_URL"),
@@ -45,54 +57,30 @@ def get_engine():
     ]
 
     for url in filter(None, possible_urls):
-
-        if url.startswith("sqlite"):
-            print(f"📦 Using SQLite: {url}")
-            engine = create_engine(
-                url,
-                connect_args={"check_same_thread": False},
-                pool_pre_ping=True
-            )
-            return engine
-
-        host_info = url.split('@')[-1]
-        print(f"📡 Checking DB: {host_info}")
-
-        if not is_db_open(url):
-            print(f"⏩ Skipping {host_info} (unreachable)")
-            continue
-
+        # Socket check with very fast timeout (200ms) to avoid hanging
+        if url.startswith("postgresql"):
+            host_info = url.split('@')[-1].split('/')[0]
+            if not is_db_open(url, timeout=0.2):
+                continue
+        
         try:
-            engine = create_engine(
-                url,
-                pool_pre_ping=True,
-                pool_size=5,
-                max_overflow=10
-            )
-
-            with engine.connect():
-                print(f"✅ Connected to {host_info}")
+            if url.startswith("sqlite"):
+                new_engine = create_engine(url, connect_args={"check_same_thread": False}, pool_pre_ping=True)
+            else:
+                new_engine = create_engine(url, pool_pre_ping=True, pool_size=5, max_overflow=10)
+            
+            with new_engine.connect() as conn:
+                print(f"✅ Connected to {url.split('@')[-1] if '@' in url else url}")
+                engine = new_engine
+                _CACHED_ENGINE_URL = url # Cache for next time
                 return engine
-
-        except OperationalError as e:
-            print(f"❌ DB error {host_info}: {str(e)[:60]}")
+        except Exception:
             continue
 
     # ================= FALLBACK ================= #
-
-    sqlite_path = os.getenv("SQLITE_URL")
-
-    if not sqlite_path:
-        sqlite_path = "sqlite:///./dev.db"  # safer for Docker
-
+    sqlite_path = "sqlite:///./dev.db"
     print(f"⚠️ Falling back to SQLite: {sqlite_path}")
-
-    engine = create_engine(
-        sqlite_path,
-        connect_args={"check_same_thread": False},
-        pool_pre_ping=True
-    )
-
+    engine = create_engine(sqlite_path, connect_args={"check_same_thread": False}, pool_pre_ping=True)
     return engine
 
 
@@ -100,69 +88,74 @@ def get_engine():
 
 def get_session_local():
     global SessionLocal
-
     if engine is None:
         get_engine()
-
     if SessionLocal is None:
-        SessionLocal = sessionmaker(
-            autocommit=False,
-            autoflush=False,
-            bind=engine
-        )
-
+        SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
     return SessionLocal
 
 
 # ================= DEPENDENCY ================= #
 
 def get_db():
-    db = get_session_local()()
     try:
+        db = get_session_local()()
         yield db
+    except Exception as e:
+        print(f"❌ DB Session Error: {e}")
+        raise
     finally:
         db.close()
 
 
 # ================= INIT ================= #
 
+def col_exists(conn, table_name, column_name):
+    """Check if a column exists in a table (SQLAlchemy 2.0 compatible)"""
+    from sqlalchemy import inspect
+    inspector = inspect(conn)
+    columns = [c['name'] for c in inspector.get_columns(table_name)]
+    return column_name in columns
+
 def init_db():
     from sqlalchemy import text
-    engine = get_engine()
-    
-    # 1. Create missing tables (e.g., 'anchors')
-    print("📦 Initializing database tables...")
-    Base.metadata.create_all(bind=engine)
-    
-    # 2. Add missing columns (Self-Healing Migration)
-    with engine.connect() as conn:
-        # --- CHANNELS TABLE ---
-        columns_to_add = [
-            ("owner_id", "INTEGER REFERENCES users(id)"),
-            ("preferred_anchor_id", "INTEGER REFERENCES anchors(id)"),
-            ("youtube_stream_key", "VARCHAR")
-        ]
+    try:
+        engine = get_engine()
         
-        for col_name, col_type in columns_to_add:
-            try:
-                print(f"📝 Syncing 'channels.{col_name}' schema...")
-                conn.execute(text(f"ALTER TABLE channels ADD COLUMN {col_name} {col_type}"))
-                conn.commit()
-                print(f"✅ Added '{col_name}' to 'channels'")
-            except Exception as e:
-                if "already exists" in str(e).lower() or "duplicate column" in str(e).lower():
-                    print(f"✅ 'channels.{col_name}' schema is up to date.")
+        # 1. Create missing tables
+        print("📦 Initializing database tables...")
+        Base.metadata.create_all(bind=engine)
+        
+        # 2. Add missing columns (Safe check before ALTER)
+        with engine.connect() as conn:
+            # --- CHANNELS TABLE ---
+            columns_to_add = [
+                ("owner_id", "INTEGER REFERENCES users(id)"),
+                ("preferred_anchor_id", "INTEGER REFERENCES anchors(id)"),
+                ("youtube_stream_key", "VARCHAR")
+            ]
+            
+            for col_name, col_type in columns_to_add:
+                if not col_exists(conn, "channels", col_name):
+                    try:
+                        print(f"📝 Adding missing column 'channels.{col_name}'...")
+                        conn.execute(text(f"ALTER TABLE channels ADD COLUMN {col_name} {col_type}"))
+                        conn.commit()
+                    except Exception as e:
+                        print(f"⚠️ Could not add '{col_name}': {e}")
                 else:
-                    print(f"⚠️ Warning updating 'channels.{col_name}': {e}")
+                    print(f"✅ Column 'channels.{col_name}' already exists.")
 
-        # --- AD_CAMPAIGNS TABLE ---
-        try:
-            print("📝 Syncing 'ad_campaigns' schema...")
-            conn.execute(text("ALTER TABLE ad_campaigns ADD COLUMN preferred_anchor_id INTEGER REFERENCES anchors(id)"))
-            conn.commit()
-            print("✅ Added 'preferred_anchor_id' to 'ad_campaigns'")
-        except Exception as e:
-            if "already exists" in str(e).lower() or "duplicate column" in str(e).lower():
-                print("✅ 'ad_campaigns' schema is up to date.")
+            # --- AD_CAMPAIGNS TABLE ---
+            if not col_exists(conn, "ad_campaigns", "preferred_anchor_id"):
+                try:
+                    print("📝 Adding 'ad_campaigns.preferred_anchor_id'...")
+                    conn.execute(text("ALTER TABLE ad_campaigns ADD COLUMN preferred_anchor_id INTEGER REFERENCES anchors(id)"))
+                    conn.commit()
+                except Exception as e:
+                    print(f"⚠️ Could not add ad_campaigns column: {e}")
             else:
-                print(f"⚠️ Warning updating 'ad_campaigns': {e}")
+                print("✅ Column 'ad_campaigns.preferred_anchor_id' already exists.")
+
+    except Exception as e:
+        print(f"❌ Database initialization failed: {e}")

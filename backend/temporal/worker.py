@@ -116,8 +116,8 @@ async def main():
     load_dotenv()
 
     # Initialize DB (Safe Migration)
-    import database
-    database.init_db()
+    # import database (Removed to prevent race conditions with main app)
+    # database.init_db()
 
     # Retry connect to Temporal
     client = None
