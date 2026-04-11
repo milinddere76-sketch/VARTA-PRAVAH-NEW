@@ -5,10 +5,10 @@ import sys
 def create_premium_promo(output_path):
     print(f"🎬 Creating Premium Gen-Z Promo -> {output_path}")
     
-    # Paths to stems (assuming they are in /app/promo_stems on server)
-    stems_dir = os.path.join(os.path.dirname(os.path.dirname(__file__)), "promo_stems")
+    # Paths to stems (now inside backend/ on server)
+    stems_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "promo_stems")
     if not os.path.exists(stems_dir):
-        # Fallback for local dev
+        # Fallback for root execution
         stems_dir = "./promo_stems"
     
     # We'll use a complex filter graph to create animations

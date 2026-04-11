@@ -1,0 +1,6 @@
+file 'd:\Apps\VARTAPRAVAH\backend\media\assets\promo_stems\t0.mp4'
+file 'd:\Apps\VARTAPRAVAH\backend\media\assets\promo_stems\t1.mp4'
+file 'd:\Apps\VARTAPRAVAH\backend\media\assets\promo_stems\t2.mp4'
+file 'd:\Apps\VARTAPRAVAH\backend\media\assets\promo_stems\t3.mp4'
+file 'd:\Apps\VARTAPRAVAH\backend\media\assets\promo_stems\t4.mp4'
+file 'd:\Apps\VARTAPRAVAH\backend\media\assets\promo_stems\t5.mp4'
