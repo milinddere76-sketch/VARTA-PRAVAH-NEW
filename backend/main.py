@@ -56,14 +56,30 @@ async def server_health_check():
         checks["youtube_rtmp_1935"] = f"BLOCKED: {str(e)}"
     
     # Check if promo exists
-    checks["promo_exists"] = os.path.exists("/app/videos/promo.mp4")
+    promo_path = "/app/videos/promo.mp4"
+    checks["promo_exists"] = os.path.exists(promo_path)
     
-    # Check for zombie ffmpeg processes
+    # ── Test Run FFmpeg for 2 seconds and capture logs ──
+    from streamer import Streamer
     try:
-        ps = subprocess.run(["pgrep", "-f", "ffmpeg"], capture_output=True, text=True)
-        checks["active_ffmpeg_pids"] = ps.stdout.strip().split("\n") if ps.stdout.strip() else []
-    except:
-        checks["active_ffmpeg_pids"] = "pgrep not available"
+        db = next(database.get_db())
+        channel = db.query(models.Channel).filter(models.Channel.id == 1).first()
+        if channel and checks["promo_exists"]:
+            s = Streamer(channel.youtube_stream_key, 1)
+            s.current_video = promo_path
+            # Start and wait briefly
+            s.start_stream()
+            import time
+            time.sleep(3)
+            # Try to read some output from the shared logs if possible or check process
+            is_alive = s.process.poll() is None
+            checks["atempt_stream_pid"] = s.process.pid
+            checks["attempt_stream_alive"] = is_alive
+            s.stop_stream()
+        else:
+            checks["attempt_stream"] = "SKIP: No channel or promo"
+    except Exception as e:
+        checks["attempt_stream_error"] = str(e)
 
     return checks
 
