@@ -139,13 +139,40 @@ class NewsProductionWorkflow:
                     retry_policy=RetryPolicy(maximum_attempts=2)
                 )
 
-                #  4. Render news video 
+                #  4. AI Lip-Sync (Triggers only if SYNCLABS_API_KEY is detected in activity)
+                synced_video_url = ""
+                try:
+                    job_id = await workflow.execute_activity(
+                        synclabs_lip_sync_activity,
+                        {"audio_url": audio_path},
+                        start_to_close_timeout=timedelta(minutes=5)
+                    )
+                    
+                    if job_id not in ["no_api_key", "failed", "mock_job"]:
+                        # Poll for status (Max 10 mins)
+                        for _ in range(20):
+                            status_data = await workflow.execute_activity(
+                                check_sync_labs_status_activity,
+                                job_id,
+                                start_to_close_timeout=timedelta(seconds=60)
+                            )
+                            if status_data.get("status") == "completed":
+                                synced_video_url = status_data.get("video_url")
+                                break
+                            elif status_data.get("status") in ["failed", "error"]:
+                                break
+                            await workflow.sleep(timedelta(seconds=30))
+                except Exception as e:
+                    print(f"Lip-Sync Pipeline Skip/Error: {e}")
+
+                #  5. Render news video (Compiles Background + [Talking Anchor OR Static PNG])
                 final_video_url = await workflow.execute_activity(
                     generate_news_video_activity,
                     {
                         "title": news_data.get("headline", "Breaking News"),
                         "audio_url": audio_path,
-                        "script": script_data.get("script", "")
+                        "script": script_data.get("script", ""),
+                        "synced_video_url": synced_video_url
                     },
                     start_to_close_timeout=timedelta(minutes=5),
                     retry_policy=RetryPolicy(maximum_attempts=2)

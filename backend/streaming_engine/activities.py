@@ -116,55 +116,70 @@ async def generate_news_video_activity(input_data: dict) -> str:
     from PIL import Image, ImageDraw, ImageFont
     title = input_data.get("title", "Breaking News")
     audio_path = input_data.get("audio_url", "")
+    synced_v = input_data.get("synced_video_url", "")
+    
     from database import SessionLocal
     from models import Channel, Anchor
     db = SessionLocal()
     channel = db.query(Channel).first()
     anchor = db.query(Anchor).filter(Anchor.id == channel.preferred_anchor_id).first() if channel else None
     db.close()
+
     assets_dir = os.path.join(BASE_DIR, "assets")
     bg_p = os.path.join(assets_dir, "studio_bg.png")
     logo_p = os.path.join(assets_dir, "logo.png")
     port_p = os.path.join(BASE_DIR, anchor.portrait_url) if anchor and anchor.portrait_url else os.path.join(assets_dir, "female_anchor.png")
+
     try:
         studio = Image.open(bg_p).convert("RGBA").resize((1920, 1080)) if os.path.exists(bg_p) else Image.new("RGBA", (1920, 1080), (15, 25, 45, 255))
-        if os.path.exists(port_p):
+        
+        # Static portrait only if NOT using lip-sync video
+        if not synced_v and os.path.exists(port_p):
             port = Image.open(port_p).convert("RGBA")
-            p_w = 1000
+            p_w = 950
             p_h = int(port.height * (p_w / port.width))
             port = port.resize((p_w, p_h))
             studio.paste(port, (1920 - p_w - 50, 1080 - p_h), port)
+
         if os.path.exists(logo_p):
             logo = Image.open(logo_p).convert("RGBA").resize((220, 220))
             studio.paste(logo, (1920 - 280, 50), logo)
+
         draw = ImageDraw.Draw(studio)
         draw.rectangle([0, 960, 1920, 1080], fill=(0, 0, 150, 240))
         draw.rectangle([0, 950, 1920, 960], fill=(0, 180, 255, 255))
         draw.rectangle([0, 960, 350, 1080], fill=(200, 0, 0, 255))
-        try:
-            # Dynamic Font Discovery for Devanagari (Marathi)
-            font_candidates = [
-                "C:/Windows/Fonts/Nirmala.ttf",
-                "C:/Windows/Fonts/Mangal.ttf",
-                "C:/Windows/Fonts/Kokila.ttf",
-                "/usr/share/fonts/truetype/noto/NotoSansDevanagari-Bold.ttf",
-                "C:/Windows/Fonts/arial.ttf"
-            ]
-            font_t = None
-            for fp in font_candidates:
-                if os.path.exists(fp):
-                    try:
-                        font_t = ImageFont.truetype(fp, 45)
-                        break
-                    except: continue
-            if not font_t: font_t = ImageFont.load_default()
-        except: font_t = ImageFont.load_default()
+
+        # Font discovery for Marathi
+        font_t = ImageFont.load_default()
+        for fp in ["C:/Windows/Fonts/Nirmala.ttf", "/usr/share/fonts/truetype/noto/NotoSansDevanagari-Bold.ttf", "arial.ttf"]:
+            if os.path.exists(fp):
+                try: font_t = ImageFont.truetype(fp, 45); break
+                except: continue
+
         draw.text((40, 985), "ताज्या बातम्या", font=font_t, fill=(255, 255, 255))
         draw.text((380, 985), title[:70], font=font_t, fill=(255, 255, 255))
-        frame_p = os.path.join(tempfile.gettempdir(), "studio.png")
+        
+        frame_p = os.path.join(tempfile.gettempdir(), "studio_base.png")
         studio.save(frame_p)
+        
         out_p = os.path.join(BASE_DIR, "videos", "news_generated.mp4")
-        subprocess.run(["ffmpeg", "-y", "-loop", "1", "-i", frame_p, "-i", audio_path, "-c:v", "libx264", "-preset", "ultrafast", "-pix_fmt", "yuv420p", "-c:a", "aac", "-shortest", out_p], check=True)
+        
+        if synced_v:
+            # Composite talking anchor video onto studio background
+            ffmpeg_cmd = [
+                "ffmpeg", "-y", "-loop", "1", "-i", frame_p,
+                "-i", synced_v,
+                "-filter_complex", 
+                "[1:v]scale=950:-1[anchor];[0:v][anchor]overlay=1920-950-50:H-h[outv]",
+                "-map", "[outv]", "-map", "1:a",
+                "-c:v", "libx264", "-preset", "ultrafast", "-pix_fmt", "yuv420p",
+                "-shortest", out_p
+            ]
+        else:
+            ffmpeg_cmd = ["ffmpeg", "-y", "-loop", "1", "-i", frame_p, "-i", audio_path, "-c:v", "libx264", "-preset", "ultrafast", "-pix_fmt", "yuv420p", "-c:a", "aac", "-shortest", out_p]
+        
+        subprocess.run(ffmpeg_cmd, check=True)
         return out_p
     except Exception as e:
         print(f"Render Error: {e}")
@@ -211,7 +226,40 @@ async def get_channel_anchor_activity(channel_id: int) -> dict: return {"gender"
 async def upload_to_s3_activity(v_url: str) -> str: return v_url
 
 @activity.defn
-async def synclabs_lip_sync_activity(data: dict) -> str: return "mock_job"
+async def synclabs_lip_sync_activity(data: dict) -> str:
+    """Sends audio and base video to Sync Labs for lip-sync."""
+    api_key = os.getenv("SYNCLABS_API_KEY")
+    if not api_key: return "no_api_key"
+    
+    headers = {"x-api-key": api_key, "Content-Type": "application/json"}
+    payload = {
+        "audioUrl": data['audio_url'], 
+        "videoUrl": os.getenv("SYNC_LABS_BASE_VIDEO_URL") or "https://storage.googleapis.com/varta-pravah/base_female.mp4",
+        "synergize": True
+    }
+    try:
+        r = requests.post("https://api.synclabs.so/v2/lipsync", headers=headers, json=payload, timeout=10)
+        r.raise_for_status()
+        return r.json().get("id")
+    except Exception as e:
+        print(f"SyncLabs Request Failed: {e}")
+        return "failed"
 
 @activity.defn
-async def check_sync_labs_status_activity(job_id: str) -> dict: return {"status": "completed", "video_url": ""}
+async def check_sync_labs_status_activity(job_id: str) -> dict:
+    """Polls Sync Labs for the finished lip-synced video."""
+    if job_id in ["no_api_key", "failed"]: return {"status": "completed", "video_url": ""}
+    
+    api_key = os.getenv("SYNCLABS_API_KEY")
+    headers = {"x-api-key": api_key}
+    try:
+        r = requests.get(f"https://api.synclabs.so/v2/lipsync/{job_id}", headers=headers, timeout=10)
+        r.raise_for_status()
+        data = r.json()
+        return {
+            "status": data.get("status"),
+            "video_url": data.get("videoUrl") if data.get("status") == "completed" else ""
+        }
+    except Exception as e:
+        print(f"SyncLabs Polling Failed: {e}")
+        return {"status": "failed"}
