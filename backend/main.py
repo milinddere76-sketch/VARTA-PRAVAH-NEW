@@ -43,6 +43,22 @@ app.add_middleware(
 def read_root():
     return {"status": "VartaPravah API Engine Online", "version": "1.0.0"}
 
+import subprocess
+import socket
+
+@app.get("/debug/health")
+async def server_health_check():
+    checks = {}
+    try:
+        with socket.create_connection(("a.rtmp.youtube.com", 1935), timeout=5):
+            checks["youtube_rtmp_1935"] = "REACHABLE"
+    except Exception as e:
+        checks["youtube_rtmp_1935"] = f"BLOCKED: {str(e)}"
+    
+    # Check if promo exists
+    checks["promo_exists"] = os.path.exists("/app/videos/promo.mp4")
+    return checks
+
 
 async def get_temporal_client():
     return await temporal_utils.get_temporal_client()
