@@ -84,19 +84,24 @@ async def server_health_check():
         db = next(database.get_db())
         channel = db.query(models.Channel).filter(models.Channel.id == 1).first()
         if channel and checks["promo_exists"]:
+            # Run ffprobe on the promo
+            ffp = subprocess.run([
+                "ffprobe", "-v", "error", "-select_streams", "v:0", 
+                "-show_entries", "stream=width,height", "-of", "csv=p=0:s=x", 
+                promo_path
+            ], capture_output=True, text=True)
+            checks["promo_info"] = ffp.stdout.strip()
+            
             s = Streamer(channel.youtube_stream_key, 1)
             s.current_video = promo_path
-            # Start and wait briefly
             s.start_stream()
             import time
             time.sleep(3)
-            # Try to read some output from the shared logs if possible or check process
             is_alive = s.process.poll() is None
-            checks["atempt_stream_pid"] = s.process.pid
             checks["attempt_stream_alive"] = is_alive
             s.stop_stream()
         else:
-            checks["attempt_stream"] = "SKIP: No channel or promo"
+            checks["attempt_stream"] = "SKIP"
     except Exception as e:
         checks["attempt_stream_error"] = str(e)
 
