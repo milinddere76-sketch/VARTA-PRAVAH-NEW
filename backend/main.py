@@ -141,6 +141,15 @@ async def system_nuclear_reset(db: Session = Depends(database.get_db)):
 
     return {"status": "success", "summary": results}
 
+from fastapi.responses import FileResponse
+@app.get("/debug/preview-latest")
+async def preview_latest_video():
+    """Serves the latest generated news video for quality verification."""
+    video_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "videos", "news_generated.mp4")
+    if os.path.exists(video_path):
+        return FileResponse(video_path, media_type="video/mp4")
+    return {"error": "No news video has been generated yet."}
+
 #  Settings 
 @app.post("/settings")
 def update_settings(data: dict):
