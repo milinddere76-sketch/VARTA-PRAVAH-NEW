@@ -48,8 +48,12 @@ class Streamer:
         if start_time:
             cmd += ["-ss", start_time]
 
-        # Input 0: Main Video
-        cmd += ["-i", self.current_video]
+        # Input 0: Main Video or Standby Pattern
+        # Check if it's a file path or a lavfi filter string
+        if "=" in self.current_video and " " not in self.current_video:
+            cmd += ["-f", "lavfi", "-i", self.current_video]
+        else:
+            cmd += ["-i", self.current_video]
         
         # Input 1: Fallback Silence (only used if 0:a is missing)
         if not has_audio:
@@ -117,9 +121,19 @@ class Streamer:
     def start_stream(self):
         if not self.current_video:
             raise ValueError("No video file set for streaming")
-        if not os.path.exists(self.current_video):
-            raise FileNotFoundError(f"Video not found: {self.current_video}")
-
+        
+        # ── EMERGENCY FALLBACK ──
+        # If the file is missing (e.g., just after a reset), use a test pattern 
+        # so YouTube doesn't get "No Data" while the worker is regenerating the promo.
+        final_video = self.current_video
+        if not os.path.exists(final_video):
+            print(f"⚠️  {final_video} not found yet. Using emergency standby pattern.", flush=True)
+            # Use a simple blue gradient with a moving circle as standby
+            final_video = "color=c=0x081122:s=1280x720:r=30[bg];[bg]drawgrid=w=0:h=8:c=black@0.1:t=1[out]"
+            self.current_video = final_video # Temporarily track as standby
+            # We must adjust _build_ffmpeg_cmd to handle lavfi input if it starts with color=
+            # But for now, we'll just let build_ffmpeg_cmd fail and we'll fix it there.
+        
         cmd = self._build_ffmpeg_cmd()
         print(f"🚀 Starting stream → {self.rtmp_url}", flush=True)
         print(f"   Source: {self.current_video}", flush=True)
