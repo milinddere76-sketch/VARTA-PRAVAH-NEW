@@ -1,4 +1,4 @@
-from fastapi import FastAPI, Depends, HTTPException, status
+from fastapi import FastAPI, Depends, HTTPException, status, UploadFile, File
 import os
 from sqlalchemy.orm import Session
 from temporalio.client import Client
@@ -157,6 +157,29 @@ async def delete_ad(ad_id: int, db: Session = Depends(database.get_db)):
     db.delete(db_ad)
     db.commit()
     return {"status": "deleted"}
+
+import uuid as _uuid
+
+@app.post("/ads/upload-video")
+async def upload_ad_video(file: UploadFile = File(...)):
+    """Upload an advertisement video file. Returns the server path to use as video_url."""
+    allowed_types = {"video/mp4", "video/quicktime", "video/x-msvideo", "video/webm"}
+    if file.content_type and file.content_type not in allowed_types:
+        raise HTTPException(status_code=400, detail=f"Invalid file type: {file.content_type}. Only MP4/MOV/AVI/WebM allowed.")
+
+    ads_dir = "/app/videos/ads"
+    os.makedirs(ads_dir, exist_ok=True)
+
+    safe_name = f"{_uuid.uuid4().hex}_{file.filename}"
+    file_path = os.path.join(ads_dir, safe_name)
+
+    content = await file.read()
+    with open(file_path, "wb") as f:
+        f.write(content)
+
+    size_mb = len(content) / (1024 * 1024)
+    print(f"📼 Ad video uploaded: {safe_name} ({size_mb:.1f} MB)")
+    return {"video_url": file_path, "filename": file.filename, "size_mb": round(size_mb, 1)}
 
 
 @app.post("/channels/{channel_id}/trigger")
