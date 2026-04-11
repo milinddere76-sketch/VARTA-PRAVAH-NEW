@@ -28,8 +28,8 @@ def create_genz_promo(output_path: str = None) -> bool:
     os.makedirs(os.path.dirname(output_path), exist_ok=True)
     sentinel_path = os.path.join(os.path.dirname(output_path), ".promo_studio_ok")
 
-    print(f"🎨 Gen-Z Promo Generator — output: {output_path}")
-    print("⏳ This takes ~3-6 min (60 s of animated neon at ultrafast preset)…")
+    print(f"Gen-Z Promo Generator - output: {output_path}")
+    print("Generating 60s animated neon promo...")
 
     # ── Font paths (Debian/Docker image) ──────────────────────────
     NOTO   = "/usr/share/fonts/truetype/noto/NotoSansDevanagari-Bold.ttf"
@@ -54,20 +54,16 @@ def create_genz_promo(output_path: str = None) -> bool:
         ticker_file = None
 
     # ── Build video filter chain ───────────────────────────────────
-    # Using geq for pixel-level animated neon gradient:
-    #   R cycles through dark reds/purples, G stays near-zero,
-    #   B pulses between dark-blue and electric-blue.
-    # Result: animated indigo/purple/electric-blue gradient on black.
+    # Lightweight alternative to geq for animated neon aesthetic:
+    # A dark blue background with additive grain and neon border effects.
     vf_parts = [
-        # 1. Animated neon gradient background (dark purple → electric blue cycling)
-        (
-            f"geq="
-            f"r='clip(18+16*sin(2*{PI}*T/9)+10*sin(2*{PI}*T/5),0,255)':"
-            f"g='clip(4+6*sin(2*{PI}*T/7+1.05),0,255)':"
-            f"b='clip(70+65*sin(2*{PI}*T/4)+18*cos(2*{PI}*T/11),0,255)'"
-        ),
+        # 1. Base dark blue color (Gen-Z vibe)
+        "color=c=0x0d1120:size=1280x720:rate=30",
+        
+        # 2. Add subtle animated neon pulse via hue filter
+        "hue='h=360*sin(2*PI*t/12):s=1+0.2*sin(2*PI*t/5)'",
 
-        # 2. Subtle scanline grid — cyberpunk texture
+        # 3. Cyberpunk texture
         "drawgrid=width=0:height=8:color=black@0.12:thickness=1",
 
         # 3. Left & right vertical neon accent bars
@@ -186,7 +182,7 @@ def create_genz_promo(output_path: str = None) -> bool:
 
     if result.returncode == 0 and os.path.exists(output_path):
         size_mb = os.path.getsize(output_path) / 1_048_576
-        print(f"✅ Gen-Z promo ready: {output_path}  ({size_mb:.1f} MB)")
+        print(f"Gen-Z promo ready: {output_path}  ({size_mb:.1f} MB)")
         # Clear sentinel so ensure_promo_video_activity reuses this file
         try:
             open(sentinel_path, "w").close()
@@ -194,7 +190,7 @@ def create_genz_promo(output_path: str = None) -> bool:
             pass
         return True
     else:
-        print(f"❌ FFmpeg failed (exit {result.returncode})")
+        print(f"FFmpeg failed (exit {result.returncode})")
         return False
 
 
