@@ -515,13 +515,21 @@ async def upload_to_s3_activity(video_url: str) -> str:
 @activity.defn
 async def ensure_promo_video_activity() -> bool:
     promo_path = "/app/videos/promo.mp4"
+    sentinel_path = "/app/videos/.promo_studio_ok"
+    image_path = "/app/studio.jpg"
     os.makedirs("/app/videos", exist_ok=True)
 
-    # Force-regenerate if existing promo is too small (old 15-second version)
-    # A proper 60-second 720p 1000k video should be ~7 MB
-    min_size = 5_000_000   # 5 MB threshold
-    if os.path.exists(promo_path) and os.path.getsize(promo_path) > min_size:
-        print(f"✅ Promo exists ({os.path.getsize(promo_path)//1024} KB) — reusing")
+    # Only reuse the cached promo if it was generated from studio.jpg
+    # (sentinel file present) AND studio.jpg hasn't changed since.
+    if (
+        os.path.exists(promo_path)
+        and os.path.exists(sentinel_path)
+        and (
+            not os.path.exists(image_path)
+            or os.path.getmtime(sentinel_path) >= os.path.getmtime(image_path)
+        )
+    ):
+        print(f"✅ Studio-promo cached ({os.path.getsize(promo_path)//1024} KB) — reusing")
         return True
 
     print("🎬 Generating 60-second promo video…")
@@ -543,7 +551,6 @@ async def ensure_promo_video_activity() -> bool:
     ]
 
     # ── Attempt 1: Use studio.jpg if available ─────────────────────────────
-    image_path = "/app/studio.jpg"
     if os.path.exists(image_path):
         try:
             cmd = [
@@ -558,6 +565,8 @@ async def ensure_promo_video_activity() -> bool:
             result = subprocess.run(cmd, capture_output=True, text=True, timeout=180)
             if result.returncode == 0 and os.path.exists(promo_path):
                 print(f"✅ Promo from studio.jpg ({os.path.getsize(promo_path)//1024} KB)")
+                # Write sentinel so next startup skips regeneration
+                open(sentinel_path, "w").close()
                 return True
             print(f"⚠️  studio.jpg attempt failed: {result.stderr[-300:]}")
         except Exception as e:
