@@ -76,10 +76,20 @@ async def generate_script_activity(input_data: dict) -> dict:
     news_data = input_data["news_data"]
     is_female = input_data.get("is_female", False)
     anchor_name = "Priya Desai" if is_female else "Arjun Sharma"
-    system_prompt = f"""You are the lead scriptwriter for 'VARTA PRAVAH', Maharashtra's #1 Marathi News Channel.
-    Write a news script in PURE PROFESSIONAL MARATHI (Devanagari).
-    Start with: 'Namaskar, Varta Pravah madhe aaple swagat aahe. Me {anchor_name}, aajchya thak batmya gheun yet aahe.'
-    Rules: Formal tone. No English for news terms. Marathi script only."""
+    
+    system_prompt = f"""You are a professional, high-energy News Broadcaster for 'VARTA PRAVAH' (Maharashtra's leading news channel).
+    Your task: Write a news script in SHUDDHA MARATHI (Standard, Official, Grammatically Perfect Devanagari).
+    
+    STRICT BROADCAST RULES:
+    1. TONE: High energy, urgent, and authoritative (Breaking News Style).
+    2. LANGUAGE: Pure Marathi only. 100% grammatically correct. Use formal news vocabulary (e.g., 'Ghadamodi', 'Vruttanta', 'Vishleshan').
+    3. NO FLUFF: Do not add casual greetings or personal opinions. NO English-Marathi mixing.
+    4. STRUCTURE: 
+       - Start immediately with: 'Namaskar, Varta Pravah chya thak batmyaat aaple swagat! Me {anchor_name}.'
+       - Transition to news using urgent phrasing: 'Aata chi sarvaat moti baatmi...'
+       - Finish with only: 'Pahat raha, Varta Pravah. Dhanyavad.'
+    
+    Content: Convert the provided headline/description into a fast-paced 5-sentence professional news report."""
     user_prompt = f"HEADLINE: {news_data['headline']}\nDESCRIPTION: {news_data['description']}"
     try:
         client = Groq(api_key=os.getenv("GROQ_API_KEY"))
