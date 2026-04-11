@@ -65,8 +65,8 @@ class Streamer:
                 break
 
         if logo_path:
-            cmd += ["-i", logo_path]
             cmd += [
+                "-i", logo_path,
                 "-filter_complex",
                 "[0:v]scale=1280:720:force_original_aspect_ratio=decrease,"
                 "pad=1280:720:(ow-iw)/2:(oh-ih)/2,"
@@ -74,36 +74,39 @@ class Streamer:
                 "[1:v]scale=120:-1[logo];"
                 "[scaled][logo]overlay=W-w-10:10[outv]",
                 "-map", "[outv]",
-                "-map", "0:a?",
+                "-map", "0:a?",      # ← explicit audio map
             ]
         else:
             cmd += [
+                "-map", "0:v",       # ← explicit video map
+                "-map", "0:a?",      # ← explicit audio map (? = optional so no crash if missing)
                 "-vf",
                 "scale=1280:720:force_original_aspect_ratio=decrease,"
                 "pad=1280:720:(ow-iw)/2:(oh-ih)/2,"
-                "fps=30",           # ← force constant 30 fps
+                "fps=30",
             ]
 
         cmd += [
-            # Video encoding — YouTube live recommended settings
-            "-c:v",          "libx264",
-            "-preset",       "ultrafast",   # light CPU load on small VPS
-            "-tune",         "zerolatency", # low-latency streaming
-            "-r",            "30",          # constant output frame rate
-            "-g",            "60",          # keyframe every 2 s (30 fps × 2)
-            "-keyint_min",   "60",          # no short keyframe intervals
-            "-sc_threshold", "0",           # no scene-change keyframes
-            "-b:v",          "1500k",       # safe target bitrate
-            "-maxrate",      "2000k",
-            "-bufsize",      "4000k",       # 2× target (YouTube recommendation)
-            "-pix_fmt",      "yuv420p",
-            # Audio
+            # Video — YouTube 720p recommended settings
+            "-c:v",        "libx264",
+            "-preset",     "veryfast",     # better compression than ultrafast at same CPU
+            "-tune",       "zerolatency",
+            "-r",          "30",
+            "-g",          "60",           # keyframe every 2 s
+            "-keyint_min", "60",
+            "-x264opts",   "scenecut=0",   # no random keyframes
+            "-b:v",        "2500k",        # YouTube recommended for 720p
+            "-maxrate",    "3000k",
+            "-bufsize",    "6000k",        # 2× maxrate
+            "-pix_fmt",    "yuv420p",
+            # Audio — explicit settings, must be present
             "-c:a",  "aac",
             "-ar",   "44100",
             "-b:a",  "128k",
-            # Output — FLV for RTMP
-            "-f",         "flv",
-            "-flvflags",  "no_duration_filesize",  # required for live streams
+            "-ac",   "2",                  # force stereo
+            # Output
+            "-f",        "flv",
+            "-flvflags", "no_duration_filesize",
             self.rtmp_url,
         ]
         return cmd
