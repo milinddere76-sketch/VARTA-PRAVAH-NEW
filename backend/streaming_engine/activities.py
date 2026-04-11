@@ -80,9 +80,9 @@ async def fetch_news_activity(language: str) -> dict:
     
     # Define priorities (Stronger Marathi Keywords)
     priorities = [
-        ("Maharashtra OR महाराष्ट्र", 3), 
-        ("India OR भारत", 3), 
-        ("World OR जागतिक", 2)
+        ("Maharashtra OR ", 3), 
+        ("India OR ", 3), 
+        ("World OR ", 2)
     ]
     
     for category, count in priorities:
@@ -100,11 +100,11 @@ async def fetch_news_activity(language: str) -> dict:
     if not combined_description:
         # Emergency News Fallback: High-Quality Curated Local News
         print("Using Curated Fallback News Sequence...")
-        combined_headline += " | महाराष्ट्रातील महत्त्वाच्या बातम्या | भारताचे प्रगतीपथावरील पाऊल"
+        combined_headline += " |    |   "
         combined_description = """
-        [MAHARASHTRA NEWS]: महाराष्ट्रातील आजच्या महत्त्वाच्या घडामोडी आणि राजकीय वातावरणाचा आढावा.
-        [INDIA NEWS]: भारताची जागतिक स्तरावरील आर्थिक प्रगती आणि तंत्रज्ञान क्षेत्रातील प्रगतीचा आढावा.
-        [WORLD NEWS]: जागतिक स्तरावर घडणाऱ्या घडामोडींचे आजचे सविस्तर वार्तापत्र.
+        [MAHARASHTRA NEWS]:        .
+        [INDIA NEWS]:          .
+        [WORLD NEWS]:       .
         """
     
     return {
@@ -156,76 +156,76 @@ async def generate_script_activity(input_data: dict) -> dict:
     
     # Apply TV-Standard Schedule Rules
     if 6 <= hour < 12:
-        bulletin_name = "सकाळ"
+        bulletin_name = ""
         content_type = "Top headlines and morning updates"
     elif 12 <= hour < 18:
-        bulletin_name = "दुपार"
+        bulletin_name = ""
         content_type = "Updates and breaking news"
     elif 18 <= hour < 21:
-        bulletin_name = "संध्याकाळ"
+        bulletin_name = ""
         content_type = "Detailed reporting"
     elif 21 <= hour < 23:
-        bulletin_name = "प्राइम टाइम"
+        bulletin_name = " "
         content_type = "Deep analysis and critical insights"
     else: # 23:00 to 05:59
-        bulletin_name = "रात्री"
+        bulletin_name = ""
         content_type = "Summary of the day's major events"
 
     is_female = input_data.get("is_female", False)
-    anchor_gender = "महिला" if is_female else "पुरुष"
-    gender_instruction = f"* अँकर {anchor_gender} आहे. स्वतःविषयी बोलताना मराठी व्याकरणानुसार योग्य क्रियापदे वापरा (उदा. पुरुष असल्यास 'मी सांगतो', महिला असल्यास 'मी सांगते')."
+    anchor_gender = "" if is_female else ""
+    gender_instruction = f"*  {anchor_gender} .        (.   ' ',   ' ')."
 
-    system_prompt = f"""तुम्ही एक अभिज्ञ व्यावसायिक मराठी समाचार अँकर आहात ज्यांचा समाचार प्रसारणामध्ये 10 वर्षांचा अनुभव आहे.
+    system_prompt = f"""           10   .
 
-तुमचे मुख्य उद्देश्य:
-1. समाचार स्पष्ट, पूर्ण आणि तार्किक पद्धतीने सादर करणे
-2. प्रत्येक घटनेचा संपूर्ण संदर्भ समजावून सांगणे
-3. श्रोत्यांना संपूर्ण माहिती देणे
+  :
+1.  ,      
+2.      
+3.    
 
-तुमची भाषा नियमावली:
-* फक्त शुद्ध, व्याकरणदृष्ट्या अचूक मराठी वापरा. कोणतेही इंग्रजी किंवा हिंदी शब्द नका.
-* सरल पण व्यावसायिक शब्दावली वापरा
-* लांब परंतु सहज समजणाऱ्या वाक्यांचा उपयोग करा
-* प्रत्येक तपशिल स्पष्ट आणि अचूकरित्या समजावून सांगा
-* दुरुस्त शब्द चयन आणि उच्चारण शैलीचा कठोर पालन करा
+  :
+*  ,    .      .
+*     
+*       
+*       
+*         
 
-स्क्रिप्ट संरचना:
-1. मुख्य बातमी - संपूर्ण, अर्थपूर्ण आणि तार्किक हेडलाइन
-2. विस्तृत विवरण - प्रत्येक महत्वाचा बिंदू वेगळ्या पाराग्राफमध्ये
-3. पार्श्वभूमी - संदर्भ, तारीख, स्थाने, व्यक्तींची माहिती
-4. परिणाम - घटनेचे संभावित परिणाम आणि प्रभाव
+ :
+1.   - ,    
+2.   -     
+3.  - , , ,  
+4.  -     
 
-महत्वाचे नियम:
-* शुरुवात आणि अंतचे अभिवादन टाळा
-* केवळ बातमीचा मजकूर द्या
-* तर्कसंगत आणि तार्किक क्रमानुसार सामग्री व्यवस्थित करा
-* प्रत्येक वाक्य पूर्ण आणि स्वतंत्र असावा
-* भावनिक किंवा पूर्वाग्रही भाषा टाळा
+ :
+*     
+*    
+*       
+*      
+*     
 
 {gender_instruction}
 
-तुम्ही समाचार सादर करत आहात {bulletin_name} या वेळी, ज्यात {content_type} दिली जातात."""
-    user_prompt = f"""तुम्हाला खालील बातमीच्या आधारावर व्यावसायिक, अधिकृत मराठी वृत्त स्क्रिप्ट तयार करायची आहे.
+     {bulletin_name}  ,  {content_type}  ."""
+    user_prompt = f"""    ,       .
 
-बातमी:
+:
 {news_data['headline']} 
-विस्तार: {news_data['description']}
+: {news_data['description']}
 
-स्क्रिप्ट संरचना:
-१. मुख्य बातमी (खोल हेडलाइन): एक पूर्ण, सविस्तर आणि अर्थपूर्ण मुख्य वाक्य जो संपूर्ण घटनेचा सारांश देते.
-२. महत्वाचे तपशील: प्रत्येक महत्वाचा मुद्दा विस्तारपूर्वक समजावून सांगा (कारण, परिणाम, संदर्भ).
-३. अतिरिक्त संदर्भ: संबंधित पार्श्वभूमी माहिती, तारीख, स्थाने, व्यक्तींची नावे आणि प्रभाव.
+ :
+.   ( ):  ,          .
+.  :       (, , ).
+.  :   , , ,    .
 
-आवश्यक गोष्टी:
-* मुख्य हेडलाइन 15-25 शब्दांची असावी आणि संपूर्ण घटना स्पष्ट करावी
-* प्रत्येक तपशिल 2-3 संपूर्ण वाक्यांमध्ये उचल अशा प्रकारे समजावून सांगा
-* कमीत कमी 4-5 मुख्य मुद्दे समाविष्ट करा
-* तर्कसंगत क्रमाने मुद्दे व्यवस्थित करा (महत्वाचे ते कमी महत्वाचे)
-* पूर्ण, सार्थक वाक्य वापरा
-* कोणतेही स्वागत, अभिवादन किंवा समारोप टाळा
-* सर्व मजकूर शुद्ध मराठीमध्ये असावा
+ :
+*   15-25       
+*   2-3       
+*   4-5    
+*      (   )
+* ,   
+*  ,    
+*     
 
-'Varta Pravah - {bulletin_name}' या बुलेटिनसाठी स्क्रिप्ट तयार करा."""
+'Varta Pravah - {bulletin_name}'     ."""
 
     groq_client = Groq(api_key=os.getenv("GROQ_API_KEY"))
     completion = groq_client.chat.completions.create(
@@ -367,7 +367,7 @@ async def generate_news_video_activity(input_data: dict) -> str:
             draw.text((x_position, y_position), line, font=title_font, fill=(255, 255, 255))
         
         # Add "LIVE" indicator if breaking news
-        if "Breaking" in news_title or "तातडीचे" in news_title:
+        if "Breaking" in news_title or "" in news_title:
             live_x = 1700
             live_y = 50
             draw.ellipse([(live_x, live_y), (live_x + 40, live_y + 40)], fill=(255, 50, 50))
@@ -386,7 +386,7 @@ async def generate_news_video_activity(input_data: dict) -> str:
             except:
                 logo_font = ImageFont.load_default()
         
-        channel_text = "वार्ता प्रवाह"
+        channel_text = " "
         text_bbox = draw.textbbox((0, 0), channel_text, font=logo_font)
         text_width = text_bbox[2] - text_bbox[0]
         logo_x = width - text_width - 50
@@ -394,7 +394,7 @@ async def generate_news_video_activity(input_data: dict) -> str:
         draw.text((logo_x, logo_y), channel_text, font=logo_font, fill=(0, 180, 255))
         
         # Add news ticker text at bottom
-        ticker_text = "आज की मुख्य बातमियां | वार्ता प्रवाह - आपका विश्वसनीय समाचार स्रोत"
+        ticker_text = "    |   -    "
         ticker_x = 30
         ticker_y = height - ticker_height + 25
         draw.text((ticker_x, ticker_y), ticker_text, font=ticker_font, fill=(200, 200, 200))
@@ -536,14 +536,14 @@ async def ensure_promo_video_activity(data: dict = None) -> bool:
     image_path = os.path.join(BASE_DIR, "studio.jpg")
     os.makedirs(os.path.dirname(promo_path), exist_ok=True)
 
-    # ── Quick Return: If promo exists, use it immediately to start stream ──
+    #  Quick Return: If promo exists, use it immediately to start stream 
     if os.path.exists(promo_path):
-        print(f"✅ Promo asset found ({os.path.getsize(promo_path)//1024} KB) — playing immediately")
+        print(f" Promo asset found ({os.path.getsize(promo_path)//1024} KB)  playing immediately")
         return True
 
-    print("🎬 Generating 60-second promo video (first-time setup)…")
+    print(" Generating 60-second promo video (first-time setup)")
 
-    # Common encoder flags — MUST match streamer.py exactly
+    # Common encoder flags  MUST match streamer.py exactly
     encode_flags = [
         "-c:v", "libx264",
         "-preset", "ultrafast",
@@ -559,9 +559,9 @@ async def ensure_promo_video_activity(data: dict = None) -> bool:
         promo_path,
     ]
 
-    # ── Attempt 1: Gen-Z animated neon promo ──────────────────────────────
+    #  Attempt 1: Gen-Z animated neon promo 
     try:
-        print("🎨 Generating Gen-Z neon promo via create_genz_promo…")
+        print(" Generating Gen-Z neon promo via create_genz_promo")
         import importlib.util as _ilu
         _script = os.path.join(os.path.dirname(os.path.dirname(__file__)), "create_genz_promo.py")
         _spec = _ilu.spec_from_file_location("create_genz_promo", _script)
@@ -569,14 +569,14 @@ async def ensure_promo_video_activity(data: dict = None) -> bool:
         _spec.loader.exec_module(_mod)
         ok = _mod.create_genz_promo(promo_path)
         if ok and os.path.exists(promo_path):
-            print(f"✅ Gen-Z promo ready ({os.path.getsize(promo_path)//1024} KB)")
+            print(f" Gen-Z promo ready ({os.path.getsize(promo_path)//1024} KB)")
             open(sentinel_path, "w").close()
             return True
-        print("⚠️  Gen-Z promo script returned failure — falling through")
+        print("  Gen-Z promo script returned failure  falling through")
     except Exception as e:
-        print(f"⚠️  Gen-Z promo attempt exception: {e}")
+        print(f"  Gen-Z promo attempt exception: {e}")
 
-    # ── Attempt 2: Use studio.jpg if available ─────────────────────────────
+    #  Attempt 2: Use studio.jpg if available 
     if os.path.exists(image_path):
         try:
             cmd = [
@@ -590,17 +590,17 @@ async def ensure_promo_video_activity(data: dict = None) -> bool:
             ] + encode_flags
             result = subprocess.run(cmd, capture_output=True, text=True, timeout=180)
             if result.returncode == 0 and os.path.exists(promo_path):
-                print(f"✅ Promo from studio.jpg ({os.path.getsize(promo_path)//1024} KB)")
+                print(f" Promo from studio.jpg ({os.path.getsize(promo_path)//1024} KB)")
                 # Write sentinel so next startup skips regeneration
                 open(sentinel_path, "w").close()
                 return True
-            print(f"⚠️  studio.jpg attempt failed: {result.stderr[-300:]}")
+            print(f"  studio.jpg attempt failed: {result.stderr[-300:]}")
         except Exception as e:
-            print(f"⚠️  studio.jpg attempt exception: {e}")
+            print(f"  studio.jpg attempt exception: {e}")
 
-    # ── Attempt 3: Ultra-minimal — plain black frame, guaranteed to work ──
+    #  Attempt 3: Ultra-minimal  plain black frame, guaranteed to work 
     try:
-        print("🎬 Generating minimal black-frame promo (last resort)…")
+        print(" Generating minimal black-frame promo (last resort)")
         cmd = [
             "ffmpeg", "-y", "-loglevel", "warning",
             "-f", "lavfi", "-i", "color=black:size=1280x720:rate=30",
@@ -610,11 +610,11 @@ async def ensure_promo_video_activity(data: dict = None) -> bool:
         ] + encode_flags
         result = subprocess.run(cmd, capture_output=True, text=True, timeout=180)
         if result.returncode == 0 and os.path.exists(promo_path):
-            print(f"✅ Minimal promo created ({os.path.getsize(promo_path)//1024} KB)")
+            print(f" Minimal promo created ({os.path.getsize(promo_path)//1024} KB)")
             return True
-        print(f"❌ Even minimal promo failed: {result.stderr[-300:]}")
+        print(f" Even minimal promo failed: {result.stderr[-300:]}")
     except Exception as e:
-        print(f"❌ Minimal promo exception: {e}")
+        print(f" Minimal promo exception: {e}")
 
 @activity.defn
 async def ensure_premium_promo_activity() -> bool:
@@ -630,7 +630,7 @@ async def ensure_premium_promo_activity() -> bool:
         create_premium_promo(output_path)
         return True
     except Exception as e:
-        print(f"❌ Premium promo failed: {e}")
+        print(f" Premium promo failed: {e}")
         return False
 
 
@@ -659,13 +659,13 @@ async def start_stream_activity(data: dict) -> str:
 
         promo_path = os.path.join(BASE_DIR, "videos", "promo.mp4")
         
-        # ── SANITY CHECK: Minimum size check ──
+        #  SANITY CHECK: Minimum size check 
         is_too_small = False
         if video_url and os.path.exists(video_url) and not video_url.startswith("color="):
             file_size = os.path.getsize(video_url)
             if file_size < 500 * 1024: # < 500KB is likely a corrupted/black frame
                 is_too_small = True
-                print(f"⚠️ Video {video_url} is too small ({file_size//1024}KB). Falling back.")
+                print(f" Video {video_url} is too small ({file_size//1024}KB). Falling back.")
 
         if not os.path.exists(video_url) or is_too_small:
             print(f"Video source {video_url} is problematic (missing/small). Falling back to promo: {promo_path}")

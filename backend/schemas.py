@@ -43,8 +43,7 @@ class ChannelResponse(ChannelBase):
 class AdCampaignBase(BaseModel):
     name: str
     video_url: str
-    start_hour: int
-    end_hour: int
+    scheduled_hours: str
     is_active: Optional[bool] = True
     channel_id: int
     preferred_anchor_id: Optional[int] = None

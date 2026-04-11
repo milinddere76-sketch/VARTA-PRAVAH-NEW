@@ -47,12 +47,12 @@ class SettingsUpdate(BaseModel):
     world_news_api_key: str = None
     youtube_stream_key: str = None
 
-# ── Metadata ──────────────────────────────────────────────────
+#  Metadata 
 @app.get("/")
 def read_root():
     return {"status": "VartaPravah API Engine Online - Pillow-Overlay", "version": "1.2.1"}
 
-# ── Diagnostics ───────────────────────────────────────────────
+#  Diagnostics 
 @app.get("/debug/health")
 async def server_health_check(db: Session = Depends(database.get_db)):
     """Diagnostic endpoint to check streamer environment."""
@@ -109,7 +109,7 @@ async def list_videos():
     except:
         return {"error": "videos dir not found"}
 
-# ── System Control ────────────────────────────────────────────
+#  System Control 
 @app.post("/system/reset")
 async def system_nuclear_reset(db: Session = Depends(database.get_db)):
     """Wipes all generated content and kills all stream processes."""
@@ -140,7 +140,7 @@ async def system_nuclear_reset(db: Session = Depends(database.get_db)):
 
     return {"status": "success", "summary": results}
 
-# ── Settings ──────────────────────────────────────────────────
+#  Settings 
 @app.post("/settings")
 def update_settings(data: dict):
     """Update API keys live."""
@@ -157,7 +157,7 @@ def update_settings(data: dict):
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
-# ── Channel Management ────────────────────────────────────────
+#  Channel Management 
 @app.get("/channels", response_model=list[schemas.ChannelResponse])
 def list_channels(db: Session = Depends(database.get_db)):
     return db.query(models.Channel).all()
@@ -202,7 +202,7 @@ async def set_channel_anchor(channel_id: int, anchor_id: int, db: Session = Depe
     db.commit()
     return {"status": "success", "message": f"Anchor set to {anchor.name}"}
 
-# ── Broadcast Control ─────────────────────────────────────────
+#  Broadcast Control 
 async def get_temporal_client():
     return await temporal_utils.get_temporal_client()
 
@@ -259,7 +259,7 @@ async def stop_news_generation(
         
     return {"status": "stopped"}
 
-# ── Ads ───────────────────────────────────────────────────────
+#  Ads 
 @app.post("/channels/{channel_id}/ads", response_model=schemas.AdCampaignResponse)
 async def create_ad(channel_id: int, ad: schemas.AdCampaignCreate, db: Session = Depends(database.get_db)):
     db_ad = models.AdCampaign(**ad.dict())

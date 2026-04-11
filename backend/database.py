@@ -70,7 +70,7 @@ def get_engine():
                 new_engine = create_engine(url, pool_pre_ping=True, pool_size=5, max_overflow=10)
             
             with new_engine.connect() as conn:
-                print(f"✅ Connected to {url.split('@')[-1] if '@' in url else url}")
+                print(f" Connected to {url.split('@')[-1] if '@' in url else url}")
                 engine = new_engine
                 _CACHED_ENGINE_URL = url # Cache for next time
                 return engine
@@ -79,7 +79,7 @@ def get_engine():
 
     # ================= FALLBACK ================= #
     sqlite_path = "sqlite:///./dev.db"
-    print(f"⚠️ Falling back to SQLite: {sqlite_path}")
+    print(f" Falling back to SQLite: {sqlite_path}")
     engine = create_engine(sqlite_path, connect_args={"check_same_thread": False}, pool_pre_ping=True)
     return engine
 
@@ -102,7 +102,7 @@ def get_db():
         db = get_session_local()()
         yield db
     except Exception as e:
-        print(f"❌ DB Session Error: {e}")
+        print(f" DB Session Error: {e}")
         raise
     finally:
         db.close()
@@ -121,7 +121,7 @@ def col_exists(eng, table_name, column_name):
         columns = [c['name'] for c in inspector.get_columns(table_name)]
         return column_name in columns
     except Exception:
-        # Table doesn't exist or other error — treat as "column doesn't exist"
+        # Table doesn't exist or other error  treat as "column doesn't exist"
         return False
 
 def _safe_add_column(engine, conn, table: str, col_name: str, col_type: str):
@@ -129,20 +129,20 @@ def _safe_add_column(engine, conn, table: str, col_name: str, col_type: str):
     from sqlalchemy import text
     try:
         if not col_exists(engine, table, col_name):
-            print(f"📝 Adding missing column '{table}.{col_name}'...")
+            print(f" Adding missing column '{table}.{col_name}'...")
             conn.execute(text(f"ALTER TABLE {table} ADD COLUMN {col_name} {col_type}"))
             conn.commit()
-            print(f"✅ Added '{table}.{col_name}'")
+            print(f" Added '{table}.{col_name}'")
         else:
-            print(f"✅ Column '{table}.{col_name}' already exists.")
+            print(f" Column '{table}.{col_name}' already exists.")
     except Exception as e:
-        print(f"⚠️ Could not add '{table}.{col_name}': {e}")
+        print(f" Could not add '{table}.{col_name}': {e}")
 
 def init_db():
     from sqlalchemy import inspect as sa_inspect
     try:
         eng = get_engine()
-        print("📦 Initializing database tables...")
+        print(" Initializing database tables...")
 
         # 1. Import all models so they register on Base.metadata
         import models  # noqa: F401
@@ -155,12 +155,12 @@ def init_db():
             if tname not in existing:
                 if tname in Base.metadata.tables:
                     Base.metadata.tables[tname].create(bind=eng)
-                    print(f"✅ Created table '{tname}'")
+                    print(f" Created table '{tname}'")
 
         # Catch any remaining tables not in the ordered list
         Base.metadata.create_all(bind=eng)
 
-        # 3. Add any missing columns (no FK in ALTER TABLE — SQLAlchemy ORM handles FKs)
+        # 3. Add any missing columns (no FK in ALTER TABLE  SQLAlchemy ORM handles FKs)
         with eng.connect() as conn:
             # --- USERS ---
             _safe_add_column(eng, conn, "users", "full_name",        "VARCHAR")
@@ -177,11 +177,12 @@ def init_db():
             _safe_add_column(eng, conn, "channels", "youtube_stream_key", "VARCHAR")
 
             # --- AD_CAMPAIGNS ---
-            _safe_add_column(eng, conn, "ad_campaigns", "preferred_anchor_id", "INTEGER")
+            _safe_add_column(eng, conn, "ad_campaigns", "scheduled_hours",        "VARCHAR")
+            _safe_add_column(eng, conn, "ad_campaigns", "preferred_anchor_id",    "INTEGER")
 
-        print("✅ Database initialization complete.")
+        print(" Database initialization complete.")
 
     except Exception as e:
-        # Log but NEVER raise — the app must start even if migration has issues.
+        # Log but NEVER raise  the app must start even if migration has issues.
         # Individual request handlers will surface their own specific errors.
-        print(f"❌ Database initialization error (non-fatal): {e}")
+        print(f" Database initialization error (non-fatal): {e}")

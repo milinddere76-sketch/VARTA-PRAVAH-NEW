@@ -92,11 +92,11 @@ async def seed_database():
                 channel.youtube_stream_key = env_key
                 db.commit()
 
-        print(f"✅ DB Seed complete — Female anchor id: {anchor_female_id}, Male anchor id: {anchor_male_id}")
+        print(f" DB Seed complete  Female anchor id: {anchor_female_id}, Male anchor id: {anchor_male_id}")
         return anchor_female_id, anchor_male_id
 
     except Exception as e:
-        print(f"⚠️ DB Seed error: {e}")
+        print(f" DB Seed error: {e}")
         return None, None
     finally:
         db.close()
@@ -112,7 +112,7 @@ async def trigger_auto_start(client: Client):
     stream_key = os.getenv("YOUTUBE_STREAM_KEY", "")
 
     if not stream_key:
-        print("⚠️ Missing YOUTUBE_STREAM_KEY — cannot start stream")
+        print(" Missing YOUTUBE_STREAM_KEY  cannot start stream")
         return
 
     workflow_id = f"news-production-{channel_id}"
@@ -123,19 +123,19 @@ async def trigger_auto_start(client: Client):
         handle = client.get_workflow_handle(workflow_id)
         desc = await handle.describe()
         status = desc.status.name  # e.g. RUNNING, FAILED, TIMED_OUT, COMPLETED
-        print(f"🔍 Found existing workflow '{workflow_id}' with status: {status}")
+        print(f" Found existing workflow '{workflow_id}' with status: {status}")
         # Always terminate so we start fresh with new code/settings
         try:
-            await handle.terminate(reason="Redeployment — starting fresh")
-            print(f"🛑 Terminated previous workflow ({status})")
+            await handle.terminate(reason="Redeployment  starting fresh")
+            print(f" Terminated previous workflow ({status})")
             await asyncio.sleep(3)   # give Temporal time to close it
         except Exception as term_err:
-            print(f"⚠️  Could not terminate workflow (may be already closed): {term_err}")
+            print(f"  Could not terminate workflow (may be already closed): {term_err}")
     except Exception:
-        # Workflow doesn't exist yet — fresh start
-        print(f"ℹ️  No existing workflow '{workflow_id}' — will create fresh")
+        # Workflow doesn't exist yet  fresh start
+        print(f"  No existing workflow '{workflow_id}'  will create fresh")
 
-    # Start workflow — pass both anchor IDs so it alternates them
+    # Start workflow  pass both anchor IDs so it alternates them
     try:
         await client.start_workflow(
             NewsProductionWorkflow.run,
@@ -148,13 +148,13 @@ async def trigger_auto_start(client: Client):
             id=workflow_id,
             task_queue="news-task-queue"
         )
-        print("🚀 Varta Pravah workflow started — connecting to YouTube immediately")
+        print(" Varta Pravah workflow started  connecting to YouTube immediately")
 
     except Exception as e:
         if "already started" in str(e).lower():
-            print("✅ Workflow already running (race condition caught)")
+            print(" Workflow already running (race condition caught)")
         else:
-            print(f"⚠️ Workflow start issue: {e}")
+            print(f" Workflow start issue: {e}")
 
 
 # ================= MAIN ================= #
@@ -178,7 +178,7 @@ async def main():
             client = await temporal_utils.get_temporal_client()
             if client:
                 write_status("Connected to Temporal - Registering Activities")
-                print("✅ Connected to Temporal")
+                print(" Connected to Temporal")
                 break
         except Exception as e:
             write_status(f"Connect Retry {i+1}/60: {str(e)}")
@@ -186,7 +186,7 @@ async def main():
 
     if not client:
         write_status("CRITICAL: Failed to connect to Temporal after 12 retries")
-        raise RuntimeError("❌ Cannot connect to Temporal")
+        raise RuntimeError(" Cannot connect to Temporal")
 
     # Start workflow in background 
     asyncio.create_task(trigger_auto_start(client))
@@ -214,12 +214,12 @@ async def main():
         workflow_runner=UnsandboxedWorkflowRunner()
     )
 
-    print("🚀 Worker started and polling")
+    print(" Worker started and polling")
 
     try:
         await worker.run()
     except Exception as e:
-        print(f"❌ Worker crashed: {e}")
+        print(f" Worker crashed: {e}")
         raise
 
 
@@ -229,4 +229,4 @@ if __name__ == "__main__":
     try:
         asyncio.run(main())
     except Exception as e:
-        print(f"❌ Fatal error: {e}")
+        print(f" Fatal error: {e}")

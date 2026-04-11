@@ -36,8 +36,7 @@ class AdCampaign(Base):
     id = Column(Integer, primary_key=True, index=True)
     name = Column(String)
     video_url = Column(String)
-    start_hour = Column(Integer) # 0-23
-    end_hour = Column(Integer)   # 0-23
+    scheduled_hours = Column(String) # Comma separated hours like "09,12,18"
     is_active = Column(Boolean, default=True)
     
     channel_id = Column(Integer, ForeignKey("channels.id"))
