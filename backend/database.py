@@ -167,6 +167,7 @@ def init_db():
             _safe_add_column(eng, conn, "users", "is_active",        "BOOLEAN DEFAULT TRUE")
 
             # --- ANCHORS ---
+            _safe_add_column(eng, conn, "anchors", "portrait_url",   "VARCHAR")
             _safe_add_column(eng, conn, "anchors", "description",    "VARCHAR")
             _safe_add_column(eng, conn, "anchors", "is_active",      "BOOLEAN DEFAULT TRUE")
             _safe_add_column(eng, conn, "anchors", "created_at",     "TIMESTAMP DEFAULT NOW()")

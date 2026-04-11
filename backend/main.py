@@ -290,3 +290,14 @@ async def upload_ad_video(file: UploadFile = File(...)):
     with open(file_path, "wb") as f:
         f.write(content)
     return {"video_url": file_path, "filename": file.filename, "size_mb": round(len(content)/(1024*1024), 1)}
+
+if __name__ == "__main__":
+    import uvicorn
+    import sys
+    
+    if "--seed" in sys.argv:
+        print(" Seeding requested via CLI...")
+        database.init_db()
+        print(" Seeding complete.")
+    else:
+        uvicorn.run(app, host="0.0.0.0", port=8000)

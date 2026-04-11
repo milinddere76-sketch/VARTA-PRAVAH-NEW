@@ -16,6 +16,7 @@ class Anchor(Base):
     id = Column(Integer, primary_key=True, index=True)
     name = Column(String)
     gender = Column(String) # male / female
+    portrait_url = Column(String, nullable=True)
     description = Column(String, nullable=True)
     is_active = Column(Boolean, default=True)
     created_at = Column(DateTime, default=datetime.datetime.utcnow)

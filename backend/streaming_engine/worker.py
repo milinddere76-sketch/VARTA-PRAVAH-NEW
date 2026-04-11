@@ -56,7 +56,13 @@ async def seed_database():
         # --- Female Anchor (Priya) ---
         female = db.query(Anchor).filter(Anchor.gender == "female", Anchor.is_active == True).first()
         if not female:
-            female = Anchor(name="Priya Desai", gender="female", description="Professional female news anchor", is_active=True)
+            female = Anchor(
+                name="Priya Desai", 
+                gender="female", 
+                portrait_url="assets/female_anchor.png",
+                description="Professional female news anchor", 
+                is_active=True
+            )
             db.add(female)
             db.commit()
             db.refresh(female)
@@ -65,7 +71,13 @@ async def seed_database():
         # --- Male Anchor (Arjun) ---
         male = db.query(Anchor).filter(Anchor.gender == "male", Anchor.is_active == True).first()
         if not male:
-            male = Anchor(name="Arjun Sharma", gender="male", description="Professional male news anchor", is_active=True)
+            male = Anchor(
+                name="Arjun Sharma", 
+                gender="male", 
+                portrait_url="assets/male_anchor.png",
+                description="Professional male news anchor", 
+                is_active=True
+            )
             db.add(male)
             db.commit()
             db.refresh(male)
