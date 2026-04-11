@@ -127,7 +127,8 @@ async def system_nuclear_reset(db: Session = Depends(database.get_db)):
     except:
         results["db_reset"] = False
 
-    video_dir = "/app/videos"
+    video_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "videos")
+    if not os.path.exists(video_dir): os.makedirs(video_dir, exist_ok=True)
     try:
         if os.path.exists(video_dir):
             for filename in os.listdir(video_dir):

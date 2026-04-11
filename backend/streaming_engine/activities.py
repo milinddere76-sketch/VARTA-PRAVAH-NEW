@@ -132,8 +132,22 @@ async def generate_news_video_activity(input_data: dict) -> str:
         draw.rectangle([0, 950, 1920, 960], fill=(0, 180, 255, 255))
         draw.rectangle([0, 960, 350, 1080], fill=(200, 0, 0, 255))
         try:
-            f_path = "C:/Windows/Fonts/arial.ttf"
-            font_t = ImageFont.truetype(f_path, 45)
+            # Dynamic Font Discovery for Devanagari (Marathi)
+            font_candidates = [
+                "C:/Windows/Fonts/Nirmala.ttf",
+                "C:/Windows/Fonts/Mangal.ttf",
+                "C:/Windows/Fonts/Kokila.ttf",
+                "/usr/share/fonts/truetype/noto/NotoSansDevanagari-Bold.ttf",
+                "C:/Windows/Fonts/arial.ttf"
+            ]
+            font_t = None
+            for fp in font_candidates:
+                if os.path.exists(fp):
+                    try:
+                        font_t = ImageFont.truetype(fp, 45)
+                        break
+                    except: continue
+            if not font_t: font_t = ImageFont.load_default()
         except: font_t = ImageFont.load_default()
         draw.text((40, 985), "ताज्या बातम्या", font=font_t, fill=(255, 255, 255))
         draw.text((380, 985), title[:70], font=font_t, fill=(255, 255, 255))
