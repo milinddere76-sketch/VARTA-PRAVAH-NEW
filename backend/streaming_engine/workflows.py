@@ -43,10 +43,10 @@ class NewsProductionWorkflow:
         anchor_genders = ["female", "male"]
         bulletin_index = 0   # increments each loop → alternates anchor
 
-        # ── 0. Ensure promo fallback asset exists ──────────────────────────
+        # ── 0. Ensure promo fallback asset exists ─────────────────────────
         await workflow.execute_activity(
             ensure_promo_video_activity,
-            start_to_close_timeout=timedelta(seconds=120)
+            start_to_close_timeout=timedelta(seconds=300)  # 3-attempt generation needs time
         )
 
         # ── 1. Go LIVE immediately with promo while first news clip generates ─
@@ -66,7 +66,21 @@ class NewsProductionWorkflow:
 
         while True:
             try:
-                # ── Alternate anchor every bulletin ───────────────────────
+                # ── Switch to PROMO at the start of every cycle ───────────
+                # This ensures viewers see the channel promo during the
+                # 5-15 minutes it takes to fetch/generate/render news,
+                # instead of a stale old bulletin looping indefinitely.
+                await workflow.execute_activity(
+                    start_stream_activity,
+                    {
+                        "channel_id": channel_id,
+                        "stream_key": stream_key,
+                        "video_url": "/app/videos/promo.mp4",
+                        "is_promo": True
+                    },
+                    start_to_close_timeout=timedelta(seconds=60)
+                )
+
                 anchor_slot  = bulletin_index % 2          # 0 = female, 1 = male
                 is_female    = (anchor_slot == 0)
                 bulletin_index += 1
