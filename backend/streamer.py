@@ -1,9 +1,6 @@
 import os
 import subprocess
 import time
-import tempfile
-from pathlib import Path
-import sys
 import threading
 
 
@@ -16,6 +13,10 @@ class Streamer:
         self.process       = None
         self.monitor_thread = None
         self.stop_event    = threading.Event()
+        
+        # New properties for advanced mapping
+        self.logo_path = "/app/logo.png"
+        self.is_promo = False
 
     def create_initial_playlist(self, initial_video: str):
         self.current_video = initial_video
@@ -26,86 +27,87 @@ class Streamer:
         time.sleep(2)
         self.start_stream()
 
-    def _build_ffmpeg_cmd(self) -> list:
-        """
-        Build a YouTube-optimised FFmpeg command.
+    def _get_has_audio(self) -> bool:
+        """Probe the video file to check if it contains any audio streams."""
+        if not self.current_video or not os.path.exists(self.current_video):
+            return False
+        try:
+            cmd = ["ffprobe", "-v", "error", "-show_entries", "stream=codec_type", "-of", "csv=p=0", self.current_video]
+            res = subprocess.run(cmd, capture_output=True, text=True, timeout=5)
+            # Check if 'audio' is present in the output (e.g. video\naudio or just video)
+            return "audio" in res.stdout.strip().split("\n")
+        except:
+            return False
 
-        Key settings:
-        - gapless infinite loop via concat demuxer (no gaps between loops)
-        - -r 30  : enforce constant 30 fps output — YouTube requires this
-        - -g 60  : keyframe every 2 s at 30 fps (YouTube recommendation)
-        - -keyint_min 60 / -sc_threshold 0 : no scene-change keyframes
-        - ultrafast preset + 1500k bitrate : leaves CPU headroom on the VPS
-        - flvflags no_duration_filesize : required for live streaming
-        """
-        video = self.current_video
+    def _build_ffmpeg_cmd(self, start_time: str = None) -> list:
+        has_audio = self._get_has_audio()
+        
+        # Base CMD
+        cmd = ["ffmpeg", "-y", "-loglevel", "warning", "-re"]
+        
+        if start_time:
+            cmd += ["-ss", start_time]
 
-        # Create a temp concat file so FFmpeg loops without gaps
-        concat_path = f"/tmp/loop_{self.channel_id}.txt"
-        # Write enough repetitions that FFmpeg never reaches the end
-        with open(concat_path, "w") as f:
-            for _ in range(9999):
-                f.write(f"file '{video}'\n")
+        # Input 0: Main Video
+        cmd += ["-i", self.current_video]
+        
+        # Input 1: Fallback Silence (only used if 0:a is missing)
+        if not has_audio:
+            cmd += ["-f", "lavfi", "-i", "anullsrc=channel_layout=stereo:sample_rate=44100"]
 
-        cmd = [
-            "ffmpeg",
-            "-y",                        # overwrite any temp files
-            "-loglevel", "warning",      # reduce noise, keep errors visible
-            "-re",                       # read at native playback speed
-            "-f",  "concat",             # gapless concat (no stream_loop gaps)
-            "-safe", "0",
-            "-i",  concat_path,
-        ]
+        # Selection logic
+        audio_map = "0:a" if has_audio else "1:a"
 
-        # Detect logo overlay
-        logo_path = None
-        for candidate in ["/app/logo.png", "/app/logo.jpg"]:
-            if os.path.exists(candidate):
-                logo_path = candidate
-                break
-
-        if logo_path:
+        # ── Video/Audio Mappings ──────────────────────────────────
+        if self.is_promo:
+            # Promo logic — simple loop
             cmd += [
-                "-i", logo_path,
+                "-stream_loop", "-1",
+                "-map", "0:v",
+                "-map", audio_map,
+                "-vf", "scale=1280:720,format=yuv420p,fps=30",
+            ]
+        elif os.path.exists(self.logo_path):
+            # Input 2: Logo (if anullsrc occupied index 1) or Input 1 (if audio present)
+            logo_idx = 2 if not has_audio else 1
+            cmd += ["-i", self.logo_path]
+            cmd += [
                 "-filter_complex",
-                "[0:v]scale=1280:720:force_original_aspect_ratio=decrease,"
-                "pad=1280:720:(ow-iw)/2:(oh-ih)/2,"
-                "fps=30[scaled];"
-                "[1:v]scale=120:-1[logo];"
-                "[scaled][logo]overlay=W-w-10:10[outv]",
+                f"[0:v]scale=1280:720:force_original_aspect_ratio=decrease,pad=1280:720:(ow-iw)/2:(oh-ih)/2,fps=30[scaled];"
+                f"[{logo_idx}:v]scale=120:-1[logo];"
+                f"[scaled][logo]overlay=W-w-10:10[outv]",
                 "-map", "[outv]",
-                "-map", "0:a?",      # ← explicit audio map
+                "-map", audio_map,
             ]
         else:
             cmd += [
-                "-map", "0:v",       # ← explicit video map
-                "-map", "0:a?",      # ← explicit audio map (? = optional so no crash if missing)
+                "-map", "0:v",
+                "-map", audio_map,
                 "-vf",
                 "scale=1280:720:force_original_aspect_ratio=decrease,"
                 "pad=1280:720:(ow-iw)/2:(oh-ih)/2,"
-                "fps=30",
+                "format=yuv420p,fps=30",
             ]
 
+        # YouTube recommended settings (720p CBR)
         cmd += [
-            # Video — YouTube 720p CBR settings
             "-c:v",        "libx264",
             "-preset",     "veryfast",
             "-tune",       "zerolatency",
             "-r",          "30",
-            "-g",          "60",           # keyframe every 2 s
+            "-g",          "60",
             "-keyint_min", "60",
-            "-x264opts",   "scenecut=0:nal-hrd=cbr",  # true CBR — critical for static content
-            "-b:v",        "2500k",        # YouTube recommended for 720p
-            "-minrate",    "2500k",        # floor — prevents drop on static/colour frames
-            "-maxrate",    "2500k",        # ceiling = target = true CBR
-            "-bufsize",    "2500k",        # =bitrate for tightest CBR compliance
+            "-x264opts",   "scenecut=0:nal-hrd=cbr",
+            "-b:v",        "2500k",
+            "-minrate",    "2500k",
+            "-maxrate",    "2500k",
+            "-bufsize",    "2500k",
             "-pix_fmt",    "yuv420p",
-            # Audio — explicit settings, must be present
+            # Audio
             "-c:a",  "aac",
             "-ar",   "44100",
             "-b:a",  "128k",
-            "-ac",   "2",                  # force stereo
-            # Output
+            "-ac",   "2",
             "-f",        "flv",
             "-flvflags", "no_duration_filesize",
             self.rtmp_url,
@@ -139,7 +141,6 @@ class Streamer:
             self.monitor_thread.start()
 
     def _read_logs(self):
-        """Forward FFmpeg output to stdout — always print errors."""
         if not self.process:
             return
         for line in iter(self.process.stdout.readline, ""):
@@ -148,15 +149,14 @@ class Streamer:
             line = line.strip()
             if not line:
                 continue
-            # Always print errors/warnings; sample frame stats
             low = line.lower()
             if any(k in low for k in ("error", "warning", "failed", "invalid", "connection")):
                 print(f"[FFMPEG ERROR] {line}", flush=True)
             elif line.startswith("frame="):
-                print(f"[FFMPEG] {line}", flush=True)
+                # Optionally print every Nth frame log or just stay quiet
+                pass
 
     def _monitor(self):
-        """Auto-restart FFmpeg if it exits unexpectedly."""
         while not self.stop_event.is_set():
             if self.process and self.process.poll() is not None:
                 if not self.stop_event.is_set():
@@ -179,10 +179,9 @@ class Streamer:
                 self.process.wait(timeout=5)
             except subprocess.TimeoutExpired:
                 self.process.kill()
-            except Exception as e:
-                print(f"Error stopping process: {e}")
+            except:
+                pass
             self.process = None
-
 
 if __name__ == "__main__":
     print("Streamer module loaded.")
