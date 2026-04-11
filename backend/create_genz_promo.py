@@ -123,12 +123,18 @@ def create_genz_promo(output_path: str = None) -> bool:
 
     cmd = [
         "ffmpeg", "-y", "-loglevel", "warning",
-        "-f", "lavfi", "-i", "anullsrc=channel_layout=stereo:sample_rate=44100",
+        # ── DRAMATIC NEWS BEAT SYNTHESIS ──
+        # Kick pulse every 1s + Metallic ping loop
+        "-f", "lavfi", "-i", (
+            "sine=f=55:d=60,tremolo=f=1:d=1,lowpass=f=80[kick];"
+            "sine=f=660:d=60,tremolo=f=2:d=0.5,aecho=0.8:0.8:400:0.5[ping];"
+            "[kick][ping]amix=inputs=2:weights=1 0.4,volume=1.8[outa]"
+        ),
         "-i", ff_p(main_png),
         "-i", ff_p(ticker_png),
         "-t", "60",
         "-filter_complex", filter_complex,
-        "-map", "[outv]", "-map", "0:a",
+        "-map", "[outv]", "-map", "[outa]",
         "-c:v", "libx264", "-preset", "ultrafast", "-pix_fmt", "yuv420p",
         "-b:v", "1000k", "-c:a", "aac", "-b:a", "128k",
         ff_p(output_path)
