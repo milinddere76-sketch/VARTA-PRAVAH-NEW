@@ -41,7 +41,7 @@ app.add_middleware(
 
 @app.get("/")
 def read_root():
-    return {"status": "VartaPravah API Engine Online", "version": "1.0.0"}
+    return {"status": "VartaPravah API Engine Online - Pillow-Overlay", "version": "1.2.0"}
 
 import subprocess
 import socket
