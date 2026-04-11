@@ -519,20 +519,12 @@ async def ensure_promo_video_activity() -> bool:
     image_path = "/app/studio.jpg"
     os.makedirs("/app/videos", exist_ok=True)
 
-    # Only reuse the cached promo if it was generated from studio.jpg
-    # (sentinel file present) AND studio.jpg hasn't changed since.
-    if (
-        os.path.exists(promo_path)
-        and os.path.exists(sentinel_path)
-        and (
-            not os.path.exists(image_path)
-            or os.path.getmtime(sentinel_path) >= os.path.getmtime(image_path)
-        )
-    ):
-        print(f"✅ Studio-promo cached ({os.path.getsize(promo_path)//1024} KB) — reusing")
+    # ── Quick Return: If promo exists, use it immediately to start stream ──
+    if os.path.exists(promo_path):
+        print(f"✅ Promo asset found ({os.path.getsize(promo_path)//1024} KB) — playing immediately")
         return True
 
-    print("🎬 Generating 60-second promo video…")
+    print("🎬 Generating 60-second promo video (first-time setup)…")
 
     # Common encoder flags — MUST match streamer.py exactly
     encode_flags = [
