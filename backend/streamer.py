@@ -1,6 +1,7 @@
 import os
 import subprocess
 import time
+import tempfile
 from pathlib import Path
 import sys
 import threading
@@ -8,13 +9,13 @@ import threading
 
 class Streamer:
     def __init__(self, youtube_key: str, channel_id: int):
-        self.youtube_key = youtube_key
-        self.channel_id = channel_id
-        self.rtmp_url = f"rtmp://a.rtmp.youtube.com/live2/{youtube_key}"
+        self.youtube_key  = youtube_key
+        self.channel_id   = channel_id
+        self.rtmp_url     = f"rtmp://a.rtmp.youtube.com/live2/{youtube_key}"
         self.current_video = None
-        self.process = None
+        self.process       = None
         self.monitor_thread = None
-        self.stop_event = threading.Event()
+        self.stop_event    = threading.Event()
 
     def create_initial_playlist(self, initial_video: str):
         self.current_video = initial_video
@@ -22,117 +23,153 @@ class Streamer:
     def update_playlist(self, new_video: str):
         self.current_video = new_video
         self.stop_stream()
+        time.sleep(2)
         self.start_stream()
 
-    def start_stream(self):
-        if not self.current_video:
-            raise ValueError("No video file set for streaming")
+    def _build_ffmpeg_cmd(self) -> list:
+        """
+        Build a YouTube-optimised FFmpeg command.
 
-        # ✅ FIX: check file exists
-        if not os.path.exists(self.current_video):
-            raise FileNotFoundError(f"Video not found: {self.current_video}")
+        Key settings:
+        - gapless infinite loop via concat demuxer (no gaps between loops)
+        - -r 30  : enforce constant 30 fps output — YouTube requires this
+        - -g 60  : keyframe every 2 s at 30 fps (YouTube recommendation)
+        - -keyint_min 60 / -sc_threshold 0 : no scene-change keyframes
+        - ultrafast preset + 1500k bitrate : leaves CPU headroom on the VPS
+        - flvflags no_duration_filesize : required for live streaming
+        """
+        video = self.current_video
 
-        # Detect logo
+        # Create a temp concat file so FFmpeg loops without gaps
+        concat_path = f"/tmp/loop_{self.channel_id}.txt"
+        # Write enough repetitions that FFmpeg never reaches the end
+        with open(concat_path, "w") as f:
+            for _ in range(9999):
+                f.write(f"file '{video}'\n")
+
+        cmd = [
+            "ffmpeg",
+            "-y",                        # overwrite any temp files
+            "-loglevel", "warning",      # reduce noise, keep errors visible
+            "-re",                       # read at native playback speed
+            "-f",  "concat",             # gapless concat (no stream_loop gaps)
+            "-safe", "0",
+            "-i",  concat_path,
+        ]
+
+        # Detect logo overlay
         logo_path = None
         for candidate in ["/app/logo.png", "/app/logo.jpg"]:
             if os.path.exists(candidate):
                 logo_path = candidate
                 break
 
-        # Base command
-        command = [
-            "ffmpeg",
-            "-re",
-            "-stream_loop", "-1",
-            "-i", self.current_video,
-        ]
-
-        # Add logo if exists
         if logo_path:
-            command += [
-                "-i", logo_path,
+            cmd += ["-i", logo_path]
+            cmd += [
                 "-filter_complex",
                 "[0:v]scale=1280:720:force_original_aspect_ratio=decrease,"
-                "pad=1280:720:(ow-iw)/2:(oh-ih)/2[scaled];"
-                "[1:v]scale=150:-1[logo];"
+                "pad=1280:720:(ow-iw)/2:(oh-ih)/2,"
+                "fps=30[scaled];"
+                "[1:v]scale=120:-1[logo];"
                 "[scaled][logo]overlay=W-w-10:10[outv]",
                 "-map", "[outv]",
-                "-map", "0:a?"
+                "-map", "0:a?",
             ]
         else:
-            command += [
+            cmd += [
                 "-vf",
                 "scale=1280:720:force_original_aspect_ratio=decrease,"
-                "pad=1280:720:(ow-iw)/2:(oh-ih)/2"
+                "pad=1280:720:(ow-iw)/2:(oh-ih)/2,"
+                "fps=30",           # ← force constant 30 fps
             ]
 
-        # Output settings (YouTube optimized)
-        command += [
-            "-c:v", "libx264",
-            "-preset", "veryfast",
-            "-b:v", "2500k",
-            "-maxrate", "2500k",
-            "-bufsize", "5000k",
-            "-pix_fmt", "yuv420p",
-            "-g", "50",
-            "-c:a", "aac",
-            "-ar", "44100",
-            "-b:a", "128k",
-            "-f", "flv",
-            self.rtmp_url
+        cmd += [
+            # Video encoding — YouTube live recommended settings
+            "-c:v",          "libx264",
+            "-preset",       "ultrafast",   # light CPU load on small VPS
+            "-tune",         "zerolatency", # low-latency streaming
+            "-r",            "30",          # constant output frame rate
+            "-g",            "60",          # keyframe every 2 s (30 fps × 2)
+            "-keyint_min",   "60",          # no short keyframe intervals
+            "-sc_threshold", "0",           # no scene-change keyframes
+            "-b:v",          "1500k",       # safe target bitrate
+            "-maxrate",      "2000k",
+            "-bufsize",      "4000k",       # 2× target (YouTube recommendation)
+            "-pix_fmt",      "yuv420p",
+            # Audio
+            "-c:a",  "aac",
+            "-ar",   "44100",
+            "-b:a",  "128k",
+            # Output — FLV for RTMP
+            "-f",         "flv",
+            "-flvflags",  "no_duration_filesize",  # required for live streams
+            self.rtmp_url,
         ]
+        return cmd
 
-        print(f"🚀 Starting stream: {self.current_video}", flush=True)
+    def start_stream(self):
+        if not self.current_video:
+            raise ValueError("No video file set for streaming")
+        if not os.path.exists(self.current_video):
+            raise FileNotFoundError(f"Video not found: {self.current_video}")
 
-        # ✅ FIX: Capture stderr to help debug conversion/auth issues
+        cmd = self._build_ffmpeg_cmd()
+        print(f"🚀 Starting stream → {self.rtmp_url}", flush=True)
+        print(f"   Source: {self.current_video}", flush=True)
+
         self.process = subprocess.Popen(
-            command,
+            cmd,
             stdout=subprocess.PIPE,
-            stderr=subprocess.STDOUT, # Merge stderr into stdout
+            stderr=subprocess.STDOUT,
             text=True,
             bufsize=1,
-            universal_newlines=True
+            universal_newlines=True,
         )
 
-        # Start a thread to read logs so they appear in docker logs
         threading.Thread(target=self._read_logs, daemon=True).start()
 
-        # ✅ AUTO-RESTART LOOP (NON-BLOCKING)
         self.stop_event.clear()
         if not self.monitor_thread or not self.monitor_thread.is_alive():
             self.monitor_thread = threading.Thread(target=self._monitor, daemon=True)
             self.monitor_thread.start()
 
     def _read_logs(self):
-        """Forward FFmpeg output to sys.stdout"""
+        """Forward FFmpeg output to stdout — always print errors."""
         if not self.process:
             return
-        for line in iter(self.process.stdout.readline, ''):
+        for line in iter(self.process.stdout.readline, ""):
             if self.stop_event.is_set():
                 break
-            # Filter out too much noise but keep errors
-            if "error" in line.lower() or "warning" in line.lower() or "frame=" in line[:6]:
-                print(f"[FFMPEG] {line.strip()}", flush=True)
+            line = line.strip()
+            if not line:
+                continue
+            # Always print errors/warnings; sample frame stats
+            low = line.lower()
+            if any(k in low for k in ("error", "warning", "failed", "invalid", "connection")):
+                print(f"[FFMPEG ERROR] {line}", flush=True)
+            elif line.startswith("frame="):
+                print(f"[FFMPEG] {line}", flush=True)
 
     def _monitor(self):
-        """Restart FFmpeg if it stops unexpectedly"""
+        """Auto-restart FFmpeg if it exits unexpectedly."""
         while not self.stop_event.is_set():
             if self.process and self.process.poll() is not None:
-                # Process stopped
                 if not self.stop_event.is_set():
-                    print("⚠️ FFmpeg process stopped unexpectedly. Restarting in 5 seconds...", flush=True)
+                    rc = self.process.returncode
+                    print(f"⚠️  FFmpeg exited (code {rc}). Restarting in 5 s…", flush=True)
                     time.sleep(5)
                     try:
                         self.start_stream()
                     except Exception as e:
-                        print(f"❌ Failed to restart stream: {e}", flush=True)
+                        print(f"❌ Restart failed: {e}", flush=True)
                 break
             time.sleep(2)
 
     def stop_stream(self):
         self.stop_event.set()
         if self.process:
-            print("🛑 Stopping stream process...", flush=True)
+            print("🛑 Stopping FFmpeg…", flush=True)
             try:
                 self.process.terminate()
                 self.process.wait(timeout=5)
@@ -144,4 +181,4 @@ class Streamer:
 
 
 if __name__ == "__main__":
-    print("Streamer module loaded.")
+    print("Streamer module loaded.")

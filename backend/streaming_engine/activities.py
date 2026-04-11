@@ -516,21 +516,20 @@ async def upload_to_s3_activity(video_url: str) -> str:
 async def ensure_promo_video_activity() -> bool:
     promo_path = "/app/videos/promo.mp4"
     image_path = "/app/studio.jpg"
-    
-    # Ensure videos directory exists
+
     os.makedirs("/app/videos", exist_ok=True)
-    
-    # If we need to upgrade the promo (e.g. to add audio), we delete it here once
-    # For now, let's just make it robust.
-    
-    if os.path.exists(promo_path) and os.path.getsize(promo_path) > 1000:
+
+    # Force-regenerate if the promo is too small (old/bad version from before)
+    min_size = 500_000  # anything under 500 KB is the old 15-second version
+    if os.path.exists(promo_path) and os.path.getsize(promo_path) > min_size:
+        print(f"✅ Promo video already exists ({os.path.getsize(promo_path)//1024} KB)")
         return True
-    
+
     if not os.path.exists(image_path):
-        print(f"Fallback image {image_path} missing. Cannot generate promo.")
+        print(f"❌ Studio image {image_path} missing — cannot generate promo.")
         return False
-        
-    print(f"Generating professional promo video with audio from {image_path}...")
+
+    print(f"🎬 Generating 60-second YouTube-ready promo from {image_path}…")
     try:
         logo_path = None
         for candidate in ["/app/logo.png", "/app/logo.svg"]:
@@ -538,34 +537,54 @@ async def ensure_promo_video_activity() -> bool:
                 logo_path = candidate
                 break
 
+        # Common output flags — must match streamer.py settings exactly
+        out_flags = [
+            "-c:v", "libx264", "-preset", "ultrafast",
+            "-r", "30",          # constant 30 fps
+            "-g", "60",          # keyframe every 2 s
+            "-keyint_min", "60",
+            "-sc_threshold", "0",
+            "-pix_fmt", "yuv420p",
+            "-b:v", "1000k",
+            "-c:a", "aac", "-ar", "44100", "-b:a", "128k",
+            promo_path
+        ]
+
         if logo_path:
             cmd = [
-                "ffmpeg", "-y", 
+                "ffmpeg", "-y",
                 "-loop", "1", "-i", image_path,
                 "-f", "lavfi", "-i", "anullsrc=channel_layout=stereo:sample_rate=44100",
                 "-i", logo_path,
-                "-t", "15",
-                "-filter_complex", "[0:v]scale=1920:1080,format=yuv420p[bg];[bg][2:v]overlay=W-w-20:20:format=auto",
-                "-c:v", "libx264", "-preset", "ultrafast",
-                "-c:a", "aac", "-b:a", "128k", "-shortest",
-                promo_path
-            ]
+                "-t", "60",
+                "-filter_complex",
+                "[0:v]scale=1280:720,format=yuv420p[bg];"
+                "[bg][2:v]scale=120:-1[logo];"
+                "[bg][logo]overlay=W-w-10:10[outv]",
+                "-map", "[outv]", "-map", "1:a",
+            ] + out_flags
         else:
             cmd = [
-                "ffmpeg", "-y", 
+                "ffmpeg", "-y",
                 "-loop", "1", "-i", image_path,
                 "-f", "lavfi", "-i", "anullsrc=channel_layout=stereo:sample_rate=44100",
-                "-t", "15",
-                "-vf", "scale=1920:1080,format=yuv420p",
-                "-c:v", "libx264", "-preset", "ultrafast",
-                "-c:a", "aac", "-b:a", "128k", "-shortest",
-                promo_path
-            ]
-        subprocess.run(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-        return True
+                "-t", "60",
+                "-vf", "scale=1280:720,format=yuv420p",
+                "-map", "0:v", "-map", "1:a",
+            ] + out_flags
+
+        result = subprocess.run(cmd, capture_output=True, text=True, timeout=120)
+        if result.returncode == 0 and os.path.exists(promo_path):
+            size_kb = os.path.getsize(promo_path) // 1024
+            print(f"✅ Promo video generated ({size_kb} KB)")
+            return True
+        else:
+            print(f"❌ FFmpeg promo generation failed:\n{result.stderr[-500:]}")
+            return False
     except Exception as e:
-        print(f"Failed to generate promo video: {e}")
+        print(f"❌ Failed to generate promo video: {e}")
         return False
+
 
 @activity.defn
 async def start_stream_activity(data: dict) -> str:
