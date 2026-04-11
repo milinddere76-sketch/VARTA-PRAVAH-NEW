@@ -160,6 +160,20 @@ async def set_channel_anchor(
     db.commit()
     return {"status": "success", "message": f"Channel anchor updated to {anchor.name}"}
 
+@app.put("/channels/{channel_id}/stream-key")
+async def set_channel_stream_key(
+    channel_id: int,
+    stream_key: str,
+    db: Session = Depends(database.get_db)
+):
+    channel = db.query(models.Channel).filter(models.Channel.id == channel_id).first()
+    if not channel:
+        raise HTTPException(status_code=404, detail="Channel not found")
+    
+    channel.youtube_stream_key = stream_key
+    db.commit()
+    return {"status": "success", "message": "YouTube Stream Key updated successfully."}
+
 # --- Advertising Endpoints ---
 @app.post("/channels/{channel_id}/ads", response_model=schemas.AdCampaignResponse)
 async def create_ad(channel_id: int, ad: schemas.AdCampaignCreate, db: Session = Depends(database.get_db)):
