@@ -46,8 +46,27 @@ def read_root():
 import subprocess
 import socket
 
+@app.get("/debug/logs/worker")
+async def get_worker_logs():
+    """Returns contents of worker.log if it exists."""
+    path = "/app/worker.log"
+    if os.path.exists(path):
+        with open(path, "r") as f:
+            return {"logs": f.readlines()[-100:]}
+    return {"error": "worker.log not found"}
+
+@app.get("/debug/files")
+async def list_videos():
+    """Lists files in the videos directory."""
+    try:
+        files = os.listdir("/app/videos")
+        return {"files": [f"{f} ({os.path.getsize(os.path.join('/app/videos', f))/1024:.1f} KB)" for f in files]}
+    except:
+        return {"error": "videos dir not found"}
+
 @app.get("/debug/health")
 async def server_health_check():
+    # ... (existing logic)
     checks = {}
     try:
         with socket.create_connection(("a.rtmp.youtube.com", 1935), timeout=5):
