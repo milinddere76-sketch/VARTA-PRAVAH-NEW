@@ -36,12 +36,6 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
-    healthcheck:
-      test: ["CMD-SHELL", "nc -z localhost 7233 || exit 1"]
-      interval: 15s
-      timeout: 10s
-      retries: 20
-      start_period: 90s
     networks:
       - vartapravah-net
 
@@ -55,8 +49,7 @@ services:
     ports:
       - "8088:8080"
     depends_on:
-      temporal:
-        condition: service_healthy
+      - backend
     networks:
       - vartapravah-net
 
@@ -77,17 +70,11 @@ services:
       - ./backend/videos:/app/videos
     depends_on:
       postgres:
-        condition: service_healthy
+        condition: service_started
       temporal:
-        condition: service_healthy
+        condition: service_started
     networks:
       - vartapravah-net
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8000/"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-      start_period: 30s
 
   backend-worker:
     container_name: vartapravah_worker
@@ -108,7 +95,7 @@ services:
       backend:
         condition: service_started
       temporal:
-        condition: service_healthy
+        condition: service_started
     networks:
       - vartapravah-net
 
