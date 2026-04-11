@@ -550,7 +550,24 @@ async def ensure_promo_video_activity() -> bool:
         promo_path,
     ]
 
-    # ── Attempt 1: Use studio.jpg if available ─────────────────────────────
+    # ── Attempt 1: Gen-Z animated neon promo ──────────────────────────────
+    try:
+        print("🎨 Generating Gen-Z neon promo via create_genz_promo…")
+        import importlib.util as _ilu
+        _script = os.path.join(os.path.dirname(os.path.dirname(__file__)), "create_genz_promo.py")
+        _spec = _ilu.spec_from_file_location("create_genz_promo", _script)
+        _mod  = _ilu.module_from_spec(_spec)
+        _spec.loader.exec_module(_mod)
+        ok = _mod.create_genz_promo(promo_path)
+        if ok and os.path.exists(promo_path):
+            print(f"✅ Gen-Z promo ready ({os.path.getsize(promo_path)//1024} KB)")
+            open(sentinel_path, "w").close()
+            return True
+        print("⚠️  Gen-Z promo script returned failure — falling through")
+    except Exception as e:
+        print(f"⚠️  Gen-Z promo attempt exception: {e}")
+
+    # ── Attempt 2: Use studio.jpg if available ─────────────────────────────
     if os.path.exists(image_path):
         try:
             cmd = [
@@ -571,23 +588,6 @@ async def ensure_promo_video_activity() -> bool:
             print(f"⚠️  studio.jpg attempt failed: {result.stderr[-300:]}")
         except Exception as e:
             print(f"⚠️  studio.jpg attempt exception: {e}")
-
-    # ── Attempt 2: Gen-Z animated neon promo ──────────────────────────────
-    try:
-        print("🎨 Generating Gen-Z neon promo via create_genz_promo…")
-        import importlib.util as _ilu
-        _script = os.path.join(os.path.dirname(os.path.dirname(__file__)), "create_genz_promo.py")
-        _spec = _ilu.spec_from_file_location("create_genz_promo", _script)
-        _mod  = _ilu.module_from_spec(_spec)
-        _spec.loader.exec_module(_mod)
-        ok = _mod.create_genz_promo(promo_path)
-        if ok and os.path.exists(promo_path):
-            print(f"✅ Gen-Z promo ready ({os.path.getsize(promo_path)//1024} KB)")
-            open(sentinel_path, "w").close()
-            return True
-        print("⚠️  Gen-Z promo script returned failure — falling through")
-    except Exception as e:
-        print(f"⚠️  Gen-Z promo attempt exception: {e}")
 
     # ── Attempt 3: Ultra-minimal — plain black frame, guaranteed to work ──
     try:
