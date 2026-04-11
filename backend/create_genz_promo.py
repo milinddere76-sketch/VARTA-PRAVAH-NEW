@@ -39,15 +39,13 @@ def create_genz_promo(output_path: str = None) -> bool:
     print("Generating 60s animated neon promo...")
 
     # ── Font paths (OS-aware) ──────────────────────────────────
-    if platform.system() == "Windows":
-        NOTO   = "C:/Windows/Fonts/Nirmala.ttf"
-        DEJA_B = "C:/Windows/Fonts/arialbd.ttf"
-        DEJA   = "C:/Windows/Fonts/arial.ttf"
-        if not os.path.exists(NOTO): NOTO = "arial.ttf"
+    WIN_MODE = platform.system() == "Windows"
+    if WIN_MODE:
+        NOTO = "Nirmala UI"; DEJA_B = "Arial Bold"; DEJA = "Arial"
     else:
-        NOTO   = "/usr/share/fonts/truetype/noto/NotoSansDevanagari-Bold.ttf"
+        NOTO = "/usr/share/fonts/truetype/noto/NotoSansDevanagari-Bold.ttf"
         DEJA_B = "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf"
-        DEJA   = "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf"
+        DEJA = "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf"
 
     PI     = "3.14159265"
 
@@ -111,22 +109,25 @@ def create_genz_promo(output_path: str = None) -> bool:
     f_deja_b = ff_path(DEJA_B)
     f_deja = ff_path(DEJA)
 
+    # On Windows, use 'font=' name instead of 'fontfile=' path
+    font_key = "font" if WIN_MODE else "fontfile"
+
     vf_parts += [
         # Cyan glow layer
         (
-            f"drawtext={title_src}:fontfile='{f_noto}':"
+            f"drawtext={title_src}:{font_key}='{f_noto}':"
             f"fontsize=120:fontcolor=0x00ffee@0.5:"
             f"x=(w-text_w)/2+7:y=(h-text_h)/2-118+7"
         ),
         # Magenta glow layer
         (
-            f"drawtext={title_src}:fontfile='{f_noto}':"
+            f"drawtext={title_src}:{font_key}='{f_noto}':"
             f"fontsize=120:fontcolor=0xff00aa@0.5:"
             f"x=(w-text_w)/2-7:y=(h-text_h)/2-118-7"
         ),
         # Main white text (on top of glows)
         (
-            f"drawtext={title_src}:fontfile='{f_noto}':"
+            f"drawtext={title_src}:{font_key}='{f_noto}':"
             f"fontsize=120:fontcolor=white:"
             f"x=(w-text_w)/2:y=(h-text_h)/2-118:"
             f"borderw=3:bordercolor=0xff00aa@0.75:"
@@ -136,7 +137,7 @@ def create_genz_promo(output_path: str = None) -> bool:
 
     # 11. English channel name in neon cyan
     vf_parts.append(
-        f"drawtext=text='VARTA PRAVAH':fontfile='{f_deja_b}':"
+        f"drawtext=text='VARTA PRAVAH':{font_key}='{f_deja_b}':"
         f"fontsize=62:fontcolor=0x00ffee:"
         f"x=(w-text_w)/2:y=(h-text_h)/2+18:"
         f"borderw=2:bordercolor=0x000000@0.7:"
@@ -145,14 +146,14 @@ def create_genz_promo(output_path: str = None) -> bool:
 
     # 12. Tagline (muted grey)
     vf_parts.append(
-        f"drawtext=text='24x7 AI-Powered Marathi News':fontfile='{f_deja}':"
+        f"drawtext=text='24x7 AI-Powered Marathi News':{font_key}='{f_deja}':"
         f"fontsize=30:fontcolor=0xaaaaaa:"
         f"x=(w-text_w)/2:y=(h-text_h)/2+94"
     )
 
     # 13. Pulsing ● LIVE badge (top-left)
     vf_parts.append(
-        f"drawtext=text='  LIVE':fontfile='{f_deja_b}':"
+        f"drawtext=text='  LIVE':{font_key}='{f_deja_b}':"
         f"fontsize=28:fontcolor=0xff3333:"
         f"x=28:y=18:"
         f"alpha='0.55+0.45*sin(2*{PI}*T*1.8)':"
@@ -161,7 +162,7 @@ def create_genz_promo(output_path: str = None) -> bool:
 
     # 14. "VP" brand badge (top-right)
     vf_parts.append(
-        f"drawtext=text='VP':fontfile='{f_deja_b}':"
+        f"drawtext=text='VP':{font_key}='{f_deja_b}':"
         f"fontsize=30:fontcolor=0xff00bb:"
         f"x=iw-66:y=18:"
         f"borderw=2:bordercolor=0xff00bb@0.5"
@@ -170,7 +171,7 @@ def create_genz_promo(output_path: str = None) -> bool:
     # 15. Scrolling ticker
     ticker_src = f"textfile='{ff_path(ticker_file)}'" if ticker_file else "text='Varta Pravah 24x7 Marathi News'"
     vf_parts.append(
-        f"drawtext={ticker_src}:fontfile='{f_deja_b}':"
+        f"drawtext={ticker_src}:{font_key}='{f_deja_b}':"
         f"fontsize=32:fontcolor=white:"
         f"x=w-mod(200*t\\,w+2600):y=ih-63:"
         f"shadowx=2:shadowy=2:shadowcolor=black@0.9"
