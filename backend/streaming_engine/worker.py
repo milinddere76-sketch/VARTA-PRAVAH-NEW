@@ -169,9 +169,9 @@ async def main():
                 f.write(f"{time.ctime()}: {msg}")
         except: pass
 
-    write_status("Connecting to Temporal...")
+    write_status("Connecting to Temporal (Retrying for 5 mins)...")
     client = None
-    for i in range(12):
+    for i in range(60):
         try:
             client = await temporal_utils.get_temporal_client()
             if client:
@@ -179,7 +179,7 @@ async def main():
                 print("✅ Connected to Temporal")
                 break
         except Exception as e:
-            write_status(f"Connect Retry {i+1}/12: {str(e)}")
+            write_status(f"Connect Retry {i+1}/60: {str(e)}")
             await asyncio.sleep(5)
 
     if not client:
