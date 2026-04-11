@@ -12,6 +12,7 @@ from .activities import (
     upload_to_s3_activity,
     start_stream_activity,
     ensure_promo_video_activity,
+    ensure_premium_promo_activity,
     stop_stream_activity,
     check_scheduled_ads_activity,
     cleanup_old_videos_activity,
