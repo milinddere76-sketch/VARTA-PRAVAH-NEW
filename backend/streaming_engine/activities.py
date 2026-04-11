@@ -621,7 +621,7 @@ async def ensure_premium_promo_activity() -> bool:
     try:
         os.makedirs("/app/videos", exist_ok=True)
         # Import the generator logic
-        from create_premium_promo import create_premium_promo
+        from backend.create_premium_promo import create_premium_promo
         create_premium_promo(output_path)
         return True
     except Exception as e:
