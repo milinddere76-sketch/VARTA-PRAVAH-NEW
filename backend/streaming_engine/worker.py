@@ -161,22 +161,34 @@ async def main():
     from dotenv import load_dotenv
     load_dotenv()
 
+    # Start heartbeat in background
+    def write_status(msg):
+        try:
+            os.makedirs("/app/videos", exist_ok=True)
+            with open("/app/videos/worker_status.txt", "w") as f:
+                f.write(f"{time.ctime()}: {msg}")
+        except: pass
+
+    write_status("Connecting to Temporal...")
     client = None
-    for i in range(10):
+    for i in range(12):
         try:
             client = await temporal_utils.get_temporal_client()
             if client:
+                write_status("Connected to Temporal - Registering Activities")
                 print("✅ Connected to Temporal")
                 break
         except Exception as e:
-            print(f"Retry Temporal connect {i+1}/10...")
+            write_status(f"Connect Retry {i+1}/12: {str(e)}")
             await asyncio.sleep(5)
 
     if not client:
+        write_status("CRITICAL: Failed to connect to Temporal after 12 retries")
         raise RuntimeError("❌ Cannot connect to Temporal")
 
-    # Start workflow in background (non-blocking so worker registers immediately)
+    # Start workflow in background 
     asyncio.create_task(trigger_auto_start(client))
+    write_status("Worker Running - Polling news-task-queue")
 
     worker = Worker(
         client,
