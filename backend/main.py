@@ -57,6 +57,14 @@ async def server_health_check():
     
     # Check if promo exists
     checks["promo_exists"] = os.path.exists("/app/videos/promo.mp4")
+    
+    # Check for zombie ffmpeg processes
+    try:
+        ps = subprocess.run(["pgrep", "-f", "ffmpeg"], capture_output=True, text=True)
+        checks["active_ffmpeg_pids"] = ps.stdout.strip().split("\n") if ps.stdout.strip() else []
+    except:
+        checks["active_ffmpeg_pids"] = "pgrep not available"
+
     return checks
 
 
