@@ -114,15 +114,23 @@ async def trigger_auto_start(client: Client):
 
     workflow_id = f"news-production-{channel_id}"
 
-    # Check if already running
+    # Terminate any existing workflow (running or stuck) and start fresh.
+    # A healthy deployment always needs a clean workflow start.
     try:
         handle = client.get_workflow_handle(workflow_id)
         desc = await handle.describe()
-        if desc.status.name == "RUNNING":
-            print("✅ Workflow already running")
-            return
+        status = desc.status.name  # e.g. RUNNING, FAILED, TIMED_OUT, COMPLETED
+        print(f"🔍 Found existing workflow '{workflow_id}' with status: {status}")
+        # Always terminate so we start fresh with new code/settings
+        try:
+            await handle.terminate(reason="Redeployment — starting fresh")
+            print(f"🛑 Terminated previous workflow ({status})")
+            await asyncio.sleep(3)   # give Temporal time to close it
+        except Exception as term_err:
+            print(f"⚠️  Could not terminate workflow (may be already closed): {term_err}")
     except Exception:
-        pass
+        # Workflow doesn't exist yet — fresh start
+        print(f"ℹ️  No existing workflow '{workflow_id}' — will create fresh")
 
     # Start workflow — pass both anchor IDs so it alternates them
     try:

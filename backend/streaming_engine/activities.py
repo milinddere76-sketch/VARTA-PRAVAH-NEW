@@ -515,75 +515,104 @@ async def upload_to_s3_activity(video_url: str) -> str:
 @activity.defn
 async def ensure_promo_video_activity() -> bool:
     promo_path = "/app/videos/promo.mp4"
-    image_path = "/app/studio.jpg"
-
     os.makedirs("/app/videos", exist_ok=True)
 
-    # Force-regenerate if the promo is too small (old/bad version from before)
-    min_size = 500_000  # anything under 500 KB is the old 15-second version
+    # Force-regenerate if existing promo is too small (old 15-second version)
+    # A proper 60-second 720p 1000k video should be ~7 MB
+    min_size = 5_000_000   # 5 MB threshold
     if os.path.exists(promo_path) and os.path.getsize(promo_path) > min_size:
-        print(f"✅ Promo video already exists ({os.path.getsize(promo_path)//1024} KB)")
+        print(f"✅ Promo exists ({os.path.getsize(promo_path)//1024} KB) — reusing")
         return True
 
-    if not os.path.exists(image_path):
-        print(f"❌ Studio image {image_path} missing — cannot generate promo.")
-        return False
+    print("🎬 Generating 60-second promo video…")
 
-    print(f"🎬 Generating 60-second YouTube-ready promo from {image_path}…")
-    try:
-        logo_path = None
-        for candidate in ["/app/logo.png", "/app/logo.svg"]:
-            if os.path.exists(candidate):
-                logo_path = candidate
-                break
+    # Common encoder flags — MUST match streamer.py exactly
+    encode_flags = [
+        "-c:v", "libx264",
+        "-preset", "ultrafast",
+        "-r", "30",
+        "-g", "60",
+        "-keyint_min", "60",
+        "-x264opts", "scenecut=0",   # safer than deprecated -sc_threshold
+        "-pix_fmt", "yuv420p",
+        "-b:v", "1000k",
+        "-c:a", "aac",
+        "-ar", "44100",
+        "-b:a", "128k",
+        promo_path,
+    ]
 
-        # Common output flags — must match streamer.py settings exactly
-        out_flags = [
-            "-c:v", "libx264", "-preset", "ultrafast",
-            "-r", "30",          # constant 30 fps
-            "-g", "60",          # keyframe every 2 s
-            "-keyint_min", "60",
-            "-sc_threshold", "0",
-            "-pix_fmt", "yuv420p",
-            "-b:v", "1000k",
-            "-c:a", "aac", "-ar", "44100", "-b:a", "128k",
-            promo_path
-        ]
-
-        if logo_path:
+    # ── Attempt 1: Use studio.jpg if available ─────────────────────────────
+    image_path = "/app/studio.jpg"
+    if os.path.exists(image_path):
+        try:
             cmd = [
-                "ffmpeg", "-y",
-                "-loop", "1", "-i", image_path,
-                "-f", "lavfi", "-i", "anullsrc=channel_layout=stereo:sample_rate=44100",
-                "-i", logo_path,
-                "-t", "60",
-                "-filter_complex",
-                "[0:v]scale=1280:720,format=yuv420p[bg];"
-                "[bg][2:v]scale=120:-1[logo];"
-                "[bg][logo]overlay=W-w-10:10[outv]",
-                "-map", "[outv]", "-map", "1:a",
-            ] + out_flags
-        else:
-            cmd = [
-                "ffmpeg", "-y",
+                "ffmpeg", "-y", "-loglevel", "warning",
                 "-loop", "1", "-i", image_path,
                 "-f", "lavfi", "-i", "anullsrc=channel_layout=stereo:sample_rate=44100",
                 "-t", "60",
-                "-vf", "scale=1280:720,format=yuv420p",
+                "-vf", "scale=1280:720:force_original_aspect_ratio=decrease,"
+                       "pad=1280:720:(ow-iw)/2:(oh-ih)/2,format=yuv420p",
                 "-map", "0:v", "-map", "1:a",
-            ] + out_flags
+            ] + encode_flags
+            result = subprocess.run(cmd, capture_output=True, text=True, timeout=180)
+            if result.returncode == 0 and os.path.exists(promo_path):
+                print(f"✅ Promo from studio.jpg ({os.path.getsize(promo_path)//1024} KB)")
+                return True
+            print(f"⚠️  studio.jpg attempt failed: {result.stderr[-300:]}")
+        except Exception as e:
+            print(f"⚠️  studio.jpg attempt exception: {e}")
 
-        result = subprocess.run(cmd, capture_output=True, text=True, timeout=120)
+    # ── Attempt 2: Pure lavfi color source (always works, no files needed) ─
+    try:
+        print("🎬 Generating promo via lavfi color source…")
+        cmd = [
+            "ffmpeg", "-y", "-loglevel", "warning",
+            # Dark-blue background
+            "-f", "lavfi", "-i",
+            "color=c=0x0d1a2e:size=1280x720:rate=30",
+            # Silent stereo audio
+            "-f", "lavfi", "-i",
+            "anullsrc=channel_layout=stereo:sample_rate=44100",
+            "-t", "60",
+            "-map", "0:v", "-map", "1:a",
+            # Add channel name as a drawtext overlay
+            "-vf",
+            "drawtext=text='वार्ता प्रवाह':fontsize=80:fontcolor=white:"
+            "x=(w-text_w)/2:y=(h-text_h)/2:"
+            "shadowx=4:shadowy=4:shadowcolor=black@0.6,"
+            "drawtext=text='LIVE | 24x7 Marathi News':fontsize=32:"
+            "fontcolor=0x00b4ff:x=(w-text_w)/2:y=(h-text_h)/2+110",
+        ] + encode_flags
+        result = subprocess.run(cmd, capture_output=True, text=True, timeout=180)
         if result.returncode == 0 and os.path.exists(promo_path):
-            size_kb = os.path.getsize(promo_path) // 1024
-            print(f"✅ Promo video generated ({size_kb} KB)")
+            print(f"✅ Promo via lavfi ({os.path.getsize(promo_path)//1024} KB)")
             return True
-        else:
-            print(f"❌ FFmpeg promo generation failed:\n{result.stderr[-500:]}")
-            return False
+        print(f"⚠️  lavfi attempt failed: {result.stderr[-300:]}")
     except Exception as e:
-        print(f"❌ Failed to generate promo video: {e}")
-        return False
+        print(f"⚠️  lavfi attempt exception: {e}")
+
+    # ── Attempt 3: Ultra-minimal — plain black frame, guaranteed to work ──
+    try:
+        print("🎬 Generating minimal black-frame promo (last resort)…")
+        cmd = [
+            "ffmpeg", "-y", "-loglevel", "warning",
+            "-f", "lavfi", "-i", "color=black:size=1280x720:rate=30",
+            "-f", "lavfi", "-i", "anullsrc=channel_layout=stereo:sample_rate=44100",
+            "-t", "60",
+            "-map", "0:v", "-map", "1:a",
+        ] + encode_flags
+        result = subprocess.run(cmd, capture_output=True, text=True, timeout=180)
+        if result.returncode == 0 and os.path.exists(promo_path):
+            print(f"✅ Minimal promo created ({os.path.getsize(promo_path)//1024} KB)")
+            return True
+        print(f"❌ Even minimal promo failed: {result.stderr[-300:]}")
+    except Exception as e:
+        print(f"❌ Minimal promo exception: {e}")
+
+    return False
+
+
 
 
 @activity.defn
