@@ -572,34 +572,22 @@ async def ensure_promo_video_activity() -> bool:
         except Exception as e:
             print(f"⚠️  studio.jpg attempt exception: {e}")
 
-    # ── Attempt 2: Pure lavfi color source (always works, no files needed) ─
+    # ── Attempt 2: Gen-Z animated neon promo ──────────────────────────────
     try:
-        print("🎬 Generating promo via lavfi color source…")
-        cmd = [
-            "ffmpeg", "-y", "-loglevel", "warning",
-            # Dark-blue background
-            "-f", "lavfi", "-i",
-            "color=c=0x0d1a2e:size=1280x720:rate=30",
-            # Silent stereo audio
-            "-f", "lavfi", "-i",
-            "anullsrc=channel_layout=stereo:sample_rate=44100",
-            "-t", "60",
-            "-map", "0:v", "-map", "1:a",
-            # Add channel name as a drawtext overlay
-            "-vf",
-            "drawtext=text='वार्ता प्रवाह':fontsize=80:fontcolor=white:"
-            "x=(w-text_w)/2:y=(h-text_h)/2:"
-            "shadowx=4:shadowy=4:shadowcolor=black@0.6,"
-            "drawtext=text='LIVE | 24x7 Marathi News':fontsize=32:"
-            "fontcolor=0x00b4ff:x=(w-text_w)/2:y=(h-text_h)/2+110",
-        ] + encode_flags
-        result = subprocess.run(cmd, capture_output=True, text=True, timeout=180)
-        if result.returncode == 0 and os.path.exists(promo_path):
-            print(f"✅ Promo via lavfi ({os.path.getsize(promo_path)//1024} KB)")
+        print("🎨 Generating Gen-Z neon promo via create_genz_promo…")
+        import importlib.util as _ilu
+        _script = os.path.join(os.path.dirname(os.path.dirname(__file__)), "create_genz_promo.py")
+        _spec = _ilu.spec_from_file_location("create_genz_promo", _script)
+        _mod  = _ilu.module_from_spec(_spec)
+        _spec.loader.exec_module(_mod)
+        ok = _mod.create_genz_promo(promo_path)
+        if ok and os.path.exists(promo_path):
+            print(f"✅ Gen-Z promo ready ({os.path.getsize(promo_path)//1024} KB)")
+            open(sentinel_path, "w").close()
             return True
-        print(f"⚠️  lavfi attempt failed: {result.stderr[-300:]}")
+        print("⚠️  Gen-Z promo script returned failure — falling through")
     except Exception as e:
-        print(f"⚠️  lavfi attempt exception: {e}")
+        print(f"⚠️  Gen-Z promo attempt exception: {e}")
 
     # ── Attempt 3: Ultra-minimal — plain black frame, guaranteed to work ──
     try:
