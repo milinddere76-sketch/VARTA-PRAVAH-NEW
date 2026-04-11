@@ -525,7 +525,7 @@ async def upload_to_s3_activity(video_url: str) -> str:
     return video_url  # For now return the URL directly for the streamer
 
 @activity.defn
-async def ensure_promo_video_activity() -> bool:
+async def ensure_promo_video_activity(data: dict) -> bool:
     promo_path = "/app/videos/promo.mp4"
     sentinel_path = "/app/videos/.promo_studio_ok"
     image_path = "/app/studio.jpg"
