@@ -43,6 +43,41 @@ app.add_middleware(
 def read_root():
     return {"status": "VartaPravah API Engine Online - Pillow-Overlay", "version": "1.2.0"}
 
+@app.post("/system/reset")
+async def system_nuclear_reset(db: Session = Depends(database.get_db)):
+    """Wipes all generated content and kills all stream processes."""
+    results = {}
+    
+    # 1. Kill all FFmpeg
+    try:
+        subprocess.run(["pkill", "-9", "-f", "ffmpeg"], capture_output=True)
+        results["ffmpeg_killed"] = True
+    except:
+        results["ffmpeg_killed"] = False
+
+    # 2. Reset DB status
+    try:
+        db.query(models.Channel).update({models.Channel.is_streaming: False})
+        db.commit()
+        results["db_reset"] = True
+    except:
+        results["db_reset"] = False
+
+    # 3. Wipe videos (keep the ads folder but wipe files)
+    import shutil
+    video_dir = "/app/videos"
+    try:
+        if os.path.exists(video_dir):
+            for filename in os.listdir(video_dir):
+                file_path = os.path.join(video_dir, filename)
+                if os.path.isfile(file_path):
+                    os.unlink(file_path)
+        results["videos_wiped"] = True
+    except Exception as e:
+        results["videos_wiped"] = f"Partial: {str(e)}"
+
+    return {"status": "success", "summary": results}
+
 import subprocess
 import socket
 
