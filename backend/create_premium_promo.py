@@ -1,0 +1,69 @@
+import subprocess
+import os
+import sys
+
+def create_premium_promo(output_path):
+    print(f"🎬 Creating Premium Gen-Z Promo -> {output_path}")
+    
+    # Paths to stems (assuming they are in /app/promo_stems on server)
+    stems_dir = os.path.join(os.path.dirname(os.path.dirname(__file__)), "promo_stems")
+    if not os.path.exists(stems_dir):
+        # Fallback for local dev
+        stems_dir = "./promo_stems"
+    
+    # We'll use a complex filter graph to create animations
+    # 1. Background: Concatenate clips with glitch transitions
+    # 2. Overlay 1: Neon Globe (pulsing)
+    # 3. Overlay 2: News Ticker
+    # 4. Audio: Low-fi "cyber" beat generated via lavfi
+    
+    cmd = [
+        "ffmpeg", "-y",
+        # Inputs
+        "-loop", "1", "-t", "60", "-i", os.path.join(stems_dir, "globe_neon.png"),  # [0:v]
+        "-loop", "1", "-t", "60", "-i", os.path.join(stems_dir, "neon_logo.png"),   # [1:v]
+        "-i", os.path.join(stems_dir, "raw_concat.mp4"),                           # [2:v] (8s loop)
+        
+        # Audio Synth: Deep Pulse + Sine sweep
+        "-f", "lavfi", "-i", "sine=f=40:d=60,aecho=0.8:0.8:1000:0.5,lowpass=f=200[a1];sine=f=800:d=60[a2];[a2]tremolo=f=10:d=0.8[a2t];[a1][a2t]amix=inputs=2[outa]",
+        
+        "-filter_complex", (
+            # 1. Base Loop (8s video looped to 60s)
+            "[2:v]streamloop=loop=7,scale=1280:720,setsar=1[base];"
+            
+            # 2. Globe Overlay (Bottom Right, Scale and Rotate slightly)
+            "[0:v]scale=300:-1,rotate='0.2*t':c=none:ow=300:oh=300[globe];"
+            
+            # 3. Pulsing Logo (Center, Brightness pulse)
+            "[1:v]scale=600:-1[logo_s];"
+            "[logo_s]geq=r='r(X,Y)*(1+0.2*sin(2*PI*t/2))':g='g(X,Y)*(1+0.2*sin(2*PI*t/2))':b='b(X,Y)*(1+0.2*sin(2*PI*t/2))'[logo_p];"
+            
+            # 4. Compose
+            "[base][globe]overlay=W-350:H-350[tmp1];"
+            "[tmp1][logo_p]overlay=(W-w)/2:(H-h)/2-50[v_pre];"
+            
+            # 5. Vignette and Color Grading
+            "[v_pre]vignette=angle=0.5,hue=s=1.2[v_final]"
+        ),
+        "-map", "[v_final]",
+        "-map", "[outa]",
+        "-c:v", "libx264",
+        "-preset", "fast",
+        "-crf", "23",
+        "-c:a", "aac",
+        "-b:a", "128k",
+        "-t", "60",
+        output_path
+    ]
+    
+    try:
+        subprocess.run(cmd, check=True, capture_output=True)
+        print(f"✅ Premium Promo Created: {output_path}")
+    except subprocess.CalledProcessError as e:
+        print(f"❌ Failed to create premium promo: {e.stderr.decode()}")
+        # Fallback: copy raw_concat if main fails
+        subprocess.run(["ffmpeg", "-y", "-i", os.path.join(stems_dir, "raw_concat.mp4"), "-t", "60", output_path])
+
+if __name__ == "__main__":
+    out = sys.argv[1] if len(sys.argv) > 1 else "premium_promo.mp4"
+    create_premium_promo(out)

@@ -611,7 +611,22 @@ async def ensure_promo_video_activity() -> bool:
     except Exception as e:
         print(f"❌ Minimal promo exception: {e}")
 
-    return False
+@activity.defn
+async def ensure_premium_promo_activity() -> bool:
+    """Ensures the high-quality animated promo exists."""
+    output_path = "/app/videos/premium_promo.mp4"
+    if os.path.exists(output_path):
+        return True
+    
+    try:
+        os.makedirs("/app/videos", exist_ok=True)
+        # Import the generator logic
+        from create_premium_promo import create_premium_promo
+        create_premium_promo(output_path)
+        return True
+    except Exception as e:
+        print(f"❌ Premium promo failed: {e}")
+        return False
 
 
 

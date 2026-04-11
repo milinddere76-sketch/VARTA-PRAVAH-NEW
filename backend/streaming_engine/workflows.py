@@ -110,6 +110,10 @@ class NewsProductionWorkflow:
                         )
                         await workflow.sleep(timedelta(seconds=35))
 
+                # ── 0. Ensure Assets ──────────────────────────────────────
+                await workflow.execute_activity(ensure_promo_video_activity, channel_id, start_to_close_timeout=timedelta(minutes=5))
+                await workflow.execute_activity(ensure_premium_promo_activity, start_to_close_timeout=timedelta(minutes=5))
+
                 # ── 1. Fetch news ─────────────────────────────────────────
                 news_data = await workflow.execute_activity(
                     fetch_news_activity,
@@ -161,16 +165,43 @@ class NewsProductionWorkflow:
                 # ── 6. Switch stream to news video ────────────────────────
                 anchor_label = "Priya Desai (Female)" if is_female else "Arjun Sharma (Male)"
                 print(f"📺 Bulletin #{bulletin_index} | Anchor: {anchor_label} | Channel: {channel_id}")
-                await workflow.execute_activity(
-                    start_stream_activity,
-                    {
-                        "channel_id": channel_id,
-                        "stream_key": stream_key,
-                        "video_url": s3_url,
-                        "is_promo": False
-                    },
-                    start_to_close_timeout=timedelta(seconds=60)
-                )
+                import os
+                news_video_path = final_video_url.split("?")[0] # strip any query params
+                
+                # SANITY CHECK: Minimum size for a 720p news video with audio should be > 500KB
+                # 161KB or smaller usually indicates a corrupted/empty video header
+                if os.path.exists(news_video_path) and os.path.getsize(news_video_path) > 500 * 1024:
+                    await workflow.execute_activity(
+                        start_stream_activity,
+                        {
+                            "channel_id": channel_id,
+                            "stream_key": stream_key,
+                            "video_url": s3_url,
+                            "is_promo": False
+                        },
+                        start_to_close_timeout=timedelta(minutes=5)
+                    )
+                    # Keep news on for 5 mins (or length of video)
+                    await workflow.sleep(timedelta(minutes=5))
+                    
+                    # ── 7. Post-Bulletin Promo (1 Minute) ──────────────
+                    print(f"🎬 Transitioning to Premium Promo for 1 min...")
+                    await workflow.execute_activity(
+                        start_stream_activity,
+                        {
+                            "channel_id": channel_id,
+                            "stream_key": stream_key,
+                            "video_url": "/app/videos/premium_promo.mp4",
+                            "is_promo": True
+                        },
+                        start_to_close_timeout=timedelta(minutes=2)
+                    )
+                    await workflow.sleep(timedelta(minutes=1))
+                else:
+                    workflow.logger.error(f"Generated news video {s3_url} is too small or missing. Staying on promo.")
+                    # If news failed, we don't fall back here because the promo is ALREADY running from Step 1.
+                    # We just wait for the next cycle.
+                    await workflow.sleep(timedelta(minutes=2))
 
                 # ── 7. Daily cleanup ──────────────────────────────────────
                 now = datetime.now(ist)
