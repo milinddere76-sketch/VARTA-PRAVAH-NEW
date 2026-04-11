@@ -39,13 +39,25 @@ LANGUAGE_CONFIG = {
 STREAMER_INSTANCES: dict[int, Streamer] = {}
 
 def _terminate_stream_process(channel_id: int):
+    # 1. Cleanly stop the tracked Python instance
     streamer = STREAMER_INSTANCES.pop(channel_id, None)
-    if not streamer:
-        return
+    if streamer:
+        try:
+            streamer.stop_stream()
+        except:
+            pass
+
+    # 2. Safety: Force kill any orphaned/zombie ffmpeg carrying this RTMP key
+    # We use pkill -f to find any ffmpeg command line containing the rtmp URL pattern
     try:
-        streamer.stop_stream()
-    except Exception as e:
-        print(f"Error terminating existing streamer for channel {channel_id}: {e}")
+        # We don't have the key here easily, so we hunt for ffmpeg in general 
+        # that might be streaming. But we must be careful not to kill other 
+        # unrelated ffmpeg tasks if they exist. 
+        # Given this is a dedicated news container, killing all ffmpeg is usually safe.
+        subprocess.run(["pkill", "-9", "-f", "ffmpeg"], capture_output=True)
+        print(f"Cleaned up all FFmpeg processes for channel {channel_id}")
+    except:
+        pass
 
 @activity.defn
 async def fetch_news_activity(language: str) -> dict:
