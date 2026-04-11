@@ -87,11 +87,25 @@ async def server_health_check(db: Session = Depends(database.get_db)):
             
     return checks
 
+@app.get("/debug/logs/worker")
+async def get_worker_status():
+    status_file = "/app/videos/worker_status.txt"
+    if not os.path.exists(status_file):
+        return {"status": "Worker not yet started or heartbeat file missing."}
+    try:
+        with open(status_file, "r") as f:
+            content = f.read()
+        return {"heartbeat": content}
+    except Exception as e:
+        return {"error": str(e)}
+
 @app.get("/debug/files")
 async def list_videos():
     try:
-        files = os.listdir("/app/videos")
-        return {"files": [f"{f} ({os.path.getsize(os.path.join('/app/videos', f))/1024:.1f} KB)" for f in files]}
+        video_dir = "/app/videos"
+        if not os.path.exists(video_dir): return {"files": []}
+        files = os.listdir(video_dir)
+        return {"files": [f"{f} ({os.path.getsize(os.path.join(video_dir, f))/1024:.1f} KB)" for f in files]}
     except:
         return {"error": "videos dir not found"}
 
