@@ -87,17 +87,18 @@ class Streamer:
             ]
 
         cmd += [
-            # Video — YouTube 720p recommended settings
+            # Video — YouTube 720p CBR settings
             "-c:v",        "libx264",
-            "-preset",     "veryfast",     # better compression than ultrafast at same CPU
+            "-preset",     "veryfast",
             "-tune",       "zerolatency",
             "-r",          "30",
             "-g",          "60",           # keyframe every 2 s
             "-keyint_min", "60",
-            "-x264opts",   "scenecut=0",   # no random keyframes
+            "-x264opts",   "scenecut=0:nal-hrd=cbr",  # true CBR — critical for static content
             "-b:v",        "2500k",        # YouTube recommended for 720p
-            "-maxrate",    "3000k",
-            "-bufsize",    "6000k",        # 2× maxrate
+            "-minrate",    "2500k",        # floor — prevents drop on static/colour frames
+            "-maxrate",    "2500k",        # ceiling = target = true CBR
+            "-bufsize",    "2500k",        # =bitrate for tightest CBR compliance
             "-pix_fmt",    "yuv420p",
             # Audio — explicit settings, must be present
             "-c:a",  "aac",
