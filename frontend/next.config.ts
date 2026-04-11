@@ -1,9 +1,8 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
-  // Never let TypeScript or ESLint errors abort the Docker build
+  // Never let TypeScript errors abort the Docker build
   typescript: { ignoreBuildErrors: true },
-  eslint:     { ignoreDuringBuilds: true },
 
   // Standalone output = minimal self-contained server, starts instantly in Docker
   output: "standalone",

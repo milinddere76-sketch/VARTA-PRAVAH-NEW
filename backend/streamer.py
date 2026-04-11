@@ -14,8 +14,9 @@ class Streamer:
         self.monitor_thread = None
         self.stop_event    = threading.Event()
         
-        # New properties for advanced mapping
-        self.logo_path = "/app/logo.png"
+        # Dynamic assets mapping (Docker vs Local)
+        here = os.path.dirname(os.path.abspath(__file__))
+        self.logo_path = os.path.join(here, "logo.png")
         self.is_promo = False
 
     def create_initial_playlist(self, initial_video: str):

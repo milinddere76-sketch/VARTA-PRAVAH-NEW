@@ -23,7 +23,7 @@ VartaPravah is a fully automated AI news broadcasting platform focusing on regio
 1. Navigate to `/backend`.
 2. `pip install -r requirements.txt`
 3. Copy `backend/.env.example` to `backend/.env` and fill in your API keys.
-4. Run the worker: `python -m temporal.worker`
+4. Run the worker: `python -m streaming_engine.worker`
 5. Run the API: `uvicorn main:app --reload`
 
 ### 2a. Environment Variables

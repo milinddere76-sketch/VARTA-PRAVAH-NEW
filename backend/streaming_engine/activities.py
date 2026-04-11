@@ -1,4 +1,11 @@
 import os
+import sys
+
+# Ensure the 'backend' root is in sys.path
+BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+if BASE_DIR not in sys.path:
+    sys.path.insert(0, BASE_DIR)
+
 import requests
 import json
 import time
@@ -8,12 +15,8 @@ from gtts import gTTS
 import uuid
 import subprocess
 from dotenv import load_dotenv
-import sys
 
-# Import Streamer from parent directory (since worker is in temporal/)
-BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-if BASE_DIR not in sys.path:
-    sys.path.insert(0, BASE_DIR)
+
 from streamer import Streamer
 import database
 import models
@@ -253,8 +256,9 @@ async def generate_audio_activity(input_data: dict) -> str:
         language = input_data.get("language", "Marathi")
         lang_code = LANGUAGE_CONFIG.get(language, {"code": "mr"})["code"]
 
-        os.makedirs("/tmp", exist_ok=True)
-        audio_path = os.path.join("/tmp", f"news_audio_{uuid.uuid4().hex}.mp3")
+        import tempfile
+        temp_base = tempfile.gettempdir()
+        audio_path = os.path.join(temp_base, f"news_audio_{uuid.uuid4().hex}.mp3")
         
         try:
             tts = gTTS(text=script or "Breaking news update.", lang=lang_code)
@@ -287,9 +291,10 @@ async def generate_news_video_activity(input_data: dict) -> str:
         news_title = input_data.get("title", "Breaking News")
         audio_url = input_data.get("audio_url", "")
         
-        output_path = "/app/videos/news_generated.mp4"
-        os.makedirs("/app/videos", exist_ok=True)
-        tmp_dir = "/tmp/news_video"
+        import tempfile
+        output_path = os.path.join(BASE_DIR, "videos", "news_generated.mp4")
+        os.makedirs(os.path.dirname(output_path), exist_ok=True)
+        tmp_dir = os.path.join(tempfile.gettempdir(), "news_video")
         os.makedirs(tmp_dir, exist_ok=True)
         
         # Create professional news studio background
@@ -471,7 +476,7 @@ async def synclabs_lip_sync_activity(data: dict) -> str:
     }
     payload = {
         "audioUrl": data['audio_url'], 
-        "videoUrl": os.getenv("SYNC_LABS_BASE_VIDEO_URL", "/app/videos/promo.mp4"),
+        "videoUrl": os.getenv("SYNC_LABS_BASE_VIDEO_URL") or os.path.join(BASE_DIR, "videos", "promo.mp4"),
         "synergize": True
     }
     
@@ -495,10 +500,10 @@ async def check_sync_labs_status_activity(job_id: str) -> dict:
         return {"status": "completed", "video_url": os.getenv("SYNC_LABS_BASE_VIDEO_URL")}
         
     if job_id == "mock_job_fallback_promo":
-        return {"status": "completed", "video_url": "/app/videos/promo.mp4"}
+        return {"status": "completed", "video_url": os.path.join(BASE_DIR, "videos", "promo.mp4")}
         
     if job_id.startswith("mock_job_fallback_"):
-        return {"status": "completed", "video_url": f"/app/{job_id}.mp4"}
+        return {"status": "completed", "video_url": os.path.join(BASE_DIR, f"{job_id}.mp4")}
 
     # 1. Poll Sync Labs Real API
     headers = {"x-api-key": os.getenv("SYNCLABS_API_KEY")}
@@ -512,7 +517,7 @@ async def check_sync_labs_status_activity(job_id: str) -> dict:
         }
     except Exception as e:
         print(f"Error checking SyncLabs status: {e}. Defaulting to promo video.")
-        return {"status": "completed", "video_url": "/app/videos/promo.mp4"}
+        return {"status": "completed", "video_url": os.path.join(BASE_DIR, "videos", "promo.mp4")}
 
 @activity.defn
 async def upload_to_s3_activity(video_url: str) -> str:
@@ -525,11 +530,11 @@ async def upload_to_s3_activity(video_url: str) -> str:
     return video_url  # For now return the URL directly for the streamer
 
 @activity.defn
-async def ensure_promo_video_activity(data: dict) -> bool:
-    promo_path = "/app/videos/promo.mp4"
-    sentinel_path = "/app/videos/.promo_studio_ok"
-    image_path = "/app/studio.jpg"
-    os.makedirs("/app/videos", exist_ok=True)
+async def ensure_promo_video_activity(data: dict = None) -> bool:
+    promo_path = os.path.join(BASE_DIR, "videos", "promo.mp4")
+    sentinel_path = os.path.join(BASE_DIR, "videos", ".promo_studio_ok")
+    image_path = os.path.join(BASE_DIR, "studio.jpg")
+    os.makedirs(os.path.dirname(promo_path), exist_ok=True)
 
     # ── Quick Return: If promo exists, use it immediately to start stream ──
     if os.path.exists(promo_path):
@@ -614,7 +619,7 @@ async def ensure_promo_video_activity(data: dict) -> bool:
 @activity.defn
 async def ensure_premium_promo_activity() -> bool:
     """Ensures the high-quality animated promo exists."""
-    output_path = "/app/videos/premium_promo.mp4"
+    output_path = os.path.join(BASE_DIR, "videos", "premium_promo.mp4")
     if os.path.exists(output_path):
         return True
     
@@ -648,9 +653,23 @@ async def start_stream_activity(data: dict) -> str:
 
     # 2. Start fresh streamer (Initial start or Force Restart)
     try:
-        if video_url.startswith("/app/") and not os.path.exists(video_url):
-            print(f"Video path {video_url} is missing. Falling back to promo video.")
-            video_url = "/app/videos/promo.mp4"
+        # Resolve relative paths relative to BASE_DIR
+        if video_url and not os.path.isabs(video_url) and not video_url.startswith("color="):
+            video_url = os.path.join(BASE_DIR, video_url)
+
+        promo_path = os.path.join(BASE_DIR, "videos", "promo.mp4")
+        
+        # ── SANITY CHECK: Minimum size check ──
+        is_too_small = False
+        if video_url and os.path.exists(video_url) and not video_url.startswith("color="):
+            file_size = os.path.getsize(video_url)
+            if file_size < 500 * 1024: # < 500KB is likely a corrupted/black frame
+                is_too_small = True
+                print(f"⚠️ Video {video_url} is too small ({file_size//1024}KB). Falling back.")
+
+        if not os.path.exists(video_url) or is_too_small:
+            print(f"Video source {video_url} is problematic (missing/small). Falling back to promo: {promo_path}")
+            video_url = promo_path
 
         if not stream_key or len(stream_key) < 5:
             activity.logger.error(f"Invalid stream key for channel {channel_id}")
@@ -705,7 +724,7 @@ async def check_scheduled_ads_activity(data: dict) -> list[str]:
 @activity.defn
 async def cleanup_old_videos_activity() -> str:
     """Auto-delete videos older than 24 hours to save space."""
-    video_dir = "/app"
+    video_dir = BASE_DIR
     if not os.path.exists(video_dir):
         return "Directory missing"
         

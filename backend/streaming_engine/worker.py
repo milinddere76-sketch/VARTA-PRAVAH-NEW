@@ -1,6 +1,13 @@
-import asyncio
 import os
 import sys
+
+# Fix imports for Docker/Production/Local
+# Ensure the 'backend' root is in sys.path before importing local modules
+BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+if BASE_DIR not in sys.path:
+    sys.path.insert(0, BASE_DIR)
+
+import asyncio
 import time
 from temporalio.client import Client
 from temporalio.worker import Worker, UnsandboxedWorkflowRunner
@@ -20,11 +27,6 @@ from .activities import (
     check_scheduled_ads_activity,
     cleanup_old_videos_activity
 )
-
-# Fix imports for Docker/Production
-BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-if BASE_DIR not in sys.path:
-    sys.path.insert(0, BASE_DIR)
 
 from database import get_session_local
 from models import Channel, User, Anchor

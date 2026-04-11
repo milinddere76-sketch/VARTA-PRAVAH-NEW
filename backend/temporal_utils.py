@@ -30,23 +30,25 @@ async def get_temporal_client(retries: int = 10, delay: int = 5) -> Client:
     """
     Robust Temporal connection with retry (important for Docker startup)
     """
-    temporal_address = os.getenv("TEMPORAL_ADDRESS", "temporal:7233")
-
+    # Try temporal service name (Docker) then localhost (Local Dev)
+    temporal_address = os.getenv("TEMPORAL_ADDRESS")
     if not temporal_address:
-        raise ValueError("TEMPORAL_ADDRESS must be set")
-
-    last_error = None
+        # Check if we are likely in Docker or not
+        # Inside Docker, 'temporal' usually resolves. Outside, it doesn't.
+        temporal_address = "temporal:7233"
 
     for attempt in range(retries):
+        # Dynamically switch between docker and local addresses
+        current_target = temporal_address if attempt % 2 == 0 else "localhost:7233"
         try:
-            print(f"Connecting to Temporal ({temporal_address})... Attempt {attempt+1}/{retries}")
-            client = await Client.connect(temporal_address)
-            print("✅ Connected to Temporal successfully")
+            print(f"Connecting to Temporal ({current_target})... Attempt {attempt+1}/{retries}")
+            client = await asyncio.wait_for(Client.connect(current_target), timeout=2.0)
+            print(f"✅ Connected to Temporal successfully via {current_target}")
             return client
 
         except Exception as e:
             last_error = e
-            print(f"❌ Temporal connection failed: {e}")
+            print(f"❌ Temporal connection failed on {current_target}: {e}")
             await asyncio.sleep(delay)
 
     raise RuntimeError(f"Unable to connect to Temporal after {retries} attempts: {last_error}")

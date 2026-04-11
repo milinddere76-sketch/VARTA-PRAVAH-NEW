@@ -52,8 +52,8 @@ def get_engine():
     possible_urls = [
         os.getenv("DATABASE_URL"),
         os.getenv("SQLITE_URL"),
-        "postgresql://root:password@postgres:5432/temporal",
-        "postgresql://root:password@localhost:5432/temporal",
+        "postgresql+psycopg://root:password@postgres:5432/temporal",
+        "postgresql+psycopg://root:password@localhost:5432/temporal",
     ]
 
     for url in filter(None, possible_urls):

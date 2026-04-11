@@ -62,7 +62,7 @@ services:
     ports:
       - "8000:8000"
     environment:
-      - DATABASE_URL=postgresql://root:password@postgres:5432/temporal
+      - DATABASE_URL=postgresql+psycopg://root:password@postgres:5432/temporal
       - TEMPORAL_ADDRESS=temporal:7233
       - PYTHONUNBUFFERED=1
       - PYTHONPATH=/app
@@ -83,7 +83,7 @@ services:
     restart: unless-stopped
     command: python -m streaming_engine.worker
     environment:
-      - DATABASE_URL=postgresql://root:password@postgres:5432/temporal
+      - DATABASE_URL=postgresql+psycopg://root:password@postgres:5432/temporal
       - TEMPORAL_ADDRESS=temporal:7233
       - AUTO_START_CHANNEL_ID=1
       - DEFAULT_LANGUAGE=Marathi

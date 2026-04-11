@@ -102,7 +102,7 @@ def launch_services():
     if IS_WINDOWS:
         # Windows terminals
         subprocess.Popen(
-            'start cmd /k "python -m temporal.worker"',
+            'start cmd /k "python -m streaming_engine.worker"',
             shell=True,
             cwd="backend"
         )
@@ -122,7 +122,7 @@ def launch_services():
     else:
         # Linux / Mac (background processes)
         subprocess.Popen(
-            ["python", "-m", "temporal.worker"],
+            ["python", "-m", "streaming_engine.worker"],
             cwd="backend"
         )
 
