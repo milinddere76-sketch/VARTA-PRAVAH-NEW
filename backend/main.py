@@ -174,6 +174,41 @@ async def set_channel_stream_key(
     db.commit()
     return {"status": "success", "message": "YouTube Stream Key updated successfully."}
 
+@app.post("/settings")
+async def update_settings(data: dict):
+    """Update environment variables for API keys on the fly."""
+    # This updates the .env file and the current process environment
+    try:
+        env_lines = []
+        # Keep existing lines except the ones we are updating
+        if os.path.exists(".env"):
+            with open(".env", "r") as f:
+                env_lines = f.readlines()
+        
+        updates = {
+            "GROQ_API_KEY": data.get("groq_api_key"),
+            "WORLD_NEWS_API_KEY": data.get("world_news_api_key")
+        }
+        
+        new_env = {}
+        for line in env_lines:
+            if "=" in line:
+                k, v = line.strip().split("=", 1)
+                new_env[k] = v
+        
+        for k, v in updates.items():
+            if v:
+                new_env[k] = v
+                os.environ[k] = v # Update current process
+        
+        with open(".env", "w") as f:
+            for k, v in new_env.items():
+                f.write(f"{k}={v}\n")
+                
+        return {"status": "success", "message": "API keys updated and saved to .env"}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
 # --- Advertising Endpoints ---
 @app.post("/channels/{channel_id}/ads", response_model=schemas.AdCampaignResponse)
 async def create_ad(channel_id: int, ad: schemas.AdCampaignCreate, db: Session = Depends(database.get_db)):
