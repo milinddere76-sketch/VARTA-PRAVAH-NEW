@@ -124,19 +124,16 @@ class Streamer:
             raise ValueError("No video file set for streaming")
         
         # ── EMERGENCY FALLBACK ──
-        # If the file is missing (e.g., just after a reset), use a test pattern 
-        # so YouTube doesn't get "No Data" while the worker is regenerating the promo.
-        final_video = self.current_video
-        if not os.path.exists(final_video):
-            print(f"⚠️  {final_video} not found yet. Using emergency standby pattern.", flush=True)
-            # Use a simple blue gradient with a moving circle as standby
+        final_video = os.path.abspath(self.current_video)
+        if not os.path.exists(final_video) and "color=" not in final_video:
+            print(f"  {final_video} not found yet. Using emergency standby pattern.", flush=True)
             final_video = "color=c=0x081122:s=1280x720:r=30[bg];[bg]drawgrid=w=0:h=8:c=black@0.1:t=1[out]"
-            self.current_video = final_video # Temporarily track as standby
-            # We must adjust _build_ffmpeg_cmd to handle lavfi input if it starts with color=
-            # But for now, we'll just let build_ffmpeg_cmd fail and we'll fix it there.
+            self.current_video = final_video
+        else:
+            self.current_video = final_video
         
         cmd = self._build_ffmpeg_cmd()
-        print(f"🚀 Starting stream → {self.rtmp_url}", flush=True)
+        print(f" Starting stream  {self.rtmp_url}", flush=True)
         print(f"   Source: {self.current_video}", flush=True)
 
         self.process = subprocess.Popen(
