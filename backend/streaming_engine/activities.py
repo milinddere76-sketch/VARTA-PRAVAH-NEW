@@ -339,7 +339,19 @@ async def check_scheduled_ads_activity(data: dict) -> list[str]: return []
 async def cleanup_old_videos_activity() -> str: return "Cleanup skipped"
 
 @activity.defn
-async def ensure_premium_promo_activity() -> bool: return True
+async def ensure_premium_promo_activity() -> bool:
+    output_path = os.path.join(BASE_DIR, "videos", "promo.mp4")
+    if os.path.exists(output_path) and os.path.getsize(output_path) > 1000000:
+        return True
+    
+    try:
+        from create_premium_promo import create_premium_promo
+        # Run in thread to avoid blocking worker
+        await asyncio.to_thread(create_premium_promo, output_path)
+        return os.path.exists(output_path)
+    except Exception as e:
+        print(f"Premium Promo Generation Error: {e}")
+        return False
 
 @activity.defn
 async def get_video_duration_activity(file_path: str) -> float:
