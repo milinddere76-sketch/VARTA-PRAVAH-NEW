@@ -303,9 +303,24 @@ async def synclabs_lip_sync_activity(data: dict) -> str:
     api_key = os.getenv("SYNCLABS_API_KEY")
     if not api_key: return "no_api_key"
     
+    # --- PUBLIC URL CONVERSION ---
+    # Sync Labs needs a public URL to download the audio.
+    # We find the server's public IP and form a URL like http://IP:8000/videos/filename.mp3
+    local_path = data.get("audio_url", "")
+    filename = os.path.basename(local_path)
+    
+    public_ip = "localhost"
+    try:
+        # Detect public IP of the Hetzner server
+        public_ip = requests.get('https://api.ipify.org', timeout=5).text
+    except:
+        pass
+        
+    public_audio_url = f"http://{public_ip}:8000/videos/{filename}"
+    print(f"--- [SYNC LABS] Uploading Audio URL: {public_audio_url} ---")
+
     is_female = data.get("is_female", True)
     # Target high-quality base videos matching the anchor gender
-    # These base videos should be clean segments of the specific anchor models
     base_video = os.getenv("SYNC_LABS_FEMALE_VIDEO") if is_female else os.getenv("SYNC_LABS_MALE_VIDEO")
     
     if not base_video:
@@ -317,7 +332,7 @@ async def synclabs_lip_sync_activity(data: dict) -> str:
         "Content-Type": "application/json"
     }
     payload = {
-        "audioUrl": data['audio_url'], 
+        "audioUrl": public_audio_url, 
         "videoUrl": base_video,
         "synergize": True
     }

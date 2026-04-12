@@ -42,6 +42,11 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+from fastapi.staticfiles import StaticFiles
+# Ensure videos directory exists and mount it for SyncLabs access
+os.makedirs("videos", exist_ok=True)
+app.mount("/videos", StaticFiles(directory="videos"), name="videos")
+
 class SettingsUpdate(BaseModel):
     groq_api_key: str = None
     world_news_api_key: str = None
