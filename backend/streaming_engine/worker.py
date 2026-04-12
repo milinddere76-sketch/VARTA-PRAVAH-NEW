@@ -85,26 +85,21 @@ async def seed_database():
             db.refresh(male)
         anchor_male_id = male.id
 
-        # --- Default Channel ---
-        channel = db.query(Channel).filter(Channel.id == 1).first()
-        if not channel:
-            stream_key = os.getenv("YOUTUBE_STREAM_KEY", "")
-            channel = Channel(
-                id=1,
-                name="Varta Pravah Live",
-                language="Marathi",
-                youtube_stream_key=stream_key,
-                owner_id=1,
-                preferred_anchor_id=anchor_female_id
-            )
-            db.add(channel)
+        # --- Channel 1 ---
+        channel1 = db.query(Channel).filter(Channel.id == 1).first()
+        if not channel1:
+            key1 = os.getenv("YOUTUBE_STREAM_KEY", "")
+            channel1 = Channel(id=1, name="Varta Pravah Channel 1", language="Marathi", youtube_stream_key=key1, owner_id=1, preferred_anchor_id=anchor_female_id)
+            db.add(channel1)
             db.commit()
-        else:
-            # Always keep stream key in sync with env var
-            env_key = os.getenv("YOUTUBE_STREAM_KEY", "")
-            if env_key and channel.youtube_stream_key != env_key:
-                channel.youtube_stream_key = env_key
-                db.commit()
+
+        # --- Channel 2 ---
+        channel2 = db.query(Channel).filter(Channel.id == 2).first()
+        if not channel2:
+            key2 = "9efm-d8gq-mmma-9y1b-7sez"
+            channel2 = Channel(id=2, name="Varta Pravah Channel 2", language="Marathi", youtube_stream_key=key2, owner_id=1, preferred_anchor_id=anchor_male_id)
+            db.add(channel2)
+            db.commit()
 
         print(f" DB Seed complete  Female anchor id: {anchor_female_id}, Male anchor id: {anchor_male_id}")
         return anchor_female_id, anchor_male_id
