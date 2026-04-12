@@ -54,3 +54,6 @@ class AdCampaignCreate(AdCampaignBase):
 class AdCampaignResponse(AdCampaignBase):
     id: int
     model_config = ConfigDict(from_attributes=True)
+
+class StreamKeyUpdate(BaseModel):
+    youtube_stream_key: str
