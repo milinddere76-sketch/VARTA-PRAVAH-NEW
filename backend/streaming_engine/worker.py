@@ -94,19 +94,29 @@ async def seed_database():
         anchor_male_id = male.id
 
         # --- Channel 1 ---
-        channel1 = db.query(Channel).filter(Channel.id == 1).first()
-        if not channel1:
-            key1 = os.getenv("YOUTUBE_STREAM_KEY", "")
-            channel1 = Channel(id=1, name="Varta Pravah Channel 1", language="Marathi", youtube_stream_key=key1, owner_id=1, preferred_anchor_id=anchor_female_id)
-            db.add(channel1)
+        c1 = db.query(Channel).filter(Channel.id == 1).first()
+        env_key1 = os.getenv("YOUTUBE_STREAM_KEY", "")
+        if not c1:
+            print(f" Creating Channel 1 with ENV key")
+            c1 = Channel(id=1, name="Varta Pravah Channel 1", language="Marathi", youtube_stream_key=env_key1, owner_id=1, preferred_anchor_id=anchor_female_id)
+            db.add(c1)
+            db.commit()
+        elif env_key1 and c1.youtube_stream_key != env_key1:
+            print(f"🔄 Force-syncing stream key for CH1 from ENV")
+            c1.youtube_stream_key = env_key1
             db.commit()
 
         # --- Channel 2 ---
-        channel2 = db.query(Channel).filter(Channel.id == 2).first()
-        if not channel2:
-            key2 = os.getenv("YOUTUBE_STREAM_KEY_CH2", "9efm-d8gq-mmma-9y1b-7sez")
-            channel2 = Channel(id=2, name="Varta Pravah Channel 2", language="Marathi", youtube_stream_key=key2, owner_id=1, preferred_anchor_id=anchor_male_id)
-            db.add(channel2)
+        c2 = db.query(Channel).filter(Channel.id == 2).first()
+        env_key2 = os.getenv("YOUTUBE_STREAM_KEY_CH2", "9efm-d8gq-mmma-9y1b-7sez")
+        if not c2:
+            print(f" Creating Channel 2 with ENV key")
+            c2 = Channel(id=2, name="Varta Pravah Channel 2", language="Marathi", youtube_stream_key=env_key2, owner_id=1, preferred_anchor_id=anchor_male_id)
+            db.add(c2)
+            db.commit()
+        elif env_key2 and c2.youtube_stream_key != env_key2:
+            print(f"🔄 Force-syncing stream key for CH2 from ENV")
+            c2.youtube_stream_key = env_key2
             db.commit()
 
 
@@ -154,15 +164,27 @@ async def trigger_auto_start(client: Client):
         # 2. Start initial Promo loop immediately via a one-off workflow
         # so the channel isn't empty while waiting for the first scheduled bulletin
         try:
+            workflow_id = f"initial-promo-ch{channel_id}"
+            
+            # --- TERMINATION OF ZOMBIES ---
+            # If the server restarted, an old version of this workflow might be stuck in retry.
+            # We terminate it to ensure the fresh one can start with current logic/keys.
+            try:
+                handle = client.get_workflow_handle(workflow_id)
+                await handle.terminate(reason="Worker restarted - clearing old promo")
+                print(f"🧹 Terminated old/zombie workflow: {workflow_id}")
+            except: pass
+
             await client.start_workflow(
                 StartImmediateStreamWorkflow.run,
                 {"channel_id": channel_id, "stream_key": stream_key, "video_url": f"videos/promo_ch{channel_id}.mp4", "is_promo": True},
-                id=f"initial-promo-ch{channel_id}",
+                id=workflow_id,
                 task_queue="news-task-queue"
             )
             print(f"✅ Initial Promo triggered for CH{channel_id}")
 
-        except: pass
+        except Exception as e:
+            print(f"⚠️ Could not trigger initial promo for CH{channel_id}: {e}")
 
 
 
