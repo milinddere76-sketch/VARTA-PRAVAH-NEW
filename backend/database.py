@@ -140,8 +140,24 @@ def _safe_add_column(engine, conn, table: str, col_name: str, col_type: str):
 
 def init_db():
     from sqlalchemy import inspect as sa_inspect
+    max_retries = 10
+    retry_interval = 3
+    
+    eng = None
+    for i in range(max_retries):
+        try:
+            eng = get_engine()
+            # Test connection
+            with eng.connect() as conn:
+                break
+        except Exception as e:
+            if i == max_retries - 1:
+                print(f" Database connection failed after {max_retries} attempts: {e}")
+                raise
+            print(f" Database not ready (Attempt {i+1}/{max_retries}). Retrying in {retry_interval}s...")
+            time.sleep(retry_interval)
+
     try:
-        eng = get_engine()
         print(" Initializing database tables...")
 
         # 1. Import all models so they register on Base.metadata
