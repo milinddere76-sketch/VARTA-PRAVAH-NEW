@@ -11,7 +11,7 @@ import asyncio
 import time
 from temporalio.client import Client
 from temporalio.worker import Worker, UnsandboxedWorkflowRunner
-from .workflows import NewsProductionWorkflow, StopStreamWorkflow, MasterBulletinWorkflow, BreakingNewsWorkflow
+from .workflows import NewsProductionWorkflow, StopStreamWorkflow, MasterBulletinWorkflow, BreakingNewsWorkflow, StartImmediateStreamWorkflow
 
 import database
 import models
@@ -155,12 +155,13 @@ async def trigger_auto_start(client: Client):
         # so the channel isn't empty while waiting for the first scheduled bulletin
         try:
             await client.start_workflow(
-                start_stream_activity,
+                StartImmediateStreamWorkflow.run,
                 {"channel_id": channel_id, "stream_key": stream_key, "video_url": f"videos/promo_ch{channel_id}.mp4", "is_promo": True},
                 id=f"initial-promo-ch{channel_id}",
                 task_queue="news-task-queue"
             )
             print(f"✅ Initial Promo triggered for CH{channel_id}")
+
         except: pass
 
 
@@ -210,7 +211,7 @@ async def main():
     worker = Worker(
         client,
         task_queue="news-task-queue",
-        workflows=[NewsProductionWorkflow, StopStreamWorkflow, MasterBulletinWorkflow, BreakingNewsWorkflow],
+        workflows=[NewsProductionWorkflow, StopStreamWorkflow, MasterBulletinWorkflow, BreakingNewsWorkflow, StartImmediateStreamWorkflow],
         activities=[
             fetch_news_activity,
 
