@@ -278,3 +278,25 @@ class NewsProductionWorkflow:
     async def run(self, data: dict) -> str:
         # Relies on the previous logic...
         pass
+
+@workflow.defn
+class StartImmediateStreamWorkflow:
+    @workflow.run
+    async def run(self, data: dict):
+        channel_id = data.get("channel_id", 1)
+        
+        # 1. Ensure the promo video exists for this channel
+        # This prevents the "missing file" error on fresh boots
+        await workflow.execute_activity(
+            ensure_promo_video_activity,
+            channel_id,
+            start_to_close_timeout=timedelta(minutes=2)
+        )
+        
+        # 2. Execute the stream start
+        await workflow.execute_activity(
+            start_stream_activity,
+            data,
+            start_to_close_timeout=timedelta(minutes=5)
+        )
+        return "Immediate stream started"
