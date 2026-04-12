@@ -103,6 +103,29 @@ services:
     networks:
       - vartapravah-net
 
+  backend-worker-ch2:
+    container_name: vartapravah_worker_ch2
+    build: 
+      context: ./backend
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    volumes:
+      - ./backend:/app
+      - ./videos:/app/videos
+    environment:
+      - DATABASE_URL=postgresql+psycopg://root:password@postgres:5432/temporal
+      - TEMPORAL_ADDRESS=temporal:7233
+      - YOUTUBE_STREAM_KEY=9efm-d8gq-mmma-9y1b-7sez
+      - AUTO_START_CHANNEL_ID=2
+      - GROQ_API_KEY=${GROQ_API_KEY}
+      - WORLD_NEWS_API_KEY=${WORLD_NEWS_API_KEY}
+      - SYNCLABS_API_KEY=${SYNCLABS_API_KEY}
+    depends_on:
+      backend:
+        condition: service_healthy
+    networks:
+      - vartapravah-net
+
   frontend:
     container_name: vartapravah_frontend
     build: ./frontend
