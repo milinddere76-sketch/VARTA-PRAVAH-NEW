@@ -43,12 +43,13 @@ async def get_temporal_client(retries: int = 10, delay: int = 5) -> Client:
         try:
             print(f"Connecting to Temporal ({current_target})... Attempt {attempt+1}/{retries}")
             client = await asyncio.wait_for(Client.connect(current_target), timeout=2.0)
-            print(f"✅ Connected to Temporal successfully via {current_target}")
+            print(f"Connected to Temporal successfully via {current_target}")
             return client
 
         except Exception as e:
             last_error = e
-            print(f"❌ Temporal connection failed on {current_target}: {e}")
+            print(f"Temporal connection failed on {current_target}: {e}")
             await asyncio.sleep(delay)
+
 
     raise RuntimeError(f"Unable to connect to Temporal after {retries} attempts: {last_error}")

@@ -465,7 +465,10 @@ async def stitch_bulletin_activity(data: dict) -> str:
         try: os.remove(list_p)
         except: pass
 
- return {"gender": "female", "name": "Priya"}
+@activity.defn
+async def get_channel_anchor_activity(channel_id: int) -> dict:
+    return {"gender": "female", "name": "Priya"}
+
 
 @activity.defn
 async def upload_to_s3_activity(v_url: str) -> str: return v_url

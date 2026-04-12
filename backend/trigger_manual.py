@@ -19,19 +19,19 @@ async def trigger_news(channel_id: int, b_type: str = "Regular"):
     try:
         client = await temporal_utils.get_temporal_client()
     except Exception as e:
-        print(f"❌ Could not connect to Temporal: {e}")
+        print(f"ERROR: Could not connect to Temporal: {e}")
         return
 
     # 2. Get Channel Info from DB
     db = next(database.get_db())
     channel = db.query(models.Channel).filter(models.Channel.id == channel_id).first()
     if not channel:
-        print(f"❌ Channel {channel_id} not found in database.")
+        print(f"ERROR: Channel {channel_id} not found in database.")
         db.close()
         return
 
     if not channel.youtube_stream_key:
-        print(f"❌ Channel {channel_id} has no stream key set.")
+        print(f"ERROR: Channel {channel_id} has no stream key set.")
         db.close()
         return
 
@@ -51,17 +51,27 @@ async def trigger_news(channel_id: int, b_type: str = "Regular"):
     }
 
     try:
+        # Terminate existing if any
+        try:
+            handle = client.get_workflow_handle(workflow_id)
+            await handle.terminate(reason="Manual trigger override")
+            print(f"   Terminated existing stuck workflow {workflow_id}")
+            await asyncio.sleep(2)
+        except: pass
+
         handle = await client.start_workflow(
             "MasterBulletinWorkflow",
             input_data,
             id=workflow_id,
             task_queue="news-task-queue"
         )
-        print(f"✅ Master Bulletin started successfully!")
+
+        print(f"SUCCESS: Master Bulletin started successfully!")
         print(f"   Workflow ID: {handle.id}")
         
     except Exception as e:
-        print(f"❌ Error starting workflow: {e}")
+        print(f"ERROR: starting workflow: {e}")
+
 
 if __name__ == "__main__":
     import argparse
