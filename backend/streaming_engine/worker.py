@@ -15,6 +15,8 @@ from .workflows import NewsProductionWorkflow, StopStreamWorkflow
 from .activities import (
     fetch_news_activity,
     generate_script_activity,
+    generate_headlines_activity,
+    generate_closing_activity,
     generate_audio_activity,
     generate_news_video_activity,
     synclabs_lip_sync_activity,
@@ -211,6 +213,8 @@ async def main():
         activities=[
             fetch_news_activity,
             generate_script_activity,
+            generate_headlines_activity,
+            generate_closing_activity,
             generate_audio_activity,
             generate_news_video_activity,
             synclabs_lip_sync_activity,
