@@ -183,8 +183,9 @@ async def main():
         except: pass
 
     write_status("Connecting to Temporal (Retrying for 5 mins)...")
+    # Retry connection to Temporal with progressive backoff
     client = None
-    for i in range(60):
+    for i in range(30):
         try:
             client = await temporal_utils.get_temporal_client()
             if client:
@@ -192,11 +193,13 @@ async def main():
                 print(" Connected to Temporal")
                 break
         except Exception as e:
-            write_status(f"Connect Retry {i+1}/60: {str(e)}")
-            await asyncio.sleep(5)
+            # Progressive delay: start fast, then slow down to give server breathing room
+            delay = min(2 + (i // 2), 15) 
+            write_status(f"Connect Retry {i+1}/30 (Wait {delay}s): {str(e)}")
+            await asyncio.sleep(delay)
 
     if not client:
-        write_status("CRITICAL: Failed to connect to Temporal after 12 retries")
+        write_status("CRITICAL: Failed to connect to Temporal after 30 retries")
         raise RuntimeError(" Cannot connect to Temporal")
 
     # Start workflow in background 
