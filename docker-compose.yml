@@ -117,7 +117,7 @@ services:
     environment:
       - DATABASE_URL=postgresql+psycopg://root:password@postgres:5432/temporal
       - TEMPORAL_ADDRESS=temporal:7233
-      - YOUTUBE_STREAM_KEY=9efm-d8gq-mmma-9y1b-7sez
+      - YOUTUBE_STREAM_KEY=${YOUTUBE_STREAM_KEY_CH2}
       - AUTO_START_CHANNEL_ID=2
       - GROQ_API_KEY=${GROQ_API_KEY}
       - WORLD_NEWS_API_KEY=${WORLD_NEWS_API_KEY}
