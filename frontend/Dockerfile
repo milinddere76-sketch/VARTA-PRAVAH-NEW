@@ -9,6 +9,8 @@ RUN npm ci --prefer-offline
 
 # Copy source and build
 COPY . .
+ENV NEXT_TELEMETRY_DISABLED=1
+ENV NODE_OPTIONS="--max-old-space-size=1536"
 RUN npm run build
 
 # ── Stage 2: Runtime ──────────────────────────────────────────────────────────
