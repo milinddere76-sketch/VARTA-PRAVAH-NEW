@@ -95,9 +95,9 @@ services:
       - PYTHONPATH=/app
     volumes:
       - ./backend/videos:/app/videos
-    depends_on:
+     depends_on:
       backend:
-        condition: service_healthy
+         condition: service_started
       temporal:
         condition: service_started
     networks:
@@ -122,7 +122,7 @@ services:
       - SYNCLABS_API_KEY=${SYNCLABS_API_KEY}
     depends_on:
       backend:
-        condition: service_healthy
+        condition: service_started
     networks:
       - vartapravah-net
 
@@ -134,10 +134,9 @@ services:
       - "3000:3000"
     environment:
       - BACKEND_URL=http://backend:8000
-      - NEXT_SERVER_ACTIONS_ENCRYPTION_KEY=W3mUwLYSQC9bPN68YyAr6l7FBw9KHAcrnReU/tiSjBg=
     depends_on:
       backend:
-        condition: service_healthy
+        condition: service_started
     networks:
       - vartapravah-net
 
