@@ -189,18 +189,24 @@ async def generate_news_video_activity(input_data: dict) -> str:
     title = input_data.get("title", "Breaking News")
     audio_path = input_data.get("audio_url", "")
     synced_v = input_data.get("synced_video_url", "")
+    is_female = input_data.get("is_female", True)
     
     from database import SessionLocal
-    from models import Channel, Anchor
+    from models import Anchor
     db = SessionLocal()
-    channel = db.query(Channel).first()
-    anchor = db.query(Anchor).filter(Anchor.id == channel.preferred_anchor_id).first() if channel else None
+    # Fetch the first active anchor matching the requested gender
+    anchor = db.query(Anchor).filter(Anchor.gender == ("female" if is_female else "male"), Anchor.is_active == True).first()
     db.close()
 
     assets_dir = os.path.join(BASE_DIR, "assets")
     bg_p = os.path.join(assets_dir, "studio_bg.png")
     logo_p = os.path.join(assets_dir, "logo.png")
-    port_p = os.path.join(BASE_DIR, anchor.portrait_url) if anchor and anchor.portrait_url else os.path.join(assets_dir, "female_anchor.png")
+    
+    # Use anchor portrait if found, else fallback to defaults
+    if anchor and anchor.portrait_url:
+        port_p = os.path.join(BASE_DIR, anchor.portrait_url)
+    else:
+        port_p = os.path.join(assets_dir, "female_anchor.png" if is_female else "male_anchor.png")
 
     try:
         studio = Image.open(bg_p).convert("RGBA").resize((1920, 1080)) if os.path.exists(bg_p) else Image.new("RGBA", (1920, 1080), (15, 25, 45, 255))

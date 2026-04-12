@@ -97,7 +97,8 @@ class NewsProductionWorkflow:
                     {
                         "title": "HEADLINES",
                         "audio_url": headlines_audio,
-                        "script": headlines_data["script"]
+                        "script": headlines_data["script"],
+                        "is_female": is_female
                     },
                     start_to_close_timeout=timedelta(minutes=5)
                 )
@@ -142,7 +143,8 @@ class NewsProductionWorkflow:
                             "title": story.get("headline", "Breaking News"),
                             "audio_url": audio_path,
                             "script": script_data.get("script", ""),
-                            "synced_video_url": synced_video_url
+                            "synced_video_url": synced_video_url,
+                            "is_female": is_female
                         },
                         start_to_close_timeout=timedelta(minutes=5)
                     )
@@ -166,7 +168,8 @@ class NewsProductionWorkflow:
                     {
                         "title": "Closing",
                         "audio_url": closing_audio,
-                        "script": closing_data["script"]
+                        "script": closing_data["script"],
+                        "is_female": is_female
                     },
                     start_to_close_timeout=timedelta(minutes=5)
                 )
