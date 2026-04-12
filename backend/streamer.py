@@ -49,8 +49,11 @@ class Streamer:
         if start_time:
             cmd += ["-ss", start_time]
 
+        # Use stream_loop for promos to keep them looping infinitely
+        if self.is_promo:
+            cmd += ["-stream_loop", "-1"]
+
         # Input 0: Main Video or Standby Pattern
-        # Check if it's a file path or a lavfi filter string
         if "=" in self.current_video and " " not in self.current_video:
             cmd += ["-f", "lavfi", "-i", self.current_video]
         else:
@@ -60,6 +63,7 @@ class Streamer:
         if not has_audio:
             cmd += ["-f", "lavfi", "-i", "anullsrc=channel_layout=stereo:sample_rate=44100"]
 
+
         # Selection logic
         audio_map = "0:a" if has_audio else "1:a"
 
@@ -67,11 +71,11 @@ class Streamer:
         if self.is_promo:
             # Promo logic — simple loop
             cmd += [
-                "-stream_loop", "-1",
                 "-map", "0:v",
                 "-map", audio_map,
                 "-vf", "scale=1280:720,format=yuv420p,fps=30",
             ]
+
         elif os.path.exists(self.logo_path):
             # Input 2: Logo (if anullsrc occupied index 1) or Input 1 (if audio present)
             logo_idx = 2 if not has_audio else 1
