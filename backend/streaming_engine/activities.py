@@ -158,6 +158,14 @@ async def generate_headlines_activity(input_data: dict) -> dict:
         return {"script": f"{greeting} ठळक बातम्या. सविस्तर बातम्या आता पाहूया.", "is_female": is_female}
 
 @activity.defn
+async def generate_closing_activity(input_data: dict) -> dict:
+    is_female = input_data.get("is_female", False)
+    
+    script = "ही होती आजच्या प्रमुख बातम्यांची झलक. अधिक अपडेट्ससाठी पाहत राहा 'वार्ताप्रवाह' — सत्य, वेग आणि विश्वासाचा प्रवाह. नमस्कार!"
+    
+    return {"script": script, "is_female": is_female}
+
+@activity.defn
 async def generate_audio_activity(input_data: dict) -> str:
     script = input_data.get("script", "")
     is_female = input_data.get("is_female", True)

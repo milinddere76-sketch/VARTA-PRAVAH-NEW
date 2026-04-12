@@ -6,6 +6,7 @@ from .activities import (
     fetch_news_activity,
     generate_script_activity,
     generate_headlines_activity,
+    generate_closing_activity,
     generate_audio_activity,
     generate_news_video_activity,
     synclabs_lip_sync_activity,
@@ -147,6 +148,30 @@ class NewsProductionWorkflow:
                     )
                     if clip_path:
                         story_videos.append(clip_path)
+
+                # --- NEW: CLOSING BLOCK ---
+                print("--- GENERATING CLOSING BLOCK ---")
+                closing_data = await workflow.execute_activity(
+                    generate_closing_activity,
+                    {"is_female": is_female},
+                    start_to_close_timeout=timedelta(minutes=2)
+                )
+                closing_audio = await workflow.execute_activity(
+                    generate_audio_activity,
+                    {"script": closing_data["script"], "is_female": is_female},
+                    start_to_close_timeout=timedelta(minutes=2)
+                )
+                closing_clip = await workflow.execute_activity(
+                    generate_news_video_activity,
+                    {
+                        "title": "Closing",
+                        "audio_url": closing_audio,
+                        "script": closing_data["script"]
+                    },
+                    start_to_close_timeout=timedelta(minutes=5)
+                )
+                if closing_clip:
+                    story_videos.append(closing_clip)
 
                 if not story_videos:
                     print("No stories generated.")
