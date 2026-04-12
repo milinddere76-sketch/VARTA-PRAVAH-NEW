@@ -96,12 +96,18 @@ services:
     environment:
       - DATABASE_URL=postgresql+psycopg://root:password@postgres:5432/temporal
       - TEMPORAL_ADDRESS=temporal:7233
-      - AUTO_START_CHANNEL_ID=1
-      - DEFAULT_LANGUAGE=Marathi
-      - YOUTUBE_STREAM_KEY=qcu7-xesd-m4sv-9zvv-e335
+      - AUTO_START_ALL_CHANNELS=True
       - PYTHONPATH=/app
+      - GROQ_API_KEY=${GROQ_API_KEY}
+      - WORLD_NEWS_API_KEY=${WORLD_NEWS_API_KEY}
+      - SYNCLABS_API_KEY=${SYNCLABS_API_KEY}
+      - SYNC_LABS_FEMALE_VIDEO=${SYNC_LABS_FEMALE_VIDEO}
+      - SYNC_LABS_MALE_VIDEO=${SYNC_LABS_MALE_VIDEO}
+      - YOUTUBE_STREAM_KEY=${YOUTUBE_STREAM_KEY}
+      - YOUTUBE_STREAM_KEY_CH2=${YOUTUBE_STREAM_KEY_CH2}
     volumes:
       - ./backend/videos:/app/videos
+      - ./backend/assets:/app/assets
     depends_on:
       backend:
         condition: service_started
@@ -110,29 +116,6 @@ services:
     networks:
       - vartapravah-net
 
-  backend-worker-ch2:
-    container_name: vartapravah_worker_ch2
-    build: 
-      context: ./backend
-      dockerfile: Dockerfile
-    working_dir: /app
-    command: python -m streaming_engine.worker
-    restart: unless-stopped
-    volumes:
-      - ./backend/videos:/app/videos
-    environment:
-      - DATABASE_URL=postgresql+psycopg://root:password@postgres:5432/temporal
-      - TEMPORAL_ADDRESS=temporal:7233
-      - YOUTUBE_STREAM_KEY=${YOUTUBE_STREAM_KEY_CH2}
-      - AUTO_START_CHANNEL_ID=2
-      - GROQ_API_KEY=${GROQ_API_KEY}
-      - WORLD_NEWS_API_KEY=${WORLD_NEWS_API_KEY}
-      - SYNCLABS_API_KEY=${SYNCLABS_API_KEY}
-    depends_on:
-      backend:
-        condition: service_started
-    networks:
-      - vartapravah-net
 
   frontend:
     container_name: vartapravah_frontend
