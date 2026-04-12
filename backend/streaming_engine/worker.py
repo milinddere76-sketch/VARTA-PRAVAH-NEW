@@ -119,55 +119,57 @@ async def seed_database():
 async def trigger_auto_start(client: Client):
     anchor_female_id, anchor_male_id = await seed_database()
 
-    # Wait for DB seed to be ready
-    print(f" Scanning database for active channels...")
+    # Get the specific channel this worker is responsible for starting
+    auto_cid = int(os.getenv("AUTO_START_CHANNEL_ID", "1"))
+    
+    print(f" Checking database for Channel {auto_cid}...")
     db = next(database.get_db())
-    channels = db.query(models.Channel).all()
+    channel = db.query(models.Channel).filter(models.Channel.id == auto_cid).first()
     db.close()
 
-    if not channels:
-        print(" No channels found to autostart.")
+    if not channel:
+        print(f" Channel {auto_cid} not found to autostart.")
         return
 
-    for channel in channels:
-        channel_id = channel.id
-        language = channel.language or "Marathi"
-        stream_key = channel.youtube_stream_key
+    channel_id = channel.id
+    language = channel.language or "Marathi"
+    stream_key = channel.youtube_stream_key
 
-        if not stream_key:
-            print(f" Skipping Channel {channel_id} - No Stream Key")
-            continue
+    if not stream_key:
+        print(f" Skipping Channel {channel_id} - No Stream Key")
+        return
 
-        workflow_id = f"news-production-{channel_id}"
+    workflow_id = f"news-production-{channel_id}"
 
-        # Terminate any existing workflow (running or stuck) and start fresh.
-        try:
-            handle = client.get_workflow_handle(workflow_id)
-            await handle.terminate(reason="Redeployment - starting fresh")
-            print(f" Terminated previous workflow for Channel {channel_id}")
-            await asyncio.sleep(2)
-        except: pass
+    # Terminate any existing workflow (running or stuck) and start fresh.
+    try:
+        handle = client.get_workflow_handle(workflow_id)
+        await handle.terminate(reason="Redeployment - starting fresh")
+        print(f" Terminated previous workflow for Channel {channel_id}")
+        await asyncio.sleep(2)
+    except: pass
 
-        # Start workflow
-        try:
-            await client.start_workflow(
-                NewsProductionWorkflow.run,
-                {
-                    "channel_id": channel_id,
-                    "language": language,
-                    "stream_key": stream_key,
-                    "anchor_ids": [anchor_female_id, anchor_male_id]
-                },
-                id=workflow_id,
-                task_queue="news-task-queue"
-            )
-            print(f" ✅ Channel {channel_id} workflow started (Broadcast Active)")
+    # Start workflow
+    try:
+        await client.start_workflow(
+            NewsProductionWorkflow.run,
+            {
+                "channel_id": channel_id,
+                "language": language,
+                "stream_key": stream_key,
+                "anchor_ids": [anchor_female_id, anchor_male_id]
+            },
+            id=workflow_id,
+            task_queue="news-task-queue"
+        )
+        print(f" ✅ Channel {channel_id} workflow started (Broadcast Active)")
 
-        except Exception as e:
-            if "already started" in str(e).lower():
-                print(f" Channel {channel_id} already running.")
-            else:
-                print(f" Channel {channel_id} start issue: {e}")
+    except Exception as e:
+        if "already started" in str(e).lower():
+            print(f" Channel {channel_id} already running.")
+        else:
+            print(f" Channel {channel_id} start issue: {e}")
+
 
 
 
