@@ -108,9 +108,10 @@ class MasterBulletinWorkflow:
         
         headlines_path = await workflow.execute_activity(
             generate_news_video_activity,
-            {"audio_url": headlines_audio, "item": {"title": f"{bulletin_type} Headlines", "category": "TOP"}, "is_female": is_female},
+            {"audio_url": headlines_audio, "title": f"{bulletin_type} Headlines", "is_female": is_female},
             start_to_close_timeout=timedelta(minutes=5)
         )
+
 
         # 3. Generate Individual Stories with Alternating Anchors
         story_videos = []
@@ -125,7 +126,7 @@ class MasterBulletinWorkflow:
             # Generate Script
             script_data = await workflow.execute_activity(
                 generate_script_activity,
-                {"item": item, "language": language},
+                {"news_data": item, "language": language, "is_female": current_is_female},
                 start_to_close_timeout=timedelta(minutes=2)
             )
             
@@ -139,11 +140,17 @@ class MasterBulletinWorkflow:
             # Generate Video
             video_path = await workflow.execute_activity(
                 generate_news_video_activity,
-                {"audio_url": audio_path, "item": item, "anchor_id": current_anchor_id, "is_female": current_is_female},
+                {
+                    "audio_url": audio_path, 
+                    "title": item["headline"], 
+                    "anchor_id": current_anchor_id, 
+                    "is_female": current_is_female
+                },
                 start_to_close_timeout=timedelta(minutes=10)
             )
             if video_path:
                 story_videos.append(video_path)
+
 
 
         # 4. Stitch into 60-minute Bulletin
