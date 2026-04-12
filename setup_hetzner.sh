@@ -48,6 +48,19 @@ fi
 # 5. Application Setup
 echo "📂 Preparing Application Directory..."
 
+# ------------------------------------------------------------------------------
+# MAINTENANCE & CLEANUP (Run if build fails with 'No space left on device')
+# ------------------------------------------------------------------------------
+# Usage: ./setup_hetzner.sh --cleanup
+if [[ "$1" == "--cleanup" ]]; then
+    echo "🧹 Cleaning up Docker assets..."
+    docker system prune -af --volumes
+    echo "✅ Cleanup complete. Try deploying again!"
+    exit 0
+fi
+
+echo "✅ Setup script finished. Your Marathi news engine is ready!"
+
 if [ ! -f "docker-compose.yml" ]; then
     echo "❌ ERROR: docker-compose.yml NOT found!"
     echo "👉 Run this script inside your project root folder."
