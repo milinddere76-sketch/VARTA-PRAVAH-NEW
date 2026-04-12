@@ -113,6 +113,8 @@ class Streamer:
             "-ar",   "44100",
             "-b:a",  "128k",
             "-ac",   "2",
+            # Metadata to identify the process for pkill -f
+            "-metadata", f"vp_channel={self.channel_id}",
             "-f",        "flv",
             "-flvflags", "no_duration_filesize",
             self.rtmp_url,

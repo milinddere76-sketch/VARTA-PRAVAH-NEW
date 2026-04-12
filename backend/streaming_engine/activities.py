@@ -43,8 +43,9 @@ def _terminate_stream_process(channel_id: int):
         if sys.platform == "win32":
             subprocess.run(["taskkill", "/F", "/IM", "ffmpeg.exe"], capture_output=True)
         else:
-            subprocess.run(["pkill", "-9", "-f", "ffmpeg"], capture_output=True)
-        print(f"Cleaned up all FFmpeg processes for channel {channel_id}")
+            # Surgically kill only the FFmpeg process for this specific channel
+            subprocess.run(["pkill", "-9", "-f", f"vp_channel={channel_id}"], capture_output=True)
+        print(f"Surgically cleaned up FFmpeg for channel {channel_id}")
     except:
         pass
 
