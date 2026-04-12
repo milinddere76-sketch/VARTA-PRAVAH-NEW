@@ -126,25 +126,42 @@ async def trigger_auto_start(client: Client):
 
     workflow_id = f"news-production-{channel_id}"
 
+    # Wait for Temporal to be ready
+    print(f" Connecting to Temporal to start Channel {channel_id} workflow...")
+    for i in range(10):
+        try:
+            await client.get_workflow_handle(workflow_id).describe()
+            break
+        except Exception:
+            if i == 9: break 
+            print(f" ⏳ Waiting for Temporal service... (Attempt {i+1}/10)")
+            await asyncio.sleep(5)
+
     # Terminate any existing workflow (running or stuck) and start fresh.
-    # A healthy deployment always needs a clean workflow start.
     try:
         handle = client.get_workflow_handle(workflow_id)
         desc = await handle.describe()
-        status = desc.status.name  # e.g. RUNNING, FAILED, TIMED_OUT, COMPLETED
+        status = desc.status.name
         print(f" Found existing workflow '{workflow_id}' with status: {status}")
-        # Always terminate so we start fresh with new code/settings
         try:
-            await handle.terminate(reason="Redeployment  starting fresh")
+            await handle.terminate(reason="Redeployment - starting fresh")
             print(f" Terminated previous workflow ({status})")
-            await asyncio.sleep(3)   # give Temporal time to close it
-        except Exception as term_err:
-            print(f"  Could not terminate workflow (may be already closed): {term_err}")
-    except Exception:
-        # Workflow doesn't exist yet  fresh start
-        print(f"  No existing workflow '{workflow_id}'  will create fresh")
+            await asyncio.sleep(5)
+        except: pass
+    except: pass
 
-    # Start workflow  pass both anchor IDs so it alternates them
+    # Wait for DB seed to be ready (ensure Channel 2 exists)
+    print(f" Checking database for Channel {channel_id}...")
+    for i in range(12):
+        db = next(database.get_db())
+        channel = db.query(models.Channel).filter(models.Channel.id == channel_id).first()
+        if channel:
+            print(f" ✅ Channel {channel_id} found in DB.")
+            break
+        print(f" ⏳ Waiting for Database Seed... (Attempt {i+1}/12)")
+        await asyncio.sleep(5)
+
+    # Start workflow
     try:
         await client.start_workflow(
             NewsProductionWorkflow.run,
@@ -201,6 +218,7 @@ async def main():
     asyncio.create_task(trigger_auto_start(client))
     write_status("Worker Running - Polling news-task-queue")
 
+    channel_id_env = os.getenv("AUTO_START_CHANNEL_ID", "1")
     worker = Worker(
         client,
         task_queue="news-task-queue",
@@ -222,6 +240,7 @@ async def main():
             check_scheduled_ads_activity,
             cleanup_old_videos_activity
         ],
+        identity=f"Worker-Ch{channel_id_env}",
         workflow_runner=UnsandboxedWorkflowRunner()
     )
 
