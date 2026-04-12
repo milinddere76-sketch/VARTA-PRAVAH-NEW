@@ -342,7 +342,130 @@ async def cleanup_old_videos_activity() -> str: return "Cleanup skipped"
 async def ensure_premium_promo_activity() -> bool: return True
 
 @activity.defn
-async def get_channel_anchor_activity(channel_id: int) -> dict: return {"gender": "female", "name": "Priya"}
+async def get_video_duration_activity(file_path: str) -> float:
+    if not os.path.exists(file_path): return 0.0
+    try:
+        cmd = [
+            "ffprobe", "-v", "error", "-show_entries", "format=duration",
+            "-of", "default=noprint_wrappers=1:nokey=1", file_path
+        ]
+        res = subprocess.run(cmd, capture_output=True, text=True)
+        return float(res.stdout.strip())
+    except:
+        return 0.0
+
+@activity.defn
+async def merge_videos_activity(video_paths: list[str]) -> str:
+
+    if not video_paths: return ""
+    if len(video_paths) == 1: return video_paths[0]
+    
+    # Filter out empty or missing paths
+    valid_paths = [p for p in video_paths if p and os.path.exists(p)]
+    if not valid_paths: return ""
+
+    output_p = os.path.join(BASE_DIR, "videos", f"bulletin_{uuid.uuid4().hex}.mp4")
+    
+    # Create concat list
+    list_p = os.path.join(tempfile.gettempdir(), f"concat_list_{uuid.uuid4().hex}.txt")
+    with open(list_p, "w") as f:
+        for p in valid_paths:
+            # FFmpeg concat file expects escaped paths
+            abs_p = os.path.abspath(p).replace("\\", "/")
+            f.write(f"file '{abs_p}'\n")
+    
+    try:
+        # Use concat demuxer for fast, lossless stitching (assumes same resolution/codec)
+        subprocess.run([
+            "ffmpeg", "-y", "-f", "concat", "-safe", "0", "-i", list_p,
+            "-c", "copy", output_p
+        ], check=True)
+        return output_p
+    except Exception as e:
+        print(f"Concat Error: {e}")
+        return valid_paths[0]
+    finally:
+        try: os.remove(list_p)
+        except: pass
+
+@activity.defn
+async def stitch_bulletin_activity(data: dict) -> str:
+    # Organize news stories and promos into a 1-hour bulletin
+    intro_path = data.get("intro_path")
+    headlines_path = data.get("headlines_path")
+    story_paths = data.get("story_paths", [])
+    promo_path = data.get("promo_path")
+    target_duration = 3600 # 1 hour
+    
+    if not story_paths: return ""
+    
+    final_sequence = []
+    if intro_path and os.path.exists(intro_path):
+        final_sequence.append(intro_path)
+    if headlines_path and os.path.exists(headlines_path):
+        final_sequence.append(headlines_path)
+        
+    block_news_count = 5 # ~5 minutes of news
+    current_idx = 0
+    
+    # Assembly loop
+    while True:
+        # Add a block of stories
+        for _ in range(block_news_count):
+            if current_idx >= len(story_paths):
+                # We ran out of stories, start repeating in shuffled order
+                import random
+                shuffled = story_paths[:]
+                random.shuffle(shuffled)
+                story_paths.extend(shuffled)
+            
+            final_sequence.append(story_paths[current_idx])
+            current_idx += 1
+            
+        # Add Promo
+        if promo_path and os.path.exists(promo_path):
+            final_sequence.append(promo_path)
+            
+        # Check current duration
+        # (This is an approximation for efficiency during assembly)
+        # In real production, we'd check duration of final_sequence
+        if len(final_sequence) > 50: # Safety break (approx 50-60 mins)
+            break
+
+    # Final Merge
+    output_p = os.path.join(BASE_DIR, "videos", f"full_bulletin_{uuid.uuid4().hex}.mp4")
+    list_p = os.path.join(tempfile.gettempdir(), f"stitch_list_{uuid.uuid4().hex}.txt")
+    with open(list_p, "w") as f:
+        for p in final_sequence:
+            abs_p = os.path.abspath(p).replace("\\", "/")
+            f.write(f"file '{abs_p}'\n")
+    
+    try:
+        # Step 1: Concat everything
+        temp_p = os.path.join(tempfile.gettempdir(), f"full_merged_{uuid.uuid4().hex}.mp4")
+        subprocess.run([
+            "ffmpeg", "-y", "-f", "concat", "-safe", "0", "-i", list_p,
+            "-c", "copy", temp_p
+        ], check=True)
+        
+        # Step 2: Trim to exact 60 minutes
+        subprocess.run([
+            "ffmpeg", "-y", "-t", "3600", "-i", temp_p,
+            "-c", "copy", output_p
+        ], check=True)
+        
+        try: os.remove(temp_p)
+        except: pass
+        
+        return output_p
+    except Exception as e:
+        print(f"Stitch Error: {e}")
+        return story_paths[0] if story_paths else ""
+    finally:
+        try: os.remove(list_p)
+        except: pass
+
+ return {"gender": "female", "name": "Priya"}
 
 @activity.defn
 async def upload_to_s3_activity(v_url: str) -> str: return v_url

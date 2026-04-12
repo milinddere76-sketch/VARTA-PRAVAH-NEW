@@ -11,7 +11,8 @@ import asyncio
 import time
 from temporalio.client import Client
 from temporalio.worker import Worker, UnsandboxedWorkflowRunner
-from .workflows import NewsProductionWorkflow, StopStreamWorkflow
+from .workflows import NewsProductionWorkflow, StopStreamWorkflow, MasterBulletinWorkflow, BreakingNewsWorkflow
+
 import database
 import models
 from .activities import (
@@ -29,8 +30,11 @@ from .activities import (
     ensure_premium_promo_activity,
     stop_stream_activity,
     check_scheduled_ads_activity,
-    cleanup_old_videos_activity
+    merge_videos_activity,
+    stitch_bulletin_activity
 )
+
+
 
 from database import get_session_local
 from models import Channel, User, Anchor
@@ -118,6 +122,7 @@ async def seed_database():
 
 async def trigger_auto_start(client: Client):
     anchor_female_id, anchor_male_id = await seed_database()
+    from .scheduler import setup_schedules
 
     # Determine if we should start all channels or just one
     auto_all = os.getenv("AUTO_START_ALL_CHANNELS", "False").lower() == "true"
@@ -125,57 +130,37 @@ async def trigger_auto_start(client: Client):
     
     db = next(database.get_db())
     if auto_all:
-        print(f" Scanning database for ALL channels to autostart...")
         channels = db.query(models.Channel).all()
     else:
-        print(f" Checking database for specific Channel {auto_cid}...")
         channels = db.query(models.Channel).filter(models.Channel.id == auto_cid).all()
     db.close()
 
-    if not channels:
-        print(f" No channels found to autostart.")
-        return
-
     for channel in channels:
         channel_id = channel.id
-        language = channel.language or "Marathi"
         stream_key = channel.youtube_stream_key
+        
+        if not stream_key: continue
 
-        if not stream_key:
-            print(f" Skipping Channel {channel_id} - No Stream Key")
-            continue
-
-        workflow_id = f"news-production-{channel_id}"
-
-
-        # Terminate any existing workflow (running or stuck) and start fresh.
-        try:
-            handle = client.get_workflow_handle(workflow_id)
-            await handle.terminate(reason="Redeployment - starting fresh")
-            print(f" Terminated previous workflow for Channel {channel_id}")
-            await asyncio.sleep(2)
-        except: pass
-
-        # Start workflow
+        # 1. Setup Schedules (Daily Bulletins + Breaking News)
+        await setup_schedules(
+            client, 
+            channel_id, 
+            stream_key, 
+            [anchor_female_id, anchor_male_id]
+        )
+        
+        # 2. Start initial Promo loop immediately via a one-off workflow
+        # so the channel isn't empty while waiting for the first scheduled bulletin
         try:
             await client.start_workflow(
-                NewsProductionWorkflow.run,
-                {
-                    "channel_id": channel_id,
-                    "language": language,
-                    "stream_key": stream_key,
-                    "anchor_ids": [anchor_female_id, anchor_male_id]
-                },
-                id=workflow_id,
+                start_stream_activity,
+                {"channel_id": channel_id, "stream_key": stream_key, "video_url": f"videos/promo_ch{channel_id}.mp4", "is_promo": True},
+                id=f"initial-promo-ch{channel_id}",
                 task_queue="news-task-queue"
             )
-            print(f" ✅ Channel {channel_id} workflow started (Broadcast Active)")
+            print(f"✅ Initial Promo triggered for CH{channel_id}")
+        except: pass
 
-        except Exception as e:
-            if "already started" in str(e).lower():
-                print(f" Channel {channel_id} already running.")
-            else:
-                print(f" Channel {channel_id} start issue: {e}")
 
 
 
@@ -220,9 +205,10 @@ async def main():
     worker = Worker(
         client,
         task_queue="news-task-queue",
-        workflows=[NewsProductionWorkflow, StopStreamWorkflow],
+        workflows=[NewsProductionWorkflow, StopStreamWorkflow, MasterBulletinWorkflow, BreakingNewsWorkflow],
         activities=[
             fetch_news_activity,
+
             generate_script_activity,
             generate_headlines_activity,
             generate_closing_activity,
@@ -236,8 +222,11 @@ async def main():
             ensure_premium_promo_activity,
             stop_stream_activity,
             check_scheduled_ads_activity,
-            cleanup_old_videos_activity
+            merge_videos_activity,
+            stitch_bulletin_activity
         ],
+
+
         identity=f"Worker-Ch{channel_id_env}",
         workflow_runner=UnsandboxedWorkflowRunner()
     )
