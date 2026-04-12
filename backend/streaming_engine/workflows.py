@@ -153,11 +153,37 @@ class MasterBulletinWorkflow:
                 start_to_close_timeout=timedelta(minutes=2)
             )
             
-            # Generate Video
+            # --- AI LIP SYNC STEP ---
+            try:
+                job_id = await workflow.execute_activity(
+                    synclabs_lip_sync_activity,
+                    {"audio_url": audio_path, "is_female": current_is_female},
+                    start_to_close_timeout=timedelta(minutes=1)
+                )
+                
+                # Wait for AI Completion (Max 4 mins)
+                synced_video_url = ""
+                if job_id not in ["failed", "no_api_key"]:
+                    for _ in range(12): # 12 * 20s = 4 mins
+                        await workflow.sleep(timedelta(seconds=20))
+                        status = await workflow.execute_activity(
+                            check_sync_labs_status_activity,
+                            job_id,
+                            start_to_close_timeout=timedelta(minutes=1)
+                        )
+                        if status.get("status") == "completed":
+                            synced_video_url = status.get("video_url")
+                            break
+                        if status.get("status") == "failed": break
+            except:
+                synced_video_url = ""
+
+            # Generate Video (Using synced video if available, else static)
             video_path = await workflow.execute_activity(
                 generate_news_video_activity,
                 {
                     "audio_url": audio_path, 
+                    "synced_video_url": synced_video_url,
                     "title": item["headline"], 
                     "anchor_id": current_anchor_id, 
                     "is_female": current_is_female
