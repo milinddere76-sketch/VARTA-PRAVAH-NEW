@@ -7,9 +7,19 @@ def create_premium_promo(output_path):
     
     # Paths to stems (now inside backend/ on server)
     stems_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "promo_stems")
-    if not os.path.exists(stems_dir):
-        # Fallback for root execution
-        stems_dir = "./promo_stems"
+    has_assets = os.path.exists(os.path.join(stems_dir, "globe_neon.png")) and os.path.exists(os.path.join(stems_dir, "neon_logo.png"))
+    
+    if not has_assets:
+        print("⚠️  Missing premium stems. Using procedural fallback.")
+        # FALLBACK: Create a cool dynamic grid with text if assets are missing
+        cmd = [
+            "ffmpeg", "-y", "-f", "lavfi", "-i", "testsrc=size=1280x720:rate=30",
+            "-f", "lavfi", "-i", "sine=f=40:d=60",
+            "-vf", "hue=h=240:s=0.5,drawtext=text='VARTA PRAVAH':fontcolor=white:fontsize=80:x=(w-tw)/2:y=(h-th)/2:box=1:boxcolor=black@0.5:boxborderw=20",
+            "-t", "60", "-pix_fmt", "yuv420p", output_path
+        ]
+        subprocess.run(cmd, check=True)
+        return
     
     # We'll use a complex filter graph to create animations
     # 1. Background: Concatenate clips with glitch transitions
