@@ -12,6 +12,8 @@ import time
 from temporalio.client import Client
 from temporalio.worker import Worker, UnsandboxedWorkflowRunner
 from .workflows import NewsProductionWorkflow, StopStreamWorkflow
+import database
+import models
 from .activities import (
     fetch_news_activity,
     generate_script_activity,
