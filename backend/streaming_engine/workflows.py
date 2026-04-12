@@ -129,12 +129,13 @@ class NewsProductionWorkflow:
                             start_to_close_timeout=timedelta(minutes=5)
                         )
                         if job_id not in ["no_api_key", "failed", "mock_job"]:
-                            for _ in range(15):
+                            # Increase polling for longer news segments (up to 10 mins)
+                            for _ in range(25):
                                 status_data = await workflow.execute_activity(check_sync_labs_status_activity, job_id, start_to_close_timeout=timedelta(seconds=60))
                                 if status_data.get("status") == "completed":
                                     synced_video_url = status_data.get("video_url")
                                     break
-                                await workflow.sleep(timedelta(seconds=20))
+                                await workflow.sleep(timedelta(seconds=25))
                     except: pass
 
                     clip_path = await workflow.execute_activity(

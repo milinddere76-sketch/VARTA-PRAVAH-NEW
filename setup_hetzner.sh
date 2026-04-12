@@ -59,6 +59,17 @@ if [[ "$1" == "--cleanup" ]]; then
     exit 0
 fi
 
+# 6. Firewalls and Networking (Mandatory for Lip Sync to work)
+echo "🛡️ Configuring Firewall..."
+sudo ufw allow 22/tcp
+sudo ufw allow 80/tcp
+sudo ufw allow 443/tcp
+sudo ufw allow 3000/tcp
+sudo ufw allow 8000/tcp
+sudo ufw allow 8088/tcp
+sudo ufw --force enable
+echo "✅ Firewall configured: Ports 3000 & 8000 are now open."
+
 echo "✅ Setup script finished. Your Marathi news engine is ready!"
 
 if [ ! -f "docker-compose.yml" ]; then
