@@ -11,6 +11,12 @@ services:
       - "5432:5432"
     volumes:
       - postgres_data_v4:/var/lib/postgresql/data
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+        reservations:
+          memory: 128M
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U root -d temporal"]
       interval: 10s
@@ -38,6 +44,12 @@ services:
       - ./temporal/dynamicconfig:/etc/temporal/config/dynamicconfig
     ports:
       - "7233:7233"
+    deploy:
+      resources:
+        limits:
+          memory: 1024M
+        reservations:
+          memory: 512M
     depends_on:
       postgres:
         condition: service_healthy
@@ -69,6 +81,12 @@ services:
     command: uvicorn main:app --host 0.0.0.0 --port 8000
     ports:
       - "8000:8000"
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+        reservations:
+          memory: 128M
     healthcheck:
       test: ["CMD-SHELL", "curl -f http://127.0.0.1:8000/docs || exit 1"]
       interval: 60s
@@ -99,6 +117,12 @@ services:
       - 8.8.8.8
       - 1.1.1.1
     command: python -m streaming_engine.worker
+    deploy:
+      resources:
+        limits:
+          memory: 1536M
+        reservations:
+          memory: 512M
     environment:
       - DATABASE_URL=postgresql+psycopg://root:password@postgres:5432/temporal
       - TEMPORAL_ADDRESS=temporal:7233
