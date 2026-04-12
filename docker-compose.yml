@@ -138,6 +138,7 @@ services:
       - "3000:3000"
     environment:
       - BACKEND_URL=http://backend:8000
+      - NEXT_SERVER_ACTIONS_ENCRYPTION_KEY=W3mUwLYSQC9bPN68YyAr6l7FBw9KHAcrnReU/tiSjBg=
     depends_on:
       backend:
         condition: service_started
