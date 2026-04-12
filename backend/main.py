@@ -25,6 +25,8 @@ async def lifespan(app: FastAPI):
             # Run the synchronous init_db in a separate thread to avoid blocking the event loop
             await asyncio.to_thread(database.init_db)
             db = next(database.get_db())
+            
+            # Seed Admin User
             if not db.query(models.User).filter(models.User.id == 1).first():
                 default_user = models.User(
                     id=1,
@@ -34,8 +36,16 @@ async def lifespan(app: FastAPI):
                 )
                 db.add(default_user)
                 db.commit()
+
+            # Seed Anchors
+            if not db.query(models.Anchor).filter(models.Anchor.gender == "female").first():
+                db.add(models.Anchor(name="Priya Desai", gender="female", portrait_url="assets/female_anchor.png", is_active=True))
+            if not db.query(models.Anchor).filter(models.Anchor.gender == "male").first():
+                db.add(models.Anchor(name="Arjun Sharma", gender="male", portrait_url="assets/male_anchor.png", is_active=True))
+            
+            db.commit()
             db.close()
-            print("--- [SYSTEM] Initialization Background Task Complete ---")
+            print("--- [SYSTEM] Initialization Background Task Complete (User & Anchors Seeded) ---")
         except Exception as e:
             print(f"--- [SYSTEM] Background Init Failed: {e} ---")
 
@@ -178,7 +188,15 @@ def update_settings(data: dict):
         if data.get("world_news_api_key"):
             set_key(env_path, "WORLD_NEWS_API_KEY", data["world_news_api_key"])
             os.environ["WORLD_NEWS_API_KEY"] = data["world_news_api_key"]
-        return {"status": "success", "message": "API keys updated and saved."}
+        if data.get("youtube_stream_key"):
+            set_key(env_path, "YOUTUBE_STREAM_KEY", data["youtube_stream_key"])
+            os.environ["YOUTUBE_STREAM_KEY"] = data["youtube_stream_key"]
+        if data.get("youtube_stream_key_ch2"):
+            set_key(env_path, "YOUTUBE_STREAM_KEY_CH2", data["youtube_stream_key_ch2"])
+            os.environ["YOUTUBE_STREAM_KEY_CH2"] = data["youtube_stream_key_ch2"]
+        return {"status": "success", "message": "All keys updated."}
+
+
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 

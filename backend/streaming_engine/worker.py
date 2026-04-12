@@ -98,10 +98,11 @@ async def seed_database():
         # --- Channel 2 ---
         channel2 = db.query(Channel).filter(Channel.id == 2).first()
         if not channel2:
-            key2 = "9efm-d8gq-mmma-9y1b-7sez"
+            key2 = os.getenv("YOUTUBE_STREAM_KEY_CH2", "9efm-d8gq-mmma-9y1b-7sez")
             channel2 = Channel(id=2, name="Varta Pravah Channel 2", language="Marathi", youtube_stream_key=key2, owner_id=1, preferred_anchor_id=anchor_male_id)
             db.add(channel2)
             db.commit()
+
 
         print(f" DB Seed complete  Female anchor id: {anchor_female_id}, Male anchor id: {anchor_male_id}")
         return anchor_female_id, anchor_male_id
@@ -118,71 +119,56 @@ async def seed_database():
 async def trigger_auto_start(client: Client):
     anchor_female_id, anchor_male_id = await seed_database()
 
-    channel_id = int(os.getenv("AUTO_START_CHANNEL_ID", "1"))
-    language = os.getenv("DEFAULT_LANGUAGE", "Marathi").strip()
-    stream_key = os.getenv("YOUTUBE_STREAM_KEY", "")
+    # Wait for DB seed to be ready
+    print(f" Scanning database for active channels...")
+    db = next(database.get_db())
+    channels = db.query(models.Channel).all()
+    db.close()
 
-    if not stream_key:
-        print(" Missing YOUTUBE_STREAM_KEY  cannot start stream")
+    if not channels:
+        print(" No channels found to autostart.")
         return
 
-    workflow_id = f"news-production-{channel_id}"
+    for channel in channels:
+        channel_id = channel.id
+        language = channel.language or "Marathi"
+        stream_key = channel.youtube_stream_key
 
-    # Wait for Temporal to be ready
-    print(f" Connecting to Temporal to start Channel {channel_id} workflow...")
-    for i in range(10):
-        try:
-            await client.get_workflow_handle(workflow_id).describe()
-            break
-        except Exception:
-            if i == 9: break 
-            print(f" ⏳ Waiting for Temporal service... (Attempt {i+1}/10)")
-            await asyncio.sleep(5)
+        if not stream_key:
+            print(f" Skipping Channel {channel_id} - No Stream Key")
+            continue
 
-    # Terminate any existing workflow (running or stuck) and start fresh.
-    try:
-        handle = client.get_workflow_handle(workflow_id)
-        desc = await handle.describe()
-        status = desc.status.name
-        print(f" Found existing workflow '{workflow_id}' with status: {status}")
+        workflow_id = f"news-production-{channel_id}"
+
+        # Terminate any existing workflow (running or stuck) and start fresh.
         try:
+            handle = client.get_workflow_handle(workflow_id)
             await handle.terminate(reason="Redeployment - starting fresh")
-            print(f" Terminated previous workflow ({status})")
-            await asyncio.sleep(5)
+            print(f" Terminated previous workflow for Channel {channel_id}")
+            await asyncio.sleep(2)
         except: pass
-    except: pass
 
-    # Wait for DB seed to be ready (ensure Channel 2 exists)
-    print(f" Checking database for Channel {channel_id}...")
-    for i in range(12):
-        db = next(database.get_db())
-        channel = db.query(models.Channel).filter(models.Channel.id == channel_id).first()
-        if channel:
-            print(f" ✅ Channel {channel_id} found in DB.")
-            break
-        print(f" ⏳ Waiting for Database Seed... (Attempt {i+1}/12)")
-        await asyncio.sleep(5)
+        # Start workflow
+        try:
+            await client.start_workflow(
+                NewsProductionWorkflow.run,
+                {
+                    "channel_id": channel_id,
+                    "language": language,
+                    "stream_key": stream_key,
+                    "anchor_ids": [anchor_female_id, anchor_male_id]
+                },
+                id=workflow_id,
+                task_queue="news-task-queue"
+            )
+            print(f" ✅ Channel {channel_id} workflow started (Broadcast Active)")
 
-    # Start workflow
-    try:
-        await client.start_workflow(
-            NewsProductionWorkflow.run,
-            {
-                "channel_id": channel_id,
-                "language": language,
-                "stream_key": stream_key,
-                "anchor_ids": [anchor_female_id, anchor_male_id]
-            },
-            id=workflow_id,
-            task_queue="news-task-queue"
-        )
-        print(" Varta Pravah workflow started  connecting to YouTube immediately")
+        except Exception as e:
+            if "already started" in str(e).lower():
+                print(f" Channel {channel_id} already running.")
+            else:
+                print(f" Channel {channel_id} start issue: {e}")
 
-    except Exception as e:
-        if "already started" in str(e).lower():
-            print(" Workflow already running (race condition caught)")
-        else:
-            print(f" Workflow start issue: {e}")
 
 
 # ================= MAIN ================= #

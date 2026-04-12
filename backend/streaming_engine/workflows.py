@@ -61,6 +61,7 @@ class NewsProductionWorkflow:
         )
 
         last_cleanup_day = -1
+        last_valid_news = []
         ist = ZoneInfo("Asia/Kolkata")
 
         while True:
@@ -70,16 +71,31 @@ class NewsProductionWorkflow:
                 is_female    = (anchor_slot == 0)
                 bulletin_index += 1
 
-                # 1. Fetch 10 News Items
-                print(f"--- FETCHING BULLETIN NEWS (10 ITEMS) ---")
-                news_items = await workflow.execute_activity(
+                # 1. Fetch News
+                print(f"--- FETCHING BULLETIN NEWS ---")
+                fetched_items = await workflow.execute_activity(
                     fetch_news_activity,
                     language,
                     start_to_close_timeout=timedelta(seconds=90),
                     retry_policy=RetryPolicy(maximum_attempts=3)
                 )
-                items = news_items if isinstance(news_items, list) else [news_items]
+                
+                # Logic to repeat news if new ones are not available
+                # We consider news "fresh" if they aren't the generic fallback
+                is_fresh = len(fetched_items) > 1 or (len(fetched_items) == 1 and fetched_items[0].get("category") != "BREAKING")
+                
+                if is_fresh:
+                    last_valid_news = fetched_items
+                    items = fetched_items
+                elif last_valid_news:
+                    print("--- NO NEW NEWS FOUND. REPEATING LAST NEWS BULLETIN ---")
+                    items = last_valid_news
+                else:
+                    print("--- NO NEWS AT ALL. USING FALLBACK ---")
+                    items = fetched_items
+
                 items = items[:10]
+
 
                 # --- NEW: HEADLINES BLOCK (Fast Delivery) ---
                 print("--- GENERATING HEADLINES BLOCK ---")

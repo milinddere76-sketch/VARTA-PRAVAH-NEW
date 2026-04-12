@@ -28,4 +28,6 @@ groq>=0.7.0
 edge-tts>=7.0.0
 
 # Image processing
-pillow>=11.0.0
+pillow>=11.0.0
+psutil>=6.0.0
+

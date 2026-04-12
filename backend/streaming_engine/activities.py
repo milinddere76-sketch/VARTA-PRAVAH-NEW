@@ -39,24 +39,41 @@ def _terminate_stream_process(channel_id: int):
             streamer.stop_stream()
         except:
             pass
+    
+    # Surgical Cleanup
     try:
         if sys.platform == "win32":
-            subprocess.run(["taskkill", "/F", "/IM", "ffmpeg.exe"], capture_output=True)
+            # On Windows, we try to find the specific FFmpeg process with the channel metadata
+            # This is more complex than pkill, but necessary for multi-channel support on Windows
+            try:
+                import psutil
+                for proc in psutil.process_iter(['pid', 'name', 'cmdline']):
+                    if proc.info['name'] == 'ffmpeg.exe':
+                        cmdline = " ".join(proc.info['cmdline'])
+                        if f"vp_channel={channel_id}" in cmdline:
+                            print(f"Surgically killing FFmpeg PID {proc.info['pid']} for Channel {channel_id}")
+                            proc.kill()
+            except ImportError:
+                # Fallback if psutil is not available (not recommended for multi-channel)
+                print(f"WARNING: psutil not found. Falling back to generic taskkill for Channel {channel_id}")
+                subprocess.run(["taskkill", "/F", "/IM", "ffmpeg.exe"], capture_output=True)
         else:
-            # Surgically kill only the FFmpeg process for this specific channel
+            # Surgically kill only the FFmpeg process for this specific channel (Linux)
             subprocess.run(["pkill", "-9", "-f", f"vp_channel={channel_id}"], capture_output=True)
         print(f"Surgically cleaned up FFmpeg for channel {channel_id}")
-    except:
-        pass
+    except Exception as e:
+        print(f"Cleanup failed for channel {channel_id}: {e}")
+
 
 @activity.defn
-async def fetch_news_activity(language: str) -> dict:
+async def fetch_news_activity(language: str) -> list[dict]:
     load_dotenv(override=True)
     api_key = os.getenv("WORLD_NEWS_API_KEY")
     lang_code = LANGUAGE_CONFIG.get(language, {"code": "hi"})["code"]
-    combined_headline = "Top Updates: "
-    combined_description = ""
-    priorities = [("Maharashtra", 3), ("India", 3), ("World", 2)]
+    
+    news_items = []
+    priorities = [("Maharashtra", 4), ("India", 3), ("World", 3)]
+    
     for category, count in priorities:
         url = f"https://api.worldnewsapi.com/search-news?api-key={api_key}&text={category}&language={lang_code}&number={count}"
         try:
@@ -64,13 +81,24 @@ async def fetch_news_activity(language: str) -> dict:
             data = r.json()
             if data.get("news"):
                 for n in data["news"]:
-                    combined_headline += f" | {n['title']}"
-                    combined_description += f"\n[{category.upper()} NEWS]: {n['text'][:250]}..."
-        except Exception: pass
-    if not combined_description:
-        combined_headline = "Varta Pravah Morning Updates | "
-        combined_description = "Namaskar, Maharashtra. Aajchya thak batmya."
-    return {"headline": combined_headline, "description": combined_description}
+                    news_items.append({
+                        "headline": n['title'],
+                        "description": n['text'][:400],
+                        "category": category
+                    })
+        except Exception as e:
+            print(f"Error fetching {category} news: {e}")
+            
+    if not news_items:
+        # Generic fallback if absolutely nothing found
+        news_items = [{
+            "headline": "Varta Pravah Breaking Updates",
+            "description": "Namaskar, Maharashtra. Aaj chya thak batmya ani parinamkarak ghadamodi fakt Varta Pravah var.",
+            "category": "BREAKING"
+        }]
+        
+    return news_items[:10]
+
 
 @activity.defn
 async def generate_script_activity(input_data: dict) -> dict:
@@ -170,7 +198,11 @@ async def generate_closing_activity(input_data: dict) -> dict:
 async def generate_audio_activity(input_data: dict) -> str:
     script = input_data.get("script", "")
     is_female = input_data.get("is_female", True)
-    audio_path = os.path.join(tempfile.gettempdir(), f"news_{uuid.uuid4().hex}.mp3")
+    audio_dir = os.path.join(BASE_DIR, "videos")
+    os.makedirs(audio_dir, exist_ok=True)
+    audio_path = os.path.join(audio_dir, f"news_{uuid.uuid4().hex}.mp3")
+
+
     
     # Professional Marathi voices from Microsoft Edge TTS
     voice = "mr-IN-AarohiNeural" if is_female else "mr-IN-ManoharNeural"
@@ -323,27 +355,33 @@ async def synclabs_lip_sync_activity(data: dict) -> str:
     
     # --- PUBLIC URL CONVERSION ---
     # Sync Labs needs a public URL to download the audio.
-    # We find the server's public IP and form a URL like http://IP:8000/videos/filename.mp3
+    # We prioritize an environment variable SYNC_LABS_BASE_URL, then detect public IP.
     local_path = data.get("audio_url", "")
     filename = os.path.basename(local_path)
     
-    public_ip = "localhost"
-    try:
-        # Detect public IP of the Hetzner server
-        public_ip = requests.get('https://api.ipify.org', timeout=5).text
-    except:
-        pass
-        
-    public_audio_url = f"http://{public_ip}:8000/videos/{filename}"
-    print(f"--- [SYNC LABS] Uploading Audio URL: {public_audio_url} ---")
+    base_url = os.getenv("SYNC_LABS_BASE_URL")
+    if not base_url:
+        public_ip = "localhost"
+        for service in ["https://api.ipify.org", "https://ifconfig.me/ip", "https://icanhazip.com"]:
+            try:
+                public_ip = requests.get(service, timeout=5).text.strip()
+                if public_ip: break
+            except:
+                continue
+        base_url = f"http://{public_ip}:8000/videos"
+
+
+    public_audio_url = f"{base_url}/{filename}"
+    print(f"--- [SYNC LABS] Audio Source: {public_audio_url} ---")
 
     is_female = data.get("is_female", True)
     # Target high-quality base videos matching the anchor gender
     base_video = os.getenv("SYNC_LABS_FEMALE_VIDEO") if is_female else os.getenv("SYNC_LABS_MALE_VIDEO")
     
-    if not base_video:
-        # Fallback to predefined public assets if env vars aren't set
-        base_video = "https://storage.googleapis.com/varta-pravah/female_anchor_clean.mp4" if is_female else "https://storage.googleapis.com/varta-pravah/male_anchor_clean.mp4"
+    if not base_video or "storage.googleapis.com" not in base_video:
+        # Fallback to high-quality public assets if env vars aren't set or internal
+        base_video = "https://storage.googleapis.com/varta-pravah/female_raw.mp4" if is_female else "https://storage.googleapis.com/varta-pravah/male_raw.mp4"
+
 
     headers = {
         "x-api-key": api_key,
