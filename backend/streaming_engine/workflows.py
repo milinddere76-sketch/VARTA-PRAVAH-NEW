@@ -45,6 +45,7 @@ class NewsProductionWorkflow:
 
         await workflow.execute_activity(
             ensure_promo_video_activity,
+            channel_id, # Add channel ID to make promo unique
             start_to_close_timeout=timedelta(seconds=300)
         )
 
@@ -53,7 +54,7 @@ class NewsProductionWorkflow:
             {
                 "channel_id": channel_id,
                 "stream_key": stream_key,
-                "video_url": "videos/promo.mp4",
+                "video_url": f"videos/promo_ch{channel_id}.mp4",
                 "is_promo": True
             },
             start_to_close_timeout=timedelta(seconds=60)

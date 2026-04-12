@@ -266,7 +266,14 @@ async def generate_news_video_activity(input_data: dict) -> str:
 
 @activity.defn
 async def ensure_promo_video_activity(channel_id: int = 1) -> bool:
-    promo_p = os.path.join(BASE_DIR, "videos", "promo.mp4")
+    promo_p = os.path.join(BASE_DIR, "videos", f"promo_ch{channel_id}.mp4")
+    master_promo = os.path.join(BASE_DIR, "videos", "promo.mp4")
+    
+    if not os.path.exists(promo_p) and os.path.exists(master_promo):
+        import shutil
+        shutil.copy2(master_promo, promo_p)
+        print(f"Created channel-specific promo: {promo_p}")
+        
     return os.path.exists(promo_p)
 
 @activity.defn
@@ -276,7 +283,11 @@ async def start_stream_activity(data: dict) -> str:
     time.sleep(2)
     try:
         if not os.path.isabs(v_url): v_url = os.path.join(BASE_DIR, v_url)
-        if not os.path.exists(v_url) or os.path.getsize(v_url) < 10000: v_url = os.path.join(BASE_DIR, "videos", "promo.mp4")
+        # Fallback to channel-specific standby video
+        fallback_v = os.path.join(BASE_DIR, "videos", f"promo_ch{c_id}.mp4")
+        if not os.path.exists(v_url) or os.path.getsize(v_url) < 10000: 
+            v_url = fallback_v if os.path.exists(fallback_v) else os.path.join(BASE_DIR, "videos", "promo.mp4")
+            
         streamer = Streamer(s_key, c_id)
         streamer.create_initial_playlist(v_url)
         streamer.start_stream()
