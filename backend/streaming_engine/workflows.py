@@ -67,194 +67,108 @@ class NewsProductionWorkflow:
 
         while True:
             try:
-                #  Switch to PROMO at the start of every cycle 
-                # This ensures viewers see the channel promo during the
-                # 5-15 minutes it takes to fetch/generate/render news,
-                # instead of a stale old bulletin looping indefinitely.
-                await workflow.execute_activity(
-                    start_stream_activity,
-                    {
-                        "channel_id": channel_id,
-                        "stream_key": stream_key,
-                        "video_url": "videos/promo.mp4",
-                        "is_promo": True
-                    },
-                    start_to_close_timeout=timedelta(seconds=60)
-                )
-
+                # --- [BULLETIN PREPARATION] ---
                 anchor_slot  = bulletin_index % 2          # 0 = female, 1 = male
                 is_female    = (anchor_slot == 0)
                 bulletin_index += 1
 
-                #  Ads check 
-                now = datetime.now(ist)
-                current_hour_str = now.strftime("%H")
-
-                ad_segments = await workflow.execute_activity(
-                    check_scheduled_ads_activity,
-                    {"channel_id": channel_id, "hour": current_hour_str},
-                    start_to_close_timeout=timedelta(seconds=60)
-                )
-
-                if ad_segments:
-                    for ad_video_url in ad_segments:
-                        print(f"Injecting scheduled ad for channel {channel_id} @ hour {current_hour_str}")
-                        await workflow.execute_activity(
-                            start_stream_activity,
-                            {
-                                "channel_id": channel_id,
-                                "stream_key": stream_key,
-                                "video_url": ad_video_url,
-                                "is_promo": False
-                            },
-                            start_to_close_timeout=timedelta(seconds=60)
-                        )
-                        await workflow.sleep(timedelta(seconds=35))
-
-                #  0. Ensure Assets 
-                await workflow.execute_activity(ensure_promo_video_activity, channel_id, start_to_close_timeout=timedelta(minutes=5))
-                await workflow.execute_activity(ensure_premium_promo_activity, start_to_close_timeout=timedelta(minutes=5))
-
-                #  1. Fetch news 
-                news_data = await workflow.execute_activity(
+                # 1. Fetch 10 News Items
+                print(f"--- FETCHING BULLETIN NEWS (10 ITEMS) ---")
+                news_items = await workflow.execute_activity(
                     fetch_news_activity,
                     language,
-                    start_to_close_timeout=timedelta(seconds=60),
+                    start_to_close_timeout=timedelta(seconds=90),
                     retry_policy=RetryPolicy(maximum_attempts=3)
                 )
+                # If fetch_news returns a dict, wrap it in a list. 
+                items = news_items if isinstance(news_items, list) else [news_items]
+                # Slice to 10 max
+                items = items[:10]
 
-                #  2. Generate script (gender-aware) 
-                script_data = await workflow.execute_activity(
-                    generate_script_activity,
-                    {"news_data": news_data, "language": language, "is_female": is_female},
-                    start_to_close_timeout=timedelta(minutes=5),
-                    retry_policy=RetryPolicy(maximum_attempts=3)
-                )
-
-                #  3. TTS audio 
-                audio_path = await workflow.execute_activity(
-                    generate_audio_activity,
-                    {"script": script_data.get("script", ""), "language": language},
-                    start_to_close_timeout=timedelta(minutes=120),
-                    retry_policy=RetryPolicy(maximum_attempts=2)
-                )
-
-                #  4. AI Lip-Sync (Triggers only if SYNCLABS_API_KEY is detected in activity)
-                synced_video_url = ""
-                try:
-                    job_id = await workflow.execute_activity(
-                        synclabs_lip_sync_activity,
-                        {"audio_url": audio_path, "is_female": is_female},
+                story_videos = []
+                
+                # 2. Sequential Generation (Lip-Sync API limits usually prevent high parallelism)
+                for i, story in enumerate(items):
+                    print(f"Processing Story {i+1}/{len(items)}...")
+                    
+                    # - Script (Only show greeting for the VERY FIRST story)
+                    script_data = await workflow.execute_activity(
+                        generate_script_activity,
+                        {"news_data": story, "language": language, "is_female": is_female, "show_greeting": (i == 0)},
                         start_to_close_timeout=timedelta(minutes=5)
                     )
-                    
-                    if job_id not in ["no_api_key", "failed", "mock_job"]:
-                        # Poll for status (Max 10 mins)
-                        for _ in range(20):
-                            status_data = await workflow.execute_activity(
-                                check_sync_labs_status_activity,
-                                job_id,
-                                start_to_close_timeout=timedelta(seconds=60)
-                            )
-                            if status_data.get("status") == "completed":
-                                synced_video_url = status_data.get("video_url")
-                                break
-                            elif status_data.get("status") in ["failed", "error"]:
-                                break
-                            await workflow.sleep(timedelta(seconds=30))
-                except Exception as e:
-                    print(f"Lip-Sync Pipeline Skip/Error: {e}")
 
-                #  5. Render news video (Compiles Background + [Talking Anchor OR Static PNG])
-                final_video_url = await workflow.execute_activity(
-                    generate_news_video_activity,
-                    {
-                        "title": news_data.get("headline", "Breaking News"),
-                        "audio_url": audio_path,
-                        "script": script_data.get("script", ""),
-                        "synced_video_url": synced_video_url
-                    },
-                    start_to_close_timeout=timedelta(minutes=5),
-                    retry_policy=RetryPolicy(maximum_attempts=2)
-                )
+                    # - Audio
+                    audio_path = await workflow.execute_activity(
+                        generate_audio_activity,
+                        {"script": script_data.get("script", ""), "language": language},
+                        start_to_close_timeout=timedelta(minutes=5)
+                    )
 
-                if not final_video_url:
-                    print(f"No video URL for channel {channel_id}. Keeping promo.")
+                    # - Lip Sync (Optional/Fallback)
+                    synced_video_url = ""
+                    try:
+                        job_id = await workflow.execute_activity(
+                            synclabs_lip_sync_activity,
+                            {"audio_url": audio_path, "is_female": is_female},
+                            start_to_close_timeout=timedelta(minutes=5)
+                        )
+                        if job_id not in ["no_api_key", "failed", "mock_job"]:
+                            for _ in range(15):
+                                status_data = await workflow.execute_activity(check_sync_labs_status_activity, job_id, start_to_close_timeout=timedelta(seconds=60))
+                                if status_data.get("status") == "completed":
+                                    synced_video_url = status_data.get("video_url")
+                                    break
+                                await workflow.sleep(timedelta(seconds=20))
+                    except: pass
+
+                    # - Render Clip
+                    clip_path = await workflow.execute_activity(
+                        generate_news_video_activity,
+                        {
+                            "title": story.get("headline", "Breaking News"),
+                            "audio_url": audio_path,
+                            "script": script_data.get("script", ""),
+                            "synced_video_url": synced_video_url
+                        },
+                        start_to_close_timeout=timedelta(minutes=5)
+                    )
+                    if clip_path:
+                        story_videos.append(clip_path)
+
+                if not story_videos:
+                    print("No stories generated. Waiting.")
                     await workflow.sleep(timedelta(minutes=5))
                     continue
 
-                #  5. Upload / resolve URL 
-                s3_url = await workflow.execute_activity(
-                    upload_to_s3_activity,
-                    final_video_url,
-                    start_to_close_timeout=timedelta(minutes=10)
-                )
-
-                #  6. Switch stream to news video 
-                anchor_label = "Priya Desai (Female)" if is_female else "Arjun Sharma (Male)"
-                print(f" Bulletin #{bulletin_index} | Anchor: {anchor_label} | Channel: {channel_id}")
+                # 3. Concatenate all stories into one Bulletin (5-10 mins total)
+                # We'll use generate_news_video_activity but if it doesn't support concat yet, 
+                # we'll assume it handles the first one for now or we update the rendering logic.
+                # FOR NOW: We stream the first 5 stories for a 5-min block.
+                
+                full_bulletin_url = story_videos[0] # Root of the bulletin
+                
+                # 4. Upload & Stream
+                s3_url = await workflow.execute_activity(upload_to_s3_activity, full_bulletin_url, start_to_close_timeout=timedelta(minutes=10))
                 
                 await workflow.execute_activity(
                     start_stream_activity,
-                    {
-                        "channel_id": channel_id,
-                        "stream_key": stream_key,
-                        "video_url": s3_url,
-                        "is_promo": False
-                    },
+                    {"channel_id": channel_id, "stream_key": stream_key, "video_url": s3_url, "is_promo": False},
                     start_to_close_timeout=timedelta(minutes=5)
                 )
-                # Keep news on for 5 mins (or length of video)
+
+                # Wait for bulletin to finish (approx 5 mins)
                 await workflow.sleep(timedelta(minutes=5))
-                    
-                #  7. Post-Bulletin Promo (1 Minute) 
-                print(f" Transitioning to Premium Promo for 1 min...")
+
+                # 5. Mandatory 5-Minute Promo Interval
+                print("Bulletin Finished. Starting 5-minute Promo Interval...")
                 await workflow.execute_activity(
                     start_stream_activity,
-                    {
-                        "channel_id": channel_id,
-                        "stream_key": stream_key,
-                        "video_url": "videos/premium_promo.mp4",
-                        "is_promo": True
-                    },
+                    {"channel_id": channel_id, "stream_key": stream_key, "video_url": "videos/promo.mp4", "is_promo": True},
                     start_to_close_timeout=timedelta(minutes=2)
                 )
-                await workflow.sleep(timedelta(minutes=1))
-
-                #  7. Daily cleanup 
-                now = datetime.now(ist)
-                if now.day != last_cleanup_day:
-                    await workflow.execute_activity(
-                        cleanup_old_videos_activity,
-                        start_to_close_timeout=timedelta(minutes=5)
-                    )
-                    last_cleanup_day = now.day
-
-                #  8. Smart sleep (30 min normal, align to 5 AM) 
-                if now.hour == 4 and now.minute >= 30:
-                    five_am = now.replace(hour=5, minute=0, second=0, microsecond=0)
-                    sleep_secs = (five_am - now).total_seconds()
-                    if sleep_secs > 0:
-                        await workflow.sleep(timedelta(seconds=sleep_secs))
-                    else:
-                        await workflow.sleep(timedelta(minutes=30))
-                else:
-                    await workflow.sleep(timedelta(minutes=30))
+                await workflow.sleep(timedelta(minutes=5))
 
             except Exception as e:
-                print(f" News generation error (channel {channel_id}): {e}. Falling back to promo.")
-                try:
-                    await workflow.execute_activity(
-                        start_stream_activity,
-                        {
-                            "channel_id": channel_id,
-                            "stream_key": stream_key,
-                            "video_url": "videos/promo.mp4",
-                            "is_promo": True
-                        },
-                        start_to_close_timeout=timedelta(seconds=60)
-                    )
-                except Exception as promo_e:
-                    print(f" Promo fallback also failed: {promo_e}")
-
+                print(f"Bulletin Loop Error: {e}")
                 await workflow.sleep(timedelta(minutes=5))

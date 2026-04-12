@@ -77,44 +77,40 @@ async def generate_script_activity(input_data: dict) -> dict:
     news_data = input_data["news_data"]
     is_female = input_data.get("is_female", False)
     anchor_name = "Priya Desai" if is_female else "Arjun Sharma"
+    show_greeting = input_data.get("show_greeting", True)
     
     # Time-aware greeting (IST)
     import datetime
     from zoneinfo import ZoneInfo
     now_ist = datetime.datetime.now(ZoneInfo("Asia/Kolkata"))
     
-    if 5 <= now_ist.hour < 12:
-        # Morning (5 AM - 12 PM)
-        opening_phrase = f"नमस्कार, शुभ प्रभात! आपण पाहत आहात 'वार्ताप्रवाह'. मी {anchor_name}, घेऊन {'आले आहे' if is_female else 'आलो आहे'} सकाळच्या प्रमुख घडामोडी. चला पाहूया आजच्या दिवसाची सुरुवात करणाऱ्या महत्त्वाच्या बातम्या."
-    elif 12 <= now_ist.hour < 17:
-        # Afternoon (12 PM - 5 PM)
-        opening_phrase = f"नमस्कार! आपण पाहत आहात 'वार्ताप्रवाह'. मी {anchor_name}, घेऊन {'आले आहे' if is_female else 'आलो आहे'} दुपारच्या ताज्या अपडेट्स. चला जाणून घेऊया आतापर्यंतच्या महत्त्वाच्या बातम्या."
-    elif 17 <= now_ist.hour < 20:
-        # Evening (5 PM - 8 PM)
-        opening_phrase = f"नमस्कार! आपण पाहत आहात 'वार्ताप्रवाह'. मी {anchor_name}, घेऊन {'आले आहे' if is_female else 'आलो आहे'} दिवसभरातील महत्त्वाच्या घडामोडी. चला पाहूया संध्याकाळच्या प्रमुख बातम्या."
-    elif 20 <= now_ist.hour < 22:
-        # Prime Time (8 PM - 10 PM)
-        opening_phrase = f"नमस्कार! आपण पाहत आहात 'वार्ताप्रवाह' — सत्याचा आरसा. मी {anchor_name}, घेऊन {'आले आहे' if is_female else 'आलो आहे'} आजच्या दिवसातील सर्वात मोठ्या आणि परिणामकारक बातम्या. सुरुवात करूया हेडलाईन्सने."
+    # Only use greeting if it's the start of the bulletin
+    if show_greeting:
+        if 5 <= now_ist.hour < 12:
+            greeting = f"नमस्कार, शुभ प्रभात! आपण पाहत आहात 'वार्ताप्रवाह'. मी {anchor_name}, घेऊन {'आले आहे' if is_female else 'आलो आहे'} सकाळच्या प्रमुख घडामोडी. चला पाहूया आजच्या दिवसाची सुरुवात करणाऱ्या महत्त्वाच्या बातम्या."
+        elif 12 <= now_ist.hour < 17:
+            greeting = f"नमस्कार! आपण पाहत आहात 'वार्ताप्रवाह'. मी {anchor_name}, घेऊन {'आले आहे' if is_female else 'आलो आहे'} दुपारच्या ताज्या अपडेट्स. चला जाणून घेऊया आतापर्यंतच्या महत्त्वाच्या बातम्या."
+        elif 17 <= now_ist.hour < 20:
+            greeting = f"नमस्कार! आपण पाहत आहात 'वार्ताप्रवाह'. मी {anchor_name}, घेऊन {'आले आहे' if is_female else 'आलो आहे'} दिवसभरातील महत्त्वाच्या घडामोडी. चला पाहूया संध्याकाळच्या प्रमुख बातम्या."
+        elif 20 <= now_ist.hour < 22:
+            greeting = f"नमस्कार! आपण पाहत आहात 'वार्ताप्रवाह' — सत्याचा आरसा. मी {anchor_name}, घेऊन {'आले आहे' if is_female else 'आलो आहे'} आजच्या दिवसातील सर्वात मोठ्या आणि परिणामकारक बातम्या. सुरुवात करूया हेडलाईन्सने."
+        else:
+            greeting = f"नमस्कार! आपण पाहत आहात 'वार्ताप्रवाह'. मी {anchor_name}, घेऊन {'आले आहे' if is_female else 'आलो आहे'} दिवसभराचा संक्षिप्त आढावा. चला पाहूया आजच्या मुख्य बातम्या."
     else:
-        # Night Bulletin (10 PM - 5 AM)
-        opening_phrase = f"नमस्कार! आपण पाहत आहात 'वार्ताप्रवाह'. मी {anchor_name}, घेऊन {'आले आहे' if is_female else 'आलो आहे'} दिवसभराचा संक्षिप्त आढावा. चला पाहूया आजच्या मुख्य बातम्या."
-    
+        # Standard inner-bulletin transition
+        greeting = f"पुढील महत्त्वाची बातमी समोर येत आहे..."
+
     system_prompt = f"""You are a Marathi News Scholar for 'VARTA PRAVAH'. 
-    TONE: Clear, confident, and professional. NO DRAMA.
+    TONE: Neutral, Professional, Authoritative. NO DRAMA.
     
     STRICT STRUCTURE:
-    1. OPENING: You MUST start exactly with: '{opening_phrase}'
-    2. BREAKING TRANSITION: Immediately say: 'थांबा जरा! एक मोठी ब्रेकिंग न्यूज समोर येत आहे…'
-    3. CONTENT: 5-6 professional Marathi sentences (Shuddha Marathi).
-    4. TAGLINE & CLOSING: Finish with exactly: 'सत्य, वेग आणि विश्वासाचा प्रवाह. पाहत रहा, वार्ताप्रवाह. धन्यवाद.'
+    1. OPENING: Start with: '{greeting}'
+    2. BREAKING HOOK: Say: 'थांबा जरा! एक मोठी ब्रेकिंग न्यूज समोर येत आहे…'
+    3. CONTENT: 6-8 professional Marathi sentences (Shuddha Marathi). This should take ~25 seconds to speak.
+    4. TAGLINE: Finish with: 'सत्य, वेग आणि विश्वासाचा प्रवाह. पाहत रहा, वार्ताप्रवाह. धन्यवाद.'
     
-    GENDER GRAMMAR RULES (Crucial):
-    - Anchor is {anchor_name} ({'Female' if is_female else 'Male'}).
-    - If referring to self, use '{'आले आहे' if is_female else 'आलो आहे'}'.
-    
-    LINGUISTIC RULES:
-    - NO English characters. No Hinglish.
-    - Use official terminology."""
+    GENDER RULES: Anchor is {anchor_name} | Use '{'आले आहे' if is_female else 'आलो आहे'}'.
+    LINGUISTIC: Devanagari ONLY. NO Roman/English characters."""
     user_prompt = f"IF THE FOLLOWING NEWS IS IN ENGLISH, TRANSLATE IT TO PURE MARATHI FIRST AND THEN WRITE THE SCRIPT.\nHEADLINE: {news_data['headline']}\nDESCRIPTION: {news_data['description']}"
     try:
         client = Groq(api_key=os.getenv("GROQ_API_KEY"))
