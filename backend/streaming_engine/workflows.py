@@ -63,40 +63,58 @@ class MasterBulletinWorkflow:
             return "No news found for bulletin."
 
         # 2. Generate Intro & Headlines
-        headlines_path = await workflow.execute_activity(
+        is_female = True # Headlines always female for consistency
+        headlines_data = await workflow.execute_activity(
             generate_headlines_activity,
-            {"items": items[:5], "channel_id": channel_id},
+            {"news_items": items[:5], "is_female": is_female},
+            start_to_close_timeout=timedelta(minutes=5)
+        )
+        
+        headlines_audio = await workflow.execute_activity(
+            generate_audio_activity,
+            {"script": headlines_data["script"], "is_female": is_female},
+            start_to_close_timeout=timedelta(minutes=2)
+        )
+        
+        headlines_path = await workflow.execute_activity(
+            generate_news_video_activity,
+            {"audio_url": headlines_audio, "item": {"title": f"{bulletin_type} Headlines", "category": "TOP"}, "is_female": is_female},
             start_to_close_timeout=timedelta(minutes=5)
         )
 
         # 3. Generate Individual Stories with Alternating Anchors
         story_videos = []
+        if headlines_path:
+            story_videos.append(headlines_path)
+
         for i, item in enumerate(items):
             # Alternating gender: Even = Female, Odd = Male
-            anchor_idx = i % len(anchor_ids) if anchor_ids else 0
-            current_anchor_id = anchor_ids[anchor_idx] if anchor_ids else None
+            current_is_female = (i % 2 == 0)
+            current_anchor_id = anchor_ids[0] if current_is_female else (anchor_ids[1] if len(anchor_ids) > 1 else anchor_ids[0])
             
             # Generate Script
-            script = await workflow.execute_activity(
+            script_data = await workflow.execute_activity(
                 generate_script_activity,
                 {"item": item, "language": language},
                 start_to_close_timeout=timedelta(minutes=2)
             )
             
+            # Generate Audio
             audio_path = await workflow.execute_activity(
                 generate_audio_activity,
-                {"text": script, "anchor_id": current_anchor_id},
+                {"script": script_data["script"], "anchor_id": current_anchor_id, "is_female": current_is_female},
                 start_to_close_timeout=timedelta(minutes=2)
             )
             
             # Generate Video
             video_path = await workflow.execute_activity(
                 generate_news_video_activity,
-                {"audio_path": audio_path, "item": item, "anchor_id": current_anchor_id},
-                start_to_close_timeout=timedelta(minutes=5)
+                {"audio_url": audio_path, "item": item, "anchor_id": current_anchor_id, "is_female": current_is_female},
+                start_to_close_timeout=timedelta(minutes=10)
             )
             if video_path:
                 story_videos.append(video_path)
+
 
         # 4. Stitch into 60-minute Bulletin
         full_bulletin_path = await workflow.execute_activity(
