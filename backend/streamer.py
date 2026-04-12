@@ -97,8 +97,9 @@ class Streamer:
         # YouTube recommended settings (720p CBR)
         cmd += [
             "-c:v",        "libx264",
-            "-preset",     "veryfast",
+            "-preset",     "ultrafast",       # Lower CPU usage for dual-channel
             "-tune",       "zerolatency",
+            "-threads",    "2",                # Isolate CPU usage
             "-r",          "30",
             "-g",          "60",
             "-keyint_min", "60",
@@ -106,7 +107,7 @@ class Streamer:
             "-b:v",        "2500k",
             "-minrate",    "2500k",
             "-maxrate",    "2500k",
-            "-bufsize",    "2500k",
+            "-bufsize",    "5000k",            # Larger buffer for stability
             "-pix_fmt",    "yuv420p",
             # Audio
             "-c:a",  "aac",
