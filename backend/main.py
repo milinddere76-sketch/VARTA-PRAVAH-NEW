@@ -17,19 +17,29 @@ from streamer import Streamer
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    # Startup: Initialize DB and seed default user
-    database.init_db()
-    db = next(database.get_db())
-    if not db.query(models.User).filter(models.User.id == 1).first():
-        default_user = models.User(
-            id=1,
-            email="admin@vartapravah.com",
-            hashed_password="hashed_password",
-            full_name="Admin User"
-        )
-        db.add(default_user)
-        db.commit()
-    db.close()
+    # Move heavy initialization to a background task so server starts immediately
+    import asyncio
+    
+    async def run_init():
+        try:
+            # Run the synchronous init_db in a separate thread to avoid blocking the event loop
+            await asyncio.to_thread(database.init_db)
+            db = next(database.get_db())
+            if not db.query(models.User).filter(models.User.id == 1).first():
+                default_user = models.User(
+                    id=1,
+                    email="admin@vartapravah.com",
+                    hashed_password="hashed_password",
+                    full_name="Admin User"
+                )
+                db.add(default_user)
+                db.commit()
+            db.close()
+            print("--- [SYSTEM] Initialization Background Task Complete ---")
+        except Exception as e:
+            print(f"--- [SYSTEM] Background Init Failed: {e} ---")
+
+    asyncio.create_task(run_init())
     yield
 
 app = FastAPI(title="VartaPravah API", lifespan=lifespan)
