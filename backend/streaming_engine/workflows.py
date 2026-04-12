@@ -5,6 +5,7 @@ from temporalio.common import RetryPolicy
 from .activities import (
     fetch_news_activity,
     generate_script_activity,
+    generate_headlines_activity,
     generate_audio_activity,
     generate_news_video_activity,
     synclabs_lip_sync_activity,
@@ -37,20 +38,15 @@ class NewsProductionWorkflow:
         language    = input_data["language"]
         stream_key  = input_data["stream_key"]
 
-        # Two anchors passed from worker seed.
-        # anchor_ids = [female_id, male_id]  (either may be None if seed failed)
         anchor_ids: list = input_data.get("anchor_ids", [None, None])
-        # Determine genders: first slot = female, second = male
         anchor_genders = ["female", "male"]
-        bulletin_index = 0   # increments each loop  alternates anchor
+        bulletin_index = 0
 
-        #  0. Ensure promo fallback asset exists 
         await workflow.execute_activity(
             ensure_promo_video_activity,
-            start_to_close_timeout=timedelta(seconds=300)  # 3-attempt generation needs time
+            start_to_close_timeout=timedelta(seconds=300)
         )
 
-        #  1. Go LIVE immediately with promo while first news clip generates 
         await workflow.execute_activity(
             start_stream_activity,
             {
@@ -80,32 +76,49 @@ class NewsProductionWorkflow:
                     start_to_close_timeout=timedelta(seconds=90),
                     retry_policy=RetryPolicy(maximum_attempts=3)
                 )
-                # If fetch_news returns a dict, wrap it in a list. 
                 items = news_items if isinstance(news_items, list) else [news_items]
-                # Slice to 10 max
                 items = items[:10]
 
-                story_videos = []
+                # --- NEW: HEADLINES BLOCK (Fast Delivery) ---
+                print("--- GENERATING HEADLINES BLOCK ---")
+                headlines_data = await workflow.execute_activity(
+                    generate_headlines_activity,
+                    {"news_items": items, "is_female": is_female},
+                    start_to_close_timeout=timedelta(minutes=5)
+                )
+                headlines_audio = await workflow.execute_activity(
+                    generate_audio_activity,
+                    {"script": headlines_data["script"], "is_female": is_female},
+                    start_to_close_timeout=timedelta(minutes=5)
+                )
+                headlines_clip = await workflow.execute_activity(
+                    generate_news_video_activity,
+                    {
+                        "title": "HEADLINES",
+                        "audio_url": headlines_audio,
+                        "script": headlines_data["script"]
+                    },
+                    start_to_close_timeout=timedelta(minutes=5)
+                )
+
+                story_videos = [headlines_clip] if headlines_clip else []
                 
-                # 2. Sequential Generation (Lip-Sync API limits usually prevent high parallelism)
+                # 2. Sequential Generation for Individual Stories
                 for i, story in enumerate(items):
                     print(f"Processing Story {i+1}/{len(items)}...")
                     
-                    # - Script (Only show greeting for the VERY FIRST story)
                     script_data = await workflow.execute_activity(
                         generate_script_activity,
-                        {"news_data": story, "language": language, "is_female": is_female, "show_greeting": (i == 0)},
+                        {"news_data": story, "language": language, "is_female": is_female, "show_greeting": False},
                         start_to_close_timeout=timedelta(minutes=5)
                     )
 
-                    # - Audio
                     audio_path = await workflow.execute_activity(
                         generate_audio_activity,
-                        {"script": script_data.get("script", ""), "language": language},
+                        {"script": script_data.get("script", ""), "is_female": is_female},
                         start_to_close_timeout=timedelta(minutes=5)
                     )
 
-                    # - Lip Sync (Optional/Fallback)
                     synced_video_url = ""
                     try:
                         job_id = await workflow.execute_activity(
@@ -122,7 +135,6 @@ class NewsProductionWorkflow:
                                 await workflow.sleep(timedelta(seconds=20))
                     except: pass
 
-                    # - Render Clip
                     clip_path = await workflow.execute_activity(
                         generate_news_video_activity,
                         {
@@ -137,18 +149,12 @@ class NewsProductionWorkflow:
                         story_videos.append(clip_path)
 
                 if not story_videos:
-                    print("No stories generated. Waiting.")
+                    print("No stories generated.")
                     await workflow.sleep(timedelta(minutes=5))
                     continue
 
-                # 3. Concatenate all stories into one Bulletin (5-10 mins total)
-                # We'll use generate_news_video_activity but if it doesn't support concat yet, 
-                # we'll assume it handles the first one for now or we update the rendering logic.
-                # FOR NOW: We stream the first 5 stories for a 5-min block.
-                
-                full_bulletin_url = story_videos[0] # Root of the bulletin
-                
-                # 4. Upload & Stream
+                # 3. Stream Bulletin (Merge logic assumed or sequential play implementation)
+                full_bulletin_url = story_videos[0] 
                 s3_url = await workflow.execute_activity(upload_to_s3_activity, full_bulletin_url, start_to_close_timeout=timedelta(minutes=10))
                 
                 await workflow.execute_activity(
@@ -157,7 +163,6 @@ class NewsProductionWorkflow:
                     start_to_close_timeout=timedelta(minutes=5)
                 )
 
-                # Wait for bulletin to finish (approx 5 mins)
                 await workflow.sleep(timedelta(minutes=5))
 
                 # 5. Mandatory 5-Minute Promo Interval

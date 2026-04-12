@@ -126,6 +126,38 @@ async def generate_script_activity(input_data: dict) -> dict:
         return {"script": f"Namaskar, Varta Pravah madhe aaple swagat aahe. Me {anchor_name}. Aajchya thak batmya. Dhanyavad.", "is_female": is_female}
 
 @activity.defn
+async def generate_headlines_activity(input_data: dict) -> dict:
+    news_items = input_data["news_items"]
+    is_female = input_data.get("is_female", False)
+    anchor_name = "Priya Desai" if is_female else "Arjun Sharma"
+
+    import datetime
+    from zoneinfo import ZoneInfo
+    now_ist = datetime.datetime.now(ZoneInfo("Asia/Kolkata"))
+    
+    if 5 <= now_ist.hour < 12: greeting = f"नमस्कार, शुभ प्रभात! आपण पाहत आहात 'वार्ताप्रवाह'. मी {anchor_name}, घेऊन {'आले आहे' if is_female else 'आलो आहे'} सकाळच्या प्रमुख घडामोडी. सुरुवात करूया मुख्य हेडलाईन्सने."
+    elif 12 <= now_ist.hour < 17: greeting = f"नमस्कार! आपण पाहत आहात 'वार्ताप्रवाह'. मी {anchor_name}, घेऊन {'आले आहे' if is_female else 'आलो आहे'} दुपारच्या ताज्या अपडेट्स. सुरुवात करूया मुख्य हेडलाईन्सने."
+    elif 17 <= now_ist.hour < 20: greeting = f"नमस्कार! आपण पाहत आहात 'वार्ताप्रवाह'. मी {anchor_name}, घेऊन {'आले आहे' if is_female else 'आलो आहे'} दिवसभरातील महत्त्वाच्या घडामोडी. सुरुवात करूया मुख्य हेडलाईन्सने."
+    elif 20 <= now_ist.hour < 22: greeting = f"नमस्कार! आपण पाहत आहात 'वार्ताप्रवाह' — सत्याचा आरसा. मी {anchor_name}, घेऊन {'आले आहे' if is_female else 'आलो आहे'} आजच्या दिवसातील सर्वात मोठ्या आणि परिणामकारक बातम्या. सुरुवात करूया हेडलाईन्सने."
+    else: greeting = f"नमस्कार! आपण पाहत आहात 'वार्ताप्रवाह'. मी {anchor_name}, घेऊन {'आले आहे' if is_female else 'आलो आहे'} दिवसभराचा संक्षिप्त आढावा. सुरुवात करूया मुख्य हेडलाईन्सने."
+
+    headlines_text = "\n".join([f"- {item['headline']}" for item in news_items[:5]])
+    
+    system_prompt = f"You are a Marathi News Anchor for 'VARTA PRAVAH'. Write a FAST-PACED headlines segment.\n" \
+                    f"1. Start with exactly: '{greeting}'\n" \
+                    f"2. Read the following 5 headlines in impactful, short Marathi sentences.\n" \
+                    f"3. Use a bullet-point style delivery ('पहिली मोठी बातमी...', 'दुसरीकडे...', 'तसेच...').\n" \
+                    f"4. Suffix each headline with energy. Finish with: 'आता पाहूया सविस्तर बातम्या.'\n" \
+                    f"TONE: High-energy, professional, Devanagari ONLY."
+    
+    try:
+        client = Groq(api_key=os.getenv("GROQ_API_KEY"))
+        completion = client.chat.completions.create(model="llama-3.1-8b-instant", messages=[{"role": "system", "content": system_prompt}, {"role": "user", "content": headlines_text}], temperature=0.3)
+        return {"script": completion.choices[0].message.content, "is_female": is_female}
+    except:
+        return {"script": f"{greeting} ठळक बातम्या. सविस्तर बातम्या आता पाहूया.", "is_female": is_female}
+
+@activity.defn
 async def generate_audio_activity(input_data: dict) -> str:
     script = input_data.get("script", "")
     is_female = input_data.get("is_female", True)
