@@ -196,10 +196,10 @@ async def delete_channel(channel_id: int, db: Session = Depends(database.get_db)
     return {"status": "deleted"}
 
 @app.put("/channels/{channel_id}/stream-key")
-async def set_channel_stream_key(channel_id: int, stream_key: str, db: Session = Depends(database.get_db)):
+async def set_channel_stream_key(channel_id: int, data: schemas.StreamKeyUpdate, db: Session = Depends(database.get_db)):
     channel = db.query(models.Channel).filter(models.Channel.id == channel_id).first()
     if not channel: raise HTTPException(status_code=404, detail="Channel not found")
-    channel.youtube_stream_key = stream_key
+    channel.youtube_stream_key = data.stream_key
     db.commit()
     return {"status": "success", "message": "Stream key updated."}
 

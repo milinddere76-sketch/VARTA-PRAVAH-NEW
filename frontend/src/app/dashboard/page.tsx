@@ -77,7 +77,7 @@ export default function DashboardPage() {
   const fileInputRef                    = useRef<HTMLInputElement>(null);
 
   const [showSettingsModal, setShowSettingsModal] = useState(false);
-  const [settingsData, setSettingsData] = useState({ groq_api_key: '', world_news_api_key: '' });
+  const [settingsData, setSettingsData] = useState({ groq_api_key: '', world_news_api_key: '', youtube_stream_key: '' });
 
   const [bulletinCount, setBulletinCount] = useState(0);
   const [currentAnchor, setCurrentAnchor] = useState<'Priya Desai ♀' | 'Arjun Sharma ♂'>('Priya Desai ♀');
@@ -230,14 +230,32 @@ export default function DashboardPage() {
 
   const handleUpdateSettings = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!channel) return;
     try {
-      const res = await fetch(`${API_URL}/settings`, {
+      // 1. Update Env Keys
+      const resEnv = await fetch(`${API_URL}/settings`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(settingsData),
+        body: JSON.stringify({ 
+          groq_api_key: settingsData.groq_api_key, 
+          world_news_api_key: settingsData.world_news_api_key 
+        }),
       });
-      if (res.ok) { alert('API keys updated!'); setShowSettingsModal(false); }
-      else alert('Failed to update keys.');
+
+      // 2. Update Stream Key in DB
+      const resKey = await fetch(`${API_URL}/channels/${channel.id}/stream-key`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ stream_key: settingsData.youtube_stream_key }),
+      });
+
+      if (resEnv.ok && resKey.ok) { 
+        alert('Settings & Stream Key updated!'); 
+        setShowSettingsModal(false); 
+        fetchChannel();
+      } else {
+        alert('Partial success or failure. Check logs.');
+      }
     } catch { alert('Network error.'); }
   };
 
@@ -261,7 +279,14 @@ export default function DashboardPage() {
             <Megaphone size={16} /> Ad Scheduler
           </button>
           <button
-            onClick={() => setShowSettingsModal(true)}
+            onClick={() => {
+              setSettingsData({
+                groq_api_key: '', 
+                world_news_api_key: '', 
+                youtube_stream_key: channel?.youtube_stream_key || ''
+              });
+              setShowSettingsModal(true);
+            }}
             className="flex items-center gap-2 text-sm text-gray-400 hover:text-white transition px-3 py-2 rounded-lg hover:bg-white/5"
           >
             <Settings size={16} /> API Config
@@ -382,11 +407,12 @@ export default function DashboardPage() {
             </div>
 
             {/* ── Workflow Monitor link ── */}
-            <a
-              href="http://localhost:8080"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="flex items-center justify-between bg-[#111623] hover:bg-[#161d2e] border border-[#1c2035] hover:border-blue-500/30 px-6 py-4 rounded-2xl transition-all group"
+            <button
+              onClick={() => {
+                const host = window.location.hostname;
+                window.open(`http://${host}:8088`, '_blank');
+              }}
+              className="w-full flex items-center justify-between bg-[#111623] hover:bg-[#161d2e] border border-[#1c2035] hover:border-blue-500/30 px-6 py-4 rounded-2xl transition-all group"
             >
               <div className="flex items-center gap-3">
                 <Activity size={20} className="text-blue-400" />
@@ -396,7 +422,7 @@ export default function DashboardPage() {
                 </div>
               </div>
               <ExternalLink size={16} className="text-gray-600 group-hover:text-blue-400 transition" />
-            </a>
+            </button>
           </div>
         )}
       </main>
@@ -612,6 +638,22 @@ export default function DashboardPage() {
                   onChange={e => setSettingsData({ ...settingsData, world_news_api_key: e.target.value })}
                   className="w-full bg-[#080b14] border border-[#1c2035] rounded-xl px-5 py-4 focus:outline-none focus:border-blue-500 transition text-sm"
                 />
+              </div>
+              <div className="h-px bg-[#1c2035] my-6" />
+              <div>
+                <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">YouTube Stream Key</label>
+                <div className="relative">
+                  <input
+                    type="password"
+                    value={settingsData.youtube_stream_key}
+                    onChange={e => setSettingsData({ ...settingsData, youtube_stream_key: e.target.value })}
+                    className="w-full bg-[#080b14] border border-[#1c2035] rounded-xl px-5 py-4 focus:outline-none focus:border-red-500/50 transition text-sm font-mono"
+                    placeholder="qcu7-..."
+                  />
+                  <div className="absolute right-4 top-1/2 -translate-y-1/2 flex items-center gap-2 pointer-events-none">
+                    <span className="text-[10px] bg-red-500/10 text-red-500 px-2 py-1 rounded border border-red-500/20 font-bold">RTMP</span>
+                  </div>
+                </div>
               </div>
               <div className="flex gap-3 pt-2">
                 <button type="button" onClick={() => setShowSettingsModal(false)} className="flex-1 py-4 rounded-xl font-bold text-sm border border-[#1c2035] hover:bg-[#1c2035] transition">

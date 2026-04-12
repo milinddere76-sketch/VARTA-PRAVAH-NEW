@@ -25,7 +25,7 @@ requests>=2.32.0
 
 # AI / Voice
 groq>=0.7.0
-gtts>=2.5.1
+edge-tts>=7.0.0
 
 # Image processing
 pillow>=11.0.0

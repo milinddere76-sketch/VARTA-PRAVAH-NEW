@@ -144,7 +144,7 @@ class NewsProductionWorkflow:
                 try:
                     job_id = await workflow.execute_activity(
                         synclabs_lip_sync_activity,
-                        {"audio_url": audio_path},
+                        {"audio_url": audio_path, "is_female": is_female},
                         start_to_close_timeout=timedelta(minutes=5)
                     )
                     

@@ -9,7 +9,8 @@ import tempfile
 from dotenv import load_dotenv
 from temporalio import activity
 from groq import Groq
-from gtts import gTTS
+import edge_tts
+import asyncio
 
 # Ensure the 'backend' root is in sys.path
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -77,37 +78,72 @@ async def generate_script_activity(input_data: dict) -> dict:
     is_female = input_data.get("is_female", False)
     anchor_name = "Priya Desai" if is_female else "Arjun Sharma"
     
-    system_prompt = f"""You are a professional, high-energy News Broadcaster for 'VARTA PRAVAH' (Maharashtra's leading news channel).
-    Your task: Write a news script in SHUDDHA MARATHI (Standard, Official, Grammatically Perfect Devanagari).
+    # Time-aware greeting (IST)
+    import datetime
+    from zoneinfo import ZoneInfo
+    now_ist = datetime.datetime.now(ZoneInfo("Asia/Kolkata"))
     
-    STRICT BROADCAST RULES:
-    1. TONE: High energy, urgent, and authoritative (Breaking News Style).
-    2. LANGUAGE: Pure Marathi only. 100% grammatically correct. Use formal news vocabulary (e.g., 'Ghadamodi', 'Vruttanta', 'Vishleshan').
-    3. NO FLUFF: Do not add casual greetings or personal opinions. NO English-Marathi mixing.
-    4. STRUCTURE: 
-       - Start immediately with: 'Namaskar, Varta Pravah chya thak batmyaat aaple swagat! Me {anchor_name}.'
-       - Transition to news using urgent phrasing: 'Aata chi sarvaat moti baatmi...'
-       - Finish with only: 'Pahat raha, Varta Pravah. Dhanyavad.'
+    if 5 <= now_ist.hour < 12:
+        # Morning (5 AM - 12 PM)
+        opening_phrase = f"नमस्कार, शुभ प्रभात! आपण पाहत आहात 'वार्ताप्रवाह'. मी {anchor_name}, घेऊन {'आले आहे' if is_female else 'आलो आहे'} सकाळच्या प्रमुख घडामोडी. चला पाहूया आजच्या दिवसाची सुरुवात करणाऱ्या महत्त्वाच्या बातम्या."
+    elif 12 <= now_ist.hour < 17:
+        # Afternoon (12 PM - 5 PM)
+        opening_phrase = f"नमस्कार! आपण पाहत आहात 'वार्ताप्रवाह'. मी {anchor_name}, घेऊन {'आले आहे' if is_female else 'आलो आहे'} दुपारच्या ताज्या अपडेट्स. चला जाणून घेऊया आतापर्यंतच्या महत्त्वाच्या बातम्या."
+    elif 17 <= now_ist.hour < 20:
+        # Evening (5 PM - 8 PM)
+        opening_phrase = f"नमस्कार! आपण पाहत आहात 'वार्ताप्रवाह'. मी {anchor_name}, घेऊन {'आले आहे' if is_female else 'आलो आहे'} दिवसभरातील महत्त्वाच्या घडामोडी. चला पाहूया संध्याकाळच्या प्रमुख बातम्या."
+    elif 20 <= now_ist.hour < 22:
+        # Prime Time (8 PM - 10 PM)
+        opening_phrase = f"नमस्कार! आपण पाहत आहात 'वार्ताप्रवाह' — सत्याचा आरसा. मी {anchor_name}, घेऊन {'आले आहे' if is_female else 'आलो आहे'} आजच्या दिवसातील सर्वात मोठ्या आणि परिणामकारक बातम्या. सुरुवात करूया हेडलाईन्सने."
+    else:
+        # Night Bulletin (10 PM - 5 AM)
+        opening_phrase = f"नमस्कार! आपण पाहत आहात 'वार्ताप्रवाह'. मी {anchor_name}, घेऊन {'आले आहे' if is_female else 'आलो आहे'} दिवसभराचा संक्षिप्त आढावा. चला पाहूया आजच्या मुख्य बातम्या."
     
-    Content: Convert the provided headline/description into a fast-paced 5-sentence professional news report."""
-    user_prompt = f"HEADLINE: {news_data['headline']}\nDESCRIPTION: {news_data['description']}"
+    system_prompt = f"""You are a Marathi News Scholar for 'VARTA PRAVAH'. 
+    TONE: Clear, confident, and professional. NO DRAMA.
+    
+    STRICT STRUCTURE:
+    1. OPENING: You MUST start exactly with: '{opening_phrase}'
+    2. BREAKING TRANSITION: Immediately say: 'थांबा जरा! एक मोठी ब्रेकिंग न्यूज समोर येत आहे…'
+    3. CONTENT: 5-6 professional Marathi sentences (Shuddha Marathi).
+    4. TAGLINE & CLOSING: Finish with exactly: 'सत्य, वेग आणि विश्वासाचा प्रवाह. पाहत रहा, वार्ताप्रवाह. धन्यवाद.'
+    
+    GENDER GRAMMAR RULES (Crucial):
+    - Anchor is {anchor_name} ({'Female' if is_female else 'Male'}).
+    - If referring to self, use '{'आले आहे' if is_female else 'आलो आहे'}'.
+    
+    LINGUISTIC RULES:
+    - NO English characters. No Hinglish.
+    - Use official terminology."""
+    user_prompt = f"IF THE FOLLOWING NEWS IS IN ENGLISH, TRANSLATE IT TO PURE MARATHI FIRST AND THEN WRITE THE SCRIPT.\nHEADLINE: {news_data['headline']}\nDESCRIPTION: {news_data['description']}"
     try:
         client = Groq(api_key=os.getenv("GROQ_API_KEY"))
         completion = client.chat.completions.create(model="llama-3.1-8b-instant", messages=[{"role": "system", "content": system_prompt}, {"role": "user", "content": user_prompt}], temperature=0.3)
         script = completion.choices[0].message.content
+        print(f"--- [VERIFICATION] News Script Generated ---")
+        print(f"Anchor: {anchor_name} | Language: Marathi")
+        print(f"Script Context:\n{script[:200]}...")
+        print(f"-------------------------------------------")
         return {"script": script, "is_female": is_female}
-    except Exception:
+    except Exception as e:
+        print(f"Groq Script Error: {e}")
         return {"script": f"Namaskar, Varta Pravah madhe aaple swagat aahe. Me {anchor_name}. Aajchya thak batmya. Dhanyavad.", "is_female": is_female}
 
 @activity.defn
 async def generate_audio_activity(input_data: dict) -> str:
     script = input_data.get("script", "")
+    is_female = input_data.get("is_female", True)
     audio_path = os.path.join(tempfile.gettempdir(), f"news_{uuid.uuid4().hex}.mp3")
+    
+    # Professional Marathi voices from Microsoft Edge TTS
+    voice = "mr-IN-AarohiNeural" if is_female else "mr-IN-ManoharNeural"
+    
     try:
-        tts = gTTS(text=script, lang="mr")
-        tts.save(audio_path)
+        communicate = edge_tts.Communicate(script, voice)
+        await communicate.save(audio_path)
         return audio_path
-    except Exception:
+    except Exception as e:
+        print(f"Edge TTS Error: {e}")
         subprocess.run(["ffmpeg", "-y", "-f", "lavfi", "-i", "anullsrc=r=44100:cl=mono", "-t", "10", "-c:a", "libmp3lame", audio_path], capture_output=True)
         return audio_path
 
@@ -227,18 +263,30 @@ async def upload_to_s3_activity(v_url: str) -> str: return v_url
 
 @activity.defn
 async def synclabs_lip_sync_activity(data: dict) -> str:
-    """Sends audio and base video to Sync Labs for lip-sync."""
+    """Sends audio and gender-appropriate base video to Sync Labs for lip-sync."""
     api_key = os.getenv("SYNCLABS_API_KEY")
     if not api_key: return "no_api_key"
     
-    headers = {"x-api-key": api_key, "Content-Type": "application/json"}
+    is_female = data.get("is_female", True)
+    # Target high-quality base videos matching the anchor gender
+    # These base videos should be clean segments of the specific anchor models
+    base_video = os.getenv("SYNC_LABS_FEMALE_VIDEO") if is_female else os.getenv("SYNC_LABS_MALE_VIDEO")
+    
+    if not base_video:
+        # Fallback to predefined public assets if env vars aren't set
+        base_video = "https://storage.googleapis.com/varta-pravah/female_anchor_clean.mp4" if is_female else "https://storage.googleapis.com/varta-pravah/male_anchor_clean.mp4"
+
+    headers = {
+        "x-api-key": api_key,
+        "Content-Type": "application/json"
+    }
     payload = {
         "audioUrl": data['audio_url'], 
-        "videoUrl": os.getenv("SYNC_LABS_BASE_VIDEO_URL") or "https://storage.googleapis.com/varta-pravah/base_female.mp4",
+        "videoUrl": base_video,
         "synergize": True
     }
     try:
-        r = requests.post("https://api.synclabs.so/v2/lipsync", headers=headers, json=payload, timeout=10)
+        r = requests.post("https://api.synclabs.so/v2/lipsync", headers=headers, json=payload, timeout=15)
         r.raise_for_status()
         return r.json().get("id")
     except Exception as e:
@@ -248,7 +296,8 @@ async def synclabs_lip_sync_activity(data: dict) -> str:
 @activity.defn
 async def check_sync_labs_status_activity(job_id: str) -> dict:
     """Polls Sync Labs for the finished lip-synced video."""
-    if job_id in ["no_api_key", "failed"]: return {"status": "completed", "video_url": ""}
+    if job_id in ["no_api_key", "failed"]: 
+        return {"status": "completed", "video_url": ""}
     
     api_key = os.getenv("SYNCLABS_API_KEY")
     headers = {"x-api-key": api_key}
