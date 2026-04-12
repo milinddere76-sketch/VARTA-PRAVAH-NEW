@@ -461,17 +461,23 @@ async def stitch_bulletin_activity(data: dict) -> str:
     
     try:
         # Step 1: Concat everything
+        # On 4GB servers, we use a slower but safer re-encode for the first/last few frames
+        # to ensure the file header is perfectly valid for YouTube.
         temp_p = os.path.join(tempfile.gettempdir(), f"full_merged_{uuid.uuid4().hex}.mp4")
         subprocess.run([
             "ffmpeg", "-y", "-f", "concat", "-safe", "0", "-i", list_p,
-            "-fflags", "+genpts", "-avoid_negative_ts", "make_zero",
-            "-c", "copy", temp_p
+            "-c", "libx264", "-preset", "ultrafast", "-pix_fmt", "yuv420p",
+            "-c:a", "aac", "-b:a", "128k", "-ar", "44100",
+            temp_p
         ], check=True)
         
-        # Step 2: Trim to exact 60 minutes
+        # Step 2: Trim and Validate
+        if not os.path.exists(temp_p) or os.path.getsize(temp_p) < 1000000: # 1MB minimum
+             print("⚠️ Generated bulletin is too small/broken. Falling back.")
+             return ""
+
         subprocess.run([
             "ffmpeg", "-y", "-t", "3600", "-i", temp_p,
-            "-fflags", "+genpts", "-avoid_negative_ts", "make_zero",
             "-c", "copy", output_p
         ], check=True)
 
