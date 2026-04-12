@@ -52,9 +52,15 @@ async def setup_schedules(client: Client, channel_id: int, stream_key: str, anch
                     task_queue="news-task-queue",
                 ),
                 spec=ScheduleSpec(
-                    intervals=[ScheduleIntervalSpec(every=timedelta(hours=1))]
+                    calendars=[
+                        ScheduleCalendarSpec(
+                            minute=[45],
+                            comment="Trigger news generation 15 minutes before the hour"
+                        )
+                    ]
                 ),
             ),
+
         )
         print(f"✅ Hourly Bulletin Schedule for CH{channel_id} registered.")
     except Exception as e:

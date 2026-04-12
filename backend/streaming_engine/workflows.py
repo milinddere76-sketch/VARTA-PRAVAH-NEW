@@ -53,32 +53,48 @@ class MasterBulletinWorkflow:
         bulletin_type = data.get("bulletin_type", "Regular")
         anchor_ids = data.get("anchor_ids", []) # [female_id, male_id]
         
-        from datetime import datetime
+        from datetime import datetime, timedelta
         import zoneinfo
-        now = datetime.now(zoneinfo.ZoneInfo("Asia/Kolkata"))
-        current_hour = now.hour
+        
+        # Current time in IST for slot checking
+        now_ist = datetime.now(zoneinfo.ZoneInfo("Asia/Kolkata"))
+        
+        # Calculate target hour (the next hour after the :45 trigger)
+        # If triggered at 5:45, target is 6:00
+        target_time_ist = now_ist.replace(minute=0, second=0, microsecond=0) + timedelta(hours=1)
+        target_hour = target_time_ist.hour
         
         # FRESH_HOURS = [6, 12, 18, 21, 23]
-        is_fresh_slot = current_hour in [6, 12, 18, 21, 23] or bulletin_type != "Regular"
+        is_fresh_slot = target_hour in [6, 12, 18, 21, 23] or bulletin_type != "Regular"
         
         if not is_fresh_slot:
-            print(f"--- [REPEAT MODE] Hour {current_hour} is not a fresh slot. Searching for latest bulletin. ---")
+            print(f"--- [REPEAT MODE] Target Hour {target_hour} is not a fresh slot. Searching for latest bulletin. ---")
             latest_path = await workflow.execute_activity(
                 find_latest_bulletin_activity,
                 channel_id,
                 start_to_close_timeout=timedelta(minutes=1)
             )
             if latest_path and os.path.exists(latest_path):
-                print(f"--- [REPEAT] Found latest bulletin: {latest_path}. Streaming now. ---")
+                print(f"--- [REPEAT] Found latest bulletin: {latest_path}. Waiting for Top of Hour. ---")
+                
+                # Wait until the target hour starts
+                now_utc = workflow.now()
+                # Target time in UTC (IST-5.5)
+                wait_duration = target_time_ist - now_ist
+                if wait_duration.total_seconds() > 0:
+                    await workflow.sleep(wait_duration)
+                
+                print(f"--- [REPEAT] Streaming {target_hour}:00 Bulletin now. ---")
                 await workflow.execute_activity(
                     start_stream_activity,
                     {"channel_id": channel_id, "stream_key": stream_key, "video_url": latest_path, "is_promo": False},
                     start_to_close_timeout=timedelta(minutes=5)
                 )
                 await workflow.sleep(timedelta(minutes=55)) # Telecast duration
-                return f"Bulletin Repeat (Hour {current_hour}) completed."
+                return f"Bulletin Repeat (Hour {target_hour}) completed."
             else:
-                print(f"--- [REPEAT] No previous bulletin found. Forcing fresh generation. ---")
+                print(f"--- [REPEAT] No previous bulletin found. Forcing fresh generation for {target_hour}:00. ---")
+
 
         print(f"--- STARTING MASTER BULLETIN: {bulletin_type} ---")
         
@@ -168,11 +184,19 @@ class MasterBulletinWorkflow:
 
 
         # 5. Start Telecast
+        print(f"--- [FRESH] Bulletin Ready. Waiting for Top of Hour ({target_hour}:00). ---")
+        now_ist = datetime.now(zoneinfo.ZoneInfo("Asia/Kolkata"))
+        wait_duration = target_time_ist - now_ist
+        if wait_duration.total_seconds() > 0:
+            await workflow.sleep(wait_duration)
+
+        print(f"--- [FRESH] Starting {target_hour}:00 Telecast now. ---")
         await workflow.execute_activity(
             start_stream_activity,
             {"channel_id": channel_id, "stream_key": stream_key, "video_url": full_bulletin_path, "is_promo": False},
             start_to_close_timeout=timedelta(minutes=5)
         )
+
         
         # Wait for 1 hour telecast duration (or until next schedule)
         await workflow.sleep(timedelta(hours=1))
@@ -205,13 +229,33 @@ class BreakingNewsWorkflow:
             if breaking_items:
                 item = breaking_items[0]
                 # 2. Generate Instant Clip
-                script = await workflow.execute_activity(generate_script_activity, {"item": item, "language": "Marathi"}, start_to_close_timeout=timedelta(minutes=1))
-                audio = await workflow.execute_activity(generate_audio_activity, {"text": script, "anchor_id": anchor_ids[0]}, start_to_close_timeout=timedelta(minutes=1))
-                video = await workflow.execute_activity(generate_news_video_activity, {"audio_path": audio, "item": item, "anchor_id": anchor_ids[0]}, start_to_close_timeout=timedelta(minutes=2))
+                script_data = await workflow.execute_activity(
+                    generate_script_activity, 
+                    {"news_data": item, "language": "Marathi"}, 
+                    start_to_close_timeout=timedelta(minutes=1)
+                )
+                audio_path = await workflow.execute_activity(
+                    generate_audio_activity, 
+                    {"script": script_data["script"], "anchor_id": anchor_ids[0]}, 
+                    start_to_close_timeout=timedelta(minutes=1)
+                )
+                video_path = await workflow.execute_activity(
+                    generate_news_video_activity, 
+                    {
+                        "audio_url": audio_path, 
+                        "title": item.get("headline", "BREAKING NEWS"), 
+                        "anchor_id": anchor_ids[0]
+                    }, 
+                    start_to_close_timeout=timedelta(minutes=2)
+                )
                 
                 # 3. Interrupted (Seamless): Signal the Streamer
-                # In this v1, we just update the stream. The user confirmed they want to wait for STORY finish.
-                # However, my start_stream activity kills current. 
+                if video_path:
+                    await workflow.execute_activity(
+                        start_stream_activity,
+                        {"channel_id": channel_id, "stream_key": stream_key, "video_url": video_path, "is_priority": True},
+                        start_to_close_timeout=timedelta(minutes=5)
+                    )
                 # To be TRULY seamless, we'd need a more complex Streamer.
                 # For now, we follow the "at next possible moment" by updating the playlist.
                 await workflow.execute_activity(
