@@ -26,9 +26,11 @@ services:
     environment:
       - DB=postgresql
       - DB_PORT=5432
+      - DB_NAME=temporal
       - POSTGRES_USER=root
       - POSTGRES_PWD=password
       - POSTGRES_SEEDS=postgres
+      - SKIP_DB_SCHEMA_REUSE=false
       - DYNAMIC_CONFIG_FILE_PATH=config/dynamicconfig/development-sql.yaml
     volumes:
       - ./temporal/dynamicconfig:/etc/temporal/config/dynamicconfig
