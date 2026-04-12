@@ -106,7 +106,13 @@ class MasterBulletinWorkflow:
         )
         
         if not items:
-            return "No news found for bulletin."
+            print("--- [FALLBACK] No news found. Streaming Promo Loop to stay live. ---")
+            await workflow.execute_activity(
+                start_stream_activity,
+                {"channel_id": channel_id, "stream_key": stream_key, "video_url": f"videos/promo_ch{channel_id}.mp4", "is_promo": True},
+                start_to_close_timeout=timedelta(minutes=5)
+            )
+            return "No news found. Fallback promo started."
 
         # 2. Generate Intro & Headlines
         is_female = True # Headlines always female for consistency
