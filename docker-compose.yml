@@ -115,8 +115,7 @@ services:
     command: python -m streaming_engine.worker
     restart: unless-stopped
     volumes:
-      - ./backend:/app
-      - ./videos:/app/videos
+      - ./backend/videos:/app/videos
     environment:
       - DATABASE_URL=postgresql+psycopg://root:password@postgres:5432/temporal
       - TEMPORAL_ADDRESS=temporal:7233
