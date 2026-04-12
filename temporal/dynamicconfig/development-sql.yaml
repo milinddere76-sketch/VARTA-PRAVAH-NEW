@@ -1,0 +1,5 @@
+# Dynamic configuration for Temporal using SQL (Postgres)
+# This enables the server to communicate with the database correctly on first boot.
+system.forceSearchAttributesCacheRefreshOnStart:
+  - value: true
+    constraints: {}
