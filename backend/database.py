@@ -16,20 +16,13 @@ SessionLocal = None
 
 # ================= SOCKET CHECK ================= #
 
-def is_db_open(url, timeout=0.5):
-    try:
-        host_info = url.split('@')[-1].split('/')[0]
-
-        if ':' in host_info:
-            host, port = host_info.split(':')
-        else:
-            host, port = host_info, 5432
-
-        with socket.create_connection((host, int(port)), timeout=timeout):
+        # Increased timeout to 2.0s for 4GB server stability
+        with socket.create_connection((host, int(port)), timeout=2.0):
             return True
 
     except (socket.timeout, ConnectionRefusedError, OSError):
         return False
+
 
 
 # ================= ENGINE BUILDER ================= #
@@ -60,7 +53,7 @@ def get_engine():
         # Socket check with very fast timeout (200ms) to avoid hanging
         if url.startswith("postgresql"):
             host_info = url.split('@')[-1].split('/')[0]
-            if not is_db_open(url, timeout=0.2):
+            if not is_db_open(url, timeout=1.0):
                 continue
         
         try:
