@@ -449,7 +449,9 @@ async def stitch_bulletin_activity(data: dict) -> str:
             break
 
     # Final Merge
+    video_dir = os.path.join(BASE_DIR, "videos")
     output_p = os.path.join(video_dir, f"full_bulletin_ch{channel_id}_{uuid.uuid4().hex}.mp4")
+
 
     list_p = os.path.join(tempfile.gettempdir(), f"stitch_list_{uuid.uuid4().hex}.txt")
     with open(list_p, "w") as f:
