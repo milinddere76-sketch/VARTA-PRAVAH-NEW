@@ -95,9 +95,9 @@ services:
       - PYTHONPATH=/app
     volumes:
       - ./backend/videos:/app/videos
-     depends_on:
+    depends_on:
       backend:
-         condition: service_started
+        condition: service_started
       temporal:
         condition: service_started
     networks:
