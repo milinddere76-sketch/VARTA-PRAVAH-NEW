@@ -464,14 +464,17 @@ async def stitch_bulletin_activity(data: dict) -> str:
         temp_p = os.path.join(tempfile.gettempdir(), f"full_merged_{uuid.uuid4().hex}.mp4")
         subprocess.run([
             "ffmpeg", "-y", "-f", "concat", "-safe", "0", "-i", list_p,
+            "-fflags", "+genpts", "-avoid_negative_ts", "make_zero",
             "-c", "copy", temp_p
         ], check=True)
         
         # Step 2: Trim to exact 60 minutes
         subprocess.run([
             "ffmpeg", "-y", "-t", "3600", "-i", temp_p,
+            "-fflags", "+genpts", "-avoid_negative_ts", "make_zero",
             "-c", "copy", output_p
         ], check=True)
+
         
         try: os.remove(temp_p)
         except: pass
