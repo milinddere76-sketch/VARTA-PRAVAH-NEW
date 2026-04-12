@@ -34,12 +34,6 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
-    healthcheck:
-      test: ["CMD-SHELL", "nc -z 127.0.0.1 7233 || exit 1"]
-      interval: 10s
-      timeout: 5s
-      retries: 10
-      start_period: 30s
     networks:
       - vartapravah-net
 
@@ -53,8 +47,7 @@ services:
     ports:
       - "8088:8080"
     depends_on:
-      temporal:
-        condition: service_healthy
+      - temporal
     networks:
       - vartapravah-net
 
@@ -83,7 +76,7 @@ services:
       postgres:
         condition: service_healthy
       temporal:
-        condition: service_healthy
+        condition: service_started
     networks:
       - vartapravah-net
 
@@ -106,7 +99,7 @@ services:
       backend:
         condition: service_healthy
       temporal:
-        condition: service_healthy
+        condition: service_started
     networks:
       - vartapravah-net
 
