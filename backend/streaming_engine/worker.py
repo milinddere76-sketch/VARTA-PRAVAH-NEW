@@ -31,8 +31,10 @@ from .activities import (
     stop_stream_activity,
     check_scheduled_ads_activity,
     merge_videos_activity,
-    stitch_bulletin_activity
+    stitch_bulletin_activity,
+    find_latest_bulletin_activity
 )
+
 
 
 
@@ -223,8 +225,10 @@ async def main():
             stop_stream_activity,
             check_scheduled_ads_activity,
             merge_videos_activity,
-            stitch_bulletin_activity
+            stitch_bulletin_activity,
+            find_latest_bulletin_activity
         ],
+
 
 
         identity=f"Worker-Ch{channel_id_env}",

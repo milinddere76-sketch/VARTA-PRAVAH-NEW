@@ -389,7 +389,25 @@ async def merge_videos_activity(video_paths: list[str]) -> str:
         except: pass
 
 @activity.defn
+async def find_latest_bulletin_activity(channel_id: int) -> str:
+    # Look for the most recent full bulletin for this channel
+    video_dir = os.path.join(BASE_DIR, "videos")
+    if not os.path.exists(video_dir): return ""
+    
+    files = [f for f in os.listdir(video_dir) if f.startswith(f"full_bulletin_ch{channel_id}_")]
+    if not files:
+        # Fallback to general bulletins if channel-specific not found (older format)
+        files = [f for f in os.listdir(video_dir) if f.startswith("full_bulletin_")]
+        
+    if not files: return ""
+    
+    # Sort by modification time
+    files.sort(key=lambda x: os.path.getmtime(os.path.join(video_dir, x)), reverse=True)
+    return os.path.join(video_dir, files[0])
+
+@activity.defn
 async def stitch_bulletin_activity(data: dict) -> str:
+    channel_id = data.get("channel_id", 0)
     # Organize news stories and promos into a 1-hour bulletin
     intro_path = data.get("intro_path")
     headlines_path = data.get("headlines_path")
@@ -427,13 +445,12 @@ async def stitch_bulletin_activity(data: dict) -> str:
             final_sequence.append(promo_path)
             
         # Check current duration
-        # (This is an approximation for efficiency during assembly)
-        # In real production, we'd check duration of final_sequence
         if len(final_sequence) > 50: # Safety break (approx 50-60 mins)
             break
 
     # Final Merge
-    output_p = os.path.join(BASE_DIR, "videos", f"full_bulletin_{uuid.uuid4().hex}.mp4")
+    output_p = os.path.join(video_dir, f"full_bulletin_ch{channel_id}_{uuid.uuid4().hex}.mp4")
+
     list_p = os.path.join(tempfile.gettempdir(), f"stitch_list_{uuid.uuid4().hex}.txt")
     with open(list_p, "w") as f:
         for p in final_sequence:

@@ -23,8 +23,10 @@ with workflow.unsafe.imports_passed_through():
         check_scheduled_ads_activity,
         cleanup_old_videos_activity,
         merge_videos_activity,
-        stitch_bulletin_activity
+        stitch_bulletin_activity,
+        find_latest_bulletin_activity
     )
+
 
 @workflow.defn
 class StopStreamWorkflow:
@@ -44,12 +46,40 @@ class MasterBulletinWorkflow:
     """
     @workflow.run
     async def run(self, data: dict) -> str:
+
         channel_id = data["channel_id"]
         stream_key = data["stream_key"]
         language = data["language"]
         bulletin_type = data.get("bulletin_type", "Regular")
         anchor_ids = data.get("anchor_ids", []) # [female_id, male_id]
         
+        from datetime import datetime
+        import zoneinfo
+        now = datetime.now(zoneinfo.ZoneInfo("Asia/Kolkata"))
+        current_hour = now.hour
+        
+        # FRESH_HOURS = [6, 12, 18, 21, 23]
+        is_fresh_slot = current_hour in [6, 12, 18, 21, 23] or bulletin_type != "Regular"
+        
+        if not is_fresh_slot:
+            print(f"--- [REPEAT MODE] Hour {current_hour} is not a fresh slot. Searching for latest bulletin. ---")
+            latest_path = await workflow.execute_activity(
+                find_latest_bulletin_activity,
+                channel_id,
+                start_to_close_timeout=timedelta(minutes=1)
+            )
+            if latest_path and os.path.exists(latest_path):
+                print(f"--- [REPEAT] Found latest bulletin: {latest_path}. Streaming now. ---")
+                await workflow.execute_activity(
+                    start_stream_activity,
+                    {"channel_id": channel_id, "stream_key": stream_key, "video_url": latest_path, "is_promo": False},
+                    start_to_close_timeout=timedelta(minutes=5)
+                )
+                await workflow.sleep(timedelta(minutes=55)) # Telecast duration
+                return f"Bulletin Repeat (Hour {current_hour}) completed."
+            else:
+                print(f"--- [REPEAT] No previous bulletin found. Forcing fresh generation. ---")
+
         print(f"--- STARTING MASTER BULLETIN: {bulletin_type} ---")
         
         # 1. Fetch 20 News Items for a 60min loop
@@ -120,6 +150,7 @@ class MasterBulletinWorkflow:
         full_bulletin_path = await workflow.execute_activity(
             stitch_bulletin_activity,
             {
+                "channel_id": channel_id,
                 "headlines_path": headlines_path,
                 "story_paths": story_videos,
                 "promo_path": f"videos/promo_ch{channel_id}.mp4",
@@ -127,6 +158,7 @@ class MasterBulletinWorkflow:
             },
             start_to_close_timeout=timedelta(minutes=15)
         )
+
 
         # 5. Start Telecast
         await workflow.execute_activity(
