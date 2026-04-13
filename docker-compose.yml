@@ -36,8 +36,6 @@ services:
       - POSTGRES_USER=root
       - POSTGRES_PWD=password
       - POSTGRES_SEEDS=postgres
-      - BIND_ON_IP=0.0.0.0
-      - TEMPORAL_RPC_ADDRESS=0.0.0.0:7233
       - SKIP_DB_SCHEMA_REUSE=false
       - DYNAMIC_CONFIG_FILE_PATH=config/dynamicconfig/development-sql.yaml
     volumes:
