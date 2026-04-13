@@ -126,7 +126,7 @@ services:
     environment:
       - DATABASE_URL=postgresql+psycopg://root:password@postgres:5432/temporal
       - TEMPORAL_ADDRESS=temporal:7233
-      - AUTO_START_ALL_CHANNELS=False
+      - AUTO_START_ALL_CHANNELS=True
       - AUTO_START_CHANNEL_ID=1
       - PYTHONPATH=/app
       - GROQ_API_KEY=${GROQ_API_KEY}

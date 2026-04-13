@@ -251,6 +251,9 @@ async def main():
         client,
         task_queue="news-task-queue",
         workflows=[NewsProductionWorkflow, StopStreamWorkflow, MasterBulletinWorkflow, BreakingNewsWorkflow, StartImmediateStreamWorkflow],
+        # Only one heavy rendering/stitch activity at a time across all channels 
+        # to ensure we never exceed 4GB RAM.
+        max_concurrent_activities=1, 
         activities=[
             fetch_news_activity,
 
