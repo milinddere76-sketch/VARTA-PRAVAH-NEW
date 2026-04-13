@@ -30,7 +30,7 @@ services:
     image: temporalio/auto-setup:1.24.2
     restart: unless-stopped
     environment:
-      - DB=postgresql
+      - DB=postgres
       - DB_PORT=5432
       - DB_NAME=temporal
       - POSTGRES_USER=root
