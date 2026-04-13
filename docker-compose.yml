@@ -136,6 +136,7 @@ services:
       - SYNC_LABS_MALE_VIDEO=${SYNC_LABS_MALE_VIDEO}
       - YOUTUBE_STREAM_KEY=${YOUTUBE_STREAM_KEY}
       - YOUTUBE_STREAM_KEY_CH2=${YOUTUBE_STREAM_KEY_CH2}
+      - YOUTUBE_STREAM_KEY_CH2=${YOUTUBE_STREAM_KEY_CH2}
     volumes:
       - ./backend/videos:/app/videos
       - ./backend/assets:/app/assets
