@@ -183,8 +183,25 @@ async def trigger_auto_start(client: Client):
             )
             print(f"✅ Initial Promo triggered for CH{channel_id}")
 
+            # 3. Trigger INSTANT Fresh News (Flash Update)
+            # This ensures we don't wait an hour to see news on the first boot
+            await client.start_workflow(
+                MasterBulletinWorkflow.run,
+                {
+                    "channel_id": channel_id, 
+                    "stream_key": stream_key, 
+                    "language": "Marathi",
+                    "anchor_ids": [anchor_female_id, anchor_male_id],
+                    "is_instant": True,
+                    "bulletin_type": "Flash Update"
+                },
+                id=f"instant-news-ch{channel_id}",
+                task_queue="news-task-queue"
+            )
+            print(f"🚀 Flash News Bulletin triggered for CH{channel_id}")
+
         except Exception as e:
-            print(f"⚠️ Could not trigger initial promo for CH{channel_id}: {e}")
+            print(f"⚠️ Could not trigger initial boot sequence for CH{channel_id}: {e}")
 
 
 

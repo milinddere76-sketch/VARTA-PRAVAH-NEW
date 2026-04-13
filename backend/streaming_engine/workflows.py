@@ -52,6 +52,7 @@ class MasterBulletinWorkflow:
         language = data["language"]
         bulletin_type = data.get("bulletin_type", "Regular")
         anchor_ids = data.get("anchor_ids", []) # [female_id, male_id]
+        is_instant = data.get("is_instant", False)
         
         from datetime import datetime, timedelta
         import zoneinfo
@@ -60,14 +61,15 @@ class MasterBulletinWorkflow:
         now_ist = datetime.now(zoneinfo.ZoneInfo("Asia/Kolkata"))
         
         # Calculate target hour (the next hour after the :45 trigger)
-        # If triggered at 5:45, target is 6:00
         target_time_ist = now_ist.replace(minute=0, second=0, microsecond=0) + timedelta(hours=1)
         target_hour = target_time_ist.hour
         
-        # FRESH_HOURS = [6, 12, 18, 21, 23]
-        is_fresh_slot = target_hour in [6, 12, 18, 21, 23] or bulletin_type != "Regular"
-        
-        if not is_fresh_slot:
+        # If is_instant is True, we skip searching for previous bulletins and jump to generation
+        if not is_instant:
+            # FRESH_HOURS = [6, 12, 18, 21, 23]
+            is_fresh_slot = target_hour in [6, 12, 18, 21, 23] or bulletin_type != "Regular"
+            
+            if not is_fresh_slot:
             print(f"--- [REPEAT MODE] Target Hour {target_hour} is not a fresh slot. Searching for latest bulletin. ---")
             latest_path = await workflow.execute_activity(
                 find_latest_bulletin_activity,
@@ -216,13 +218,14 @@ class MasterBulletinWorkflow:
 
 
         # 5. Start Telecast
-        print(f"--- [FRESH] Bulletin Ready. Waiting for Top of Hour ({target_hour}:00). ---")
-        now_ist = datetime.now(zoneinfo.ZoneInfo("Asia/Kolkata"))
-        wait_duration = target_time_ist - now_ist
-        if wait_duration.total_seconds() > 0:
-            await workflow.sleep(wait_duration)
+        if not is_instant:
+            print(f"--- [FRESH] Bulletin Ready. Waiting for Top of Hour ({target_hour}:00). ---")
+            now_ist = datetime.now(zoneinfo.ZoneInfo("Asia/Kolkata"))
+            wait_duration = target_time_ist - now_ist
+            if wait_duration.total_seconds() > 0:
+                await workflow.sleep(wait_duration)
 
-        print(f"--- [FRESH] Starting {target_hour}:00 Telecast now. ---")
+        print(f"--- [FRESH] Starting Bulletin Telecast now. ---")
         await workflow.execute_activity(
             start_stream_activity,
             {"channel_id": channel_id, "stream_key": stream_key, "video_url": full_bulletin_path, "is_promo": False},
