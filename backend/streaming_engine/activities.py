@@ -294,7 +294,7 @@ async def generate_news_video_activity(input_data: dict) -> str:
         # Add scrolling ticker filter
         # x=w-mod(t*200,w+tw) for scrolling from right to left
         # We target the blue/navy bar at y=960
-        ticker_filter = f"[v1]drawtext=fontfile='{font_t_path}':text='{ticker_text}':fontcolor=white:fontsize=45:y=995:x=380+(w-380)-mod(t*150\,(tw+w-380)):check_resample=1[outv]"
+        ticker_filter = f"[v1]drawtext=fontfile='{font_t_path}':text='{ticker_text}':fontcolor=white:fontsize=45:y=995:x=380+(w-380)-mod(t*150\\,(tw+w-380)):check_resample=1[outv]"
         
         ffmpeg_cmd = [
             "ffmpeg", "-y", "-loop", "1", "-i", frame_p

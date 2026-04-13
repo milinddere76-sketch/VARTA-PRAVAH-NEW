@@ -11,7 +11,7 @@ import asyncio
 import time
 from temporalio.client import Client
 from temporalio.worker import Worker, UnsandboxedWorkflowRunner
-from .workflows import NewsProductionWorkflow, StopStreamWorkflow, MasterBulletinWorkflow, BreakingNewsWorkflow, StartImmediateStreamWorkflow
+from .workflows import NewsProductionWorkflow, StopStreamWorkflow, MasterBulletinWorkflow, BreakingNewsWorkflow, StartImmediateStreamWorkflow, NewsBatchWorkflow
 
 import database
 import models
@@ -250,7 +250,7 @@ async def main():
     worker = Worker(
         client,
         task_queue="news-task-queue",
-        workflows=[NewsProductionWorkflow, StopStreamWorkflow, MasterBulletinWorkflow, BreakingNewsWorkflow, StartImmediateStreamWorkflow],
+        workflows=[NewsProductionWorkflow, StopStreamWorkflow, MasterBulletinWorkflow, BreakingNewsWorkflow, StartImmediateStreamWorkflow, NewsBatchWorkflow],
         # Only one heavy rendering/stitch activity at a time across all channels 
         # to ensure we never exceed 4GB RAM.
         max_concurrent_activities=1, 
