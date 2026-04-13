@@ -1,7 +1,9 @@
 "use client";
 
-import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { Activity, ExternalLink, Square, Play, Settings, Megaphone, Trash2, Upload, Link, CheckCircle, Clock } from 'lucide-react';
+import React, { useState, useEffect, useCallback } from 'react';
+import { Activity, Square, Play, Settings, ExternalLink, ShieldCheck } from 'lucide-react';
+
+const API_URL = '/api';
 
 interface Channel {
   id: number;
@@ -9,74 +11,15 @@ interface Channel {
   language: string;
   youtube_stream_key: string;
   is_streaming: boolean;
-  created_at: string;
-}
-
-interface AdCampaign {
-  id: number;
-  name: string;
-  video_url: string;
-  scheduled_hours: string;
-  is_active: boolean;
-}
-
-const API_URL = '/api';
-
-const ALL_HOURS = Array.from({ length: 24 }, (_, i) => String(i).padStart(2, '0'));
-
-function HourPicker({ value, onChange }: { value: string; onChange: (v: string) => void }) {
-  const selected = new Set(value.split(',').map(h => h.trim().padStart(2, '0')).filter(Boolean));
-
-  const toggle = (h: string) => {
-    const next = new Set(selected);
-    next.has(h) ? next.delete(h) : next.add(h);
-    onChange([...next].sort().join(','));
-  };
-
-  return (
-    <div>
-      <p className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">Schedule Hours (IST)</p>
-      <div className="grid grid-cols-8 gap-1.5">
-        {ALL_HOURS.map(h => (
-          <button
-            key={h}
-            type="button"
-            onClick={() => toggle(h)}
-            className={`py-1.5 rounded-lg text-xs font-bold transition-all border ${selected.has(h)
-                ? 'bg-purple-600 border-purple-500 text-white shadow-lg shadow-purple-500/20'
-                : 'bg-[#0d1120] border-[#1c2035] text-gray-500 hover:border-purple-500/40 hover:text-gray-300'
-              }`}
-          >
-            {h}
-          </button>
-        ))}
-      </div>
-      {selected.size > 0 && (
-        <p className="text-xs text-purple-400 mt-2">
-          ✓ Runs at: {[...selected].sort().map(h => `${h}:00`).join(' · ')}
-        </p>
-      )}
-    </div>
-  );
+  active_anchor?: string;
 }
 
 export default function DashboardPage() {
   const [channels, setChannels] = useState<Channel[]>([]);
   const [loading, setLoading] = useState(true);
-  const [processing, setProcessing] = useState(false);
-
-  const [showAdModal, setShowAdModal] = useState(false);
-  const [ads, setAds] = useState<AdCampaign[]>([]);
-  const [adTab, setAdTab] = useState<'upload' | 'url'>('upload');
-  const [newAd, setNewAd] = useState({ name: '', video_url: '', scheduled_hours: '08,12,18,21' });
-  const [uploadState, setUploadState] = useState<'idle' | 'uploading' | 'done' | 'error'>('idle');
-  const [uploadedFile, setUploadedFile] = useState<{ filename: string; size_mb: number } | null>(null);
-  const [uploadProgress, setUploadProgress] = useState(0);
-  const [isDragOver, setIsDragOver] = useState(false);
-  const fileInputRef = useRef<HTMLInputElement>(null);
-
-  const [showSettingsModal, setShowSettingsModal] = useState(false);
-  const [settingsData, setSettingsData] = useState({ groq_api_key: '', world_news_api_key: '', youtube_stream_key: '' });
+  const [activeTab, setActiveTab] = useState<'status' | 'settings'>('status');
+  const [showKeyModal, setShowKeyModal] = useState(false);
+  const [streamKey, setStreamKey] = useState("");
 
   const fetchChannel = useCallback(async () => {
     try {
@@ -84,7 +27,7 @@ export default function DashboardPage() {
       const data: Channel[] = await res.json();
       setChannels(data);
     } catch (err) {
-      console.error('Failed to fetch channel', err);
+      console.error('API Error:', err);
     } finally {
       setLoading(false);
     }
@@ -92,178 +35,164 @@ export default function DashboardPage() {
 
   useEffect(() => {
     fetchChannel();
-    const interval = setInterval(fetchChannel, 15_000);
+    const interval = setInterval(fetchChannel, 5000);
     return () => clearInterval(interval);
   }, [fetchChannel]);
 
-  const handleTrigger = async (channelId: number) => {
-    setProcessing(true);
+  const handleStart = async (channelId: number) => {
     try {
-      const res = await fetch(`${API_URL}/channels/${channelId}/trigger`, { method: 'POST' });
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({}));
-        alert(`Failed: ${err.detail || res.statusText}`);
-      }
-      await fetchChannel();
+      await fetch(`${API_URL}/channels/${channelId}/trigger`, { method: 'POST' });
+      fetchChannel();
     } catch {
       alert('Network error — backend unreachable.');
-    } finally {
-      setProcessing(false);
     }
   };
 
   const handleStop = async (channelId: number) => {
-    if (!confirm('Halt broadcast immediately? This will drop the YouTube stream.')) return;
-    setProcessing(true);
+    if (!confirm('Halt broadcast immediately?')) return;
     try {
       await fetch(`${API_URL}/channels/${channelId}/stop`, { method: 'POST' });
-      await fetchChannel();
+      fetchChannel();
     } catch {
-      alert('Error stopping stream.');
-    } finally {
-      setProcessing(false);
+      alert('Control error.');
     }
   };
 
-  const fetchAds = async (channelId: number) => {
+  const updateStreamKey = async () => {
+    if (!channels[0]) return;
     try {
-      const res = await fetch(`${API_URL}/channels/${channelId}/ads`);
-      setAds(await res.json());
-    } catch { /* silent */ }
-  };
-
-  const uploadFile = async (file: File) => {
-    setUploadState('uploading');
-    setUploadProgress(0);
-    const formData = new FormData();
-    formData.append('file', file);
-    try {
-      const progressInterval = setInterval(() => {
-        setUploadProgress(p => Math.min(p + 10, 85));
-      }, 200);
-      const res = await fetch(`${API_URL}/ads/upload-video`, { method: 'POST', body: formData });
-      clearInterval(progressInterval);
-      setUploadProgress(100);
-      if (!res.ok) throw new Error('Upload failed');
-      const data = await res.json();
-      setNewAd(prev => ({ ...prev, video_url: data.video_url }));
-      setUploadedFile({ filename: data.filename, size_mb: data.size_mb });
-      setUploadState('done');
-    } catch (e: any) {
-      setUploadState('error');
-      alert(`Upload error: ${e.message}`);
-    }
-  };
-
-  const handleCreateAd = async (channelId: number) => {
-    if (!newAd.video_url) { alert('Please upload a video first.'); return; }
-    try {
-      await fetch(`${API_URL}/channels/${channelId}/ads`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ ...newAd, channel_id: channelId }),
-      });
-      setNewAd({ name: '', video_url: '', scheduled_hours: '08,12,18,21' });
-      setUploadState('idle');
-      fetchAds(channelId);
-    } catch { alert('Error adding ad.'); }
-  };
-
-  const handleUpdateSettings = async (channelId: number) => {
-    try {
-      await fetch(`${API_URL}/settings`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ groq_api_key: settingsData.groq_api_key, world_news_api_key: settingsData.world_news_api_key }),
-      });
-      await fetch(`${API_URL}/channels/${channelId}/stream-key`, {
+      await fetch(`${API_URL}/channels/${channels[0].id}/stream-key`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ stream_key: settingsData.youtube_stream_key }),
+        body: JSON.stringify({ stream_key: streamKey }),
       });
-      alert('Settings updated!');
-      setShowSettingsModal(false);
+      setShowKeyModal(false);
       fetchChannel();
-    } catch { alert('Error updating settings.'); }
+    } catch {
+      alert('Failed to save key.');
+    }
   };
 
+  if (loading) return (
+    <div className="min-h-screen bg-[#05070a] flex items-center justify-center">
+      <div className="animate-pulse text-blue-500 font-bold tracking-widest">BOOTING VARTA PRAVAH...</div>
+    </div>
+  );
+
+  const channel = channels[0] || { id: 1, name: "Varta Pravah Live", language: "Marathi", is_streaming: false, youtube_stream_key: "" };
+
   return (
-    <div className="min-h-screen bg-[#080b14] text-white font-sans flex flex-col">
-      <nav className="border-b border-[#1c2035] bg-[#0d1120] px-8 py-4 flex items-center justify-between">
-        <div className="flex items-center gap-3">
-          <div className="w-9 h-9 rounded-lg bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center shadow-lg shadow-blue-500/30">
-            <Activity size={18} className="text-white" />
+    <div className="min-h-screen bg-[#05070a] text-[#e2e8f0] font-sans selection:bg-green-500/30">
+      {/* Header Overlay */}
+      <div className="max-w-4xl mx-auto pt-20 px-6">
+        <div className="flex justify-between items-end mb-12">
+          <div>
+            <h1 className="text-5xl font-black tracking-tighter text-white mb-2">VARTA PRAVAH</h1>
+            <p className="text-blue-400 font-bold text-sm tracking-wide">Language: <span className="text-white">Marathi</span></p>
           </div>
-          <span className="text-xl font-bold tracking-tight">VartaPravah</span>
-          <span className="text-xs text-blue-400 font-semibold bg-blue-500/10 border border-blue-500/20 px-2 py-0.5 rounded-full ml-1">Multi-Channel AI</span>
+          <div className={`flex items-center gap-2 px-4 py-2 rounded-full border transition-all duration-700 ${channel.is_streaming ? 'bg-green-500/10 border-green-500/40 text-green-400 shadow-[0_0_20px_rgba(34,197,94,0.2)]' : 'bg-red-500/5 border-red-500/20 text-red-500/50'}`}>
+            <div className={`w-2 h-2 rounded-full ${channel.is_streaming ? 'bg-green-500 animate-pulse' : 'bg-red-500 opacity-20'}`} />
+            <span className="text-[10px] font-black uppercase tracking-widest">{channel.is_streaming ? 'Live on YouTube' : 'Station Offline'}</span>
+          </div>
         </div>
-      </nav>
 
-      <main className="flex-1 flex flex-col items-center justify-center px-6 py-12">
-        {loading ? (
-          <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-500" />
-        ) : channels.length === 0 ? (
-          <div className="text-center">
-            <div className="text-6xl mb-4">📡</div>
-            <p className="text-gray-400 text-lg">Initializing Broadcast System…</p>
+        {/* Dashboard Grid */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
+          {/* Female Anchor Selection */}
+          <div className={`group relative rounded-[2.5rem] border p-8 transition-all duration-500 ${channel.is_streaming ? 'bg-[#0a120d] border-green-500/20 shadow-2xl' : 'bg-[#0d1117] border-white/5 shadow-xl'}`}>
+            <div className="flex flex-col items-center text-center">
+              <div className="text-4xl mb-4 grayscale group-hover:grayscale-0 transition-all duration-500">👩🏼</div>
+              <h3 className="text-xl font-bold text-white mb-1">Priya Desai</h3>
+              <p className="text-gray-500 text-xs font-medium mb-4">Female Anchor</p>
+              {channel.is_streaming && (
+                <div className="flex items-center gap-1.5 px-3 py-1 rounded-full bg-pink-500/10 text-pink-500 text-[10px] font-black uppercase tracking-widest border border-pink-500/20">
+                  <span className="w-1.5 h-1.5 rounded-full bg-pink-500" />
+                  On Air
+                </div>
+              )}
+            </div>
           </div>
-        ) : (
-          <div className="w-full max-w-6xl grid grid-cols-1 lg:grid-cols-2 gap-8">
-            {channels.map(channel => (
-              <div key={channel.id} className={`relative rounded-3xl border p-8 transition-all duration-500 ${channel.is_streaming ? 'bg-gradient-to-br from-[#0d1f12] to-[#0f1a1a] border-green-500/30 shadow-2xl' : 'bg-[#111623] border-[#1c2035]'
-                }`}>
-                <div className="flex justify-between items-start mb-6">
-                  <div>
-                    <h2 className="text-2xl font-bold">{channel.name}</h2>
-                    <p className="text-gray-500 text-xs">ID: {channel.id} · Marathi</p>
-                  </div>
-                  <div className={`px-3 py-1.5 rounded-full text-[10px] font-bold uppercase border ${channel.is_streaming ? 'bg-green-500/15 text-green-400 border-green-500/30' : 'bg-gray-500/10 text-gray-500 border-gray-500/20'
-                    }`}>
-                    {channel.is_streaming ? '● Live' : 'Offline'}
-                  </div>
-                </div>
 
-                <div className="bg-[#080b14] rounded-2xl border border-[#1c2035] p-4 mb-6">
-                  <p className="text-gray-500 text-[10px] uppercase mb-1">YouTube Stream Key</p>
-                  <p className="font-mono text-xs truncate text-gray-400">{channel.youtube_stream_key || 'Not Set'}</p>
-                </div>
-
-                <div className="flex gap-3">
-                  {!channel.is_streaming ? (
-                    <button onClick={() => handleTrigger(channel.id)} disabled={processing} className="flex-1 bg-green-500 hover:bg-green-400 text-black font-bold py-3 rounded-xl text-xs transition">
-                      Start Broadcast
-                    </button>
-                  ) : (
-                    <button onClick={() => handleStop(channel.id)} disabled={processing} className="flex-1 bg-red-500/10 border border-red-500/30 text-red-400 font-bold py-3 rounded-xl text-xs hover:bg-red-500 hover:text-white transition">
-                      Stop
-                    </button>
-                  )}
-                  <button onClick={() => { setSettingsData({ ...settingsData, youtube_stream_key: channel.youtube_stream_key }); setShowSettingsModal(true); }} className="p-3 bg-white/5 rounded-xl hover:bg-white/10 transition">
-                    <Settings size={18} className="text-gray-400" />
-                  </button>
-                </div>
-              </div>
-            ))}
+          {/* Male Anchor Selection */}
+          <div className="group relative rounded-[2.5rem] bg-[#0d1117] border border-white/5 p-8 transition-all duration-500 opacity-40">
+            <div className="flex flex-col items-center text-center">
+              <div className="text-4xl mb-4 grayscale">🧔🏼</div>
+              <h3 className="text-xl font-bold text-white mb-1">Arjun Sharma</h3>
+              <p className="text-gray-500 text-xs font-medium">Male Anchor</p>
+              <div className="mt-4 text-[10px] font-bold text-gray-600 uppercase">Standby</div>
+            </div>
           </div>
-        )}
-      </main>
 
-      {showSettingsModal && (
-        <div className="fixed inset-0 bg-black/80 backdrop-blur-md flex items-center justify-center z-50 p-4">
-          <div className="bg-[#111623] w-full max-w-sm p-8 rounded-3xl border border-[#1c2035]">
-            <h2 className="text-xl font-bold mb-6 text-center">Update Channel Key</h2>
-            <div className="space-y-4">
-              <input
-                type="text"
-                value={settingsData.youtube_stream_key}
-                onChange={e => setSettingsData({ ...settingsData, youtube_stream_key: e.target.value })}
-                className="w-full bg-[#080b14] border border-[#1c2035] rounded-xl px-4 py-3 text-sm focus:border-blue-500 outline-none"
-                placeholder="Stream Key..."
-              />
-              <div className="flex gap-3 pt-2">
-                <button onClick={() => setShowSettingsModal(false)} className="flex-1 py-3 text-sm font-bold bg-white/5 rounded-xl">Cancel</button>
-                <button onClick={() => handleUpdateSettings(channels[0].id)} className="flex-1 py-3 text-sm font-bold bg-blue-600 rounded-xl">Save</button>
-              </div>
+          {/* Stream Key Info */}
+          <div className="rounded-3xl bg-[#090b10] border border-white/5 p-6 flex flex-col justify-between">
+            <p className="text-[10px] uppercase font-bold text-gray-500 tracking-widest mb-2">Stream Key</p>
+            <div className="flex items-center justify-between">
+              <code className="text-sm font-mono text-blue-400 truncate max-w-[150px]">
+                {channel.youtube_stream_key ? `${channel.youtube_stream_key.substring(0, 8)}••••••` : "NOT_CONFIGURED"}
+              </code>
+              <button onClick={() => { setStreamKey(channel.youtube_stream_key); setShowKeyModal(true); }} className="p-2 hover:bg-white/5 rounded-full transition">
+                <Settings size={14} className="text-gray-500" />
+              </button>
+            </div>
+          </div>
+
+          {/* Activity Metrics */}
+          <div className="rounded-3xl bg-[#090b10] border border-white/5 p-6 flex flex-col justify-between">
+            <p className="text-[10px] uppercase font-bold text-gray-500 tracking-widest mb-2">Bulletins Delivered</p>
+            <div className="text-3xl font-black text-white">0</div>
+          </div>
+        </div>
+
+        {/* Global Controls */}
+        <div className="flex gap-4">
+          {!channel.is_streaming ? (
+            <button 
+              onClick={() => handleStart(channel.id)}
+              className="flex-1 group relative overflow-hidden bg-white text-black font-black py-5 rounded-[2rem] text-sm uppercase tracking-tighter active:scale-95 transition-all"
+            >
+              <div className="absolute inset-0 bg-green-500 translate-y-full group-hover:translate-y-0 transition-transform duration-500" />
+              <span className="relative z-10 flex items-center justify-center gap-2 group-hover:text-white transition-colors">
+                <Play fill="currentColor" size={16} />
+                Start 24/7 Broadcast
+              </span>
+            </button>
+          ) : (
+            <button 
+              onClick={() => handleStop(channel.id)}
+              className="flex-1 bg-red-500/10 border border-red-500/30 text-red-500 font-black py-5 rounded-[2rem] text-sm uppercase tracking-tighter hover:bg-red-500 hover:text-white transition-all flex items-center justify-center gap-2"
+            >
+              <Square fill="currentColor" size={16} />
+              Stop Broadcast
+            </button>
+          )}
+          
+          <a 
+            href="https://studio.youtube.com" 
+            target="_blank" 
+            className="px-8 bg-[#161920] border border-white/5 rounded-[2rem] flex items-center justify-center hover:bg-[#1c212a] transition-all"
+          >
+            <ExternalLink size={18} className="text-blue-400" />
+            <span className="ml-3 font-bold text-xs">YouTube Studio</span>
+          </a>
+        </div>
+      </div>
+
+      {/* Stream Key Modal */}
+      {showKeyModal && (
+        <div className="fixed inset-0 bg-black/90 backdrop-blur-2xl flex items-center justify-center z-50 p-6 animate-in fade-in zoom-in duration-300">
+          <div className="bg-[#0d1117] border border-white/10 w-full max-w-sm rounded-[3rem] p-10">
+            <h2 className="text-2xl font-black text-white mb-2 text-center">Broadcast Key</h2>
+            <p className="text-gray-500 text-xs text-center mb-8">Updating this will affect the next broadcast cycle.</p>
+            <input 
+              type="text" 
+              value={streamKey}
+              onChange={(e) => setStreamKey(e.target.value)}
+              className="w-full bg-black border border-white/10 rounded-2xl px-6 py-4 text-sm font-mono text-green-400 focus:outline-none focus:border-blue-500 transition-all mb-6"
+              placeholder="qcu7-xe..."
+            />
+            <div className="flex gap-3">
+              <button onClick={() => setShowKeyModal(false)} className="flex-1 py-4 text-xs font-black uppercase text-gray-500 hover:text-white">Cancel</button>
+              <button onClick={updateStreamKey} className="flex-1 py-4 text-xs font-black uppercase bg-blue-600 text-white rounded-2xl shadow-xl shadow-blue-600/20">Save Key</button>
             </div>
           </div>
         </div>
