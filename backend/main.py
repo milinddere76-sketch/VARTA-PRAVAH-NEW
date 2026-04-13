@@ -17,39 +17,22 @@ from streamer import Streamer
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    # Move heavy initialization to a background task so server starts immediately
-    import asyncio
+    # Synchronous initialization ensures tables exist before any requests arrive
+    print("--- [SYSTEM] Initializing Database (Synchronous) ---")
+    try:
+        database.init_db()
+        
+        # Seed basic anchor data if missing
+        db = next(database.get_db())
+        if not db.query(models.Anchor).first():
+             db.add(models.Anchor(name="Priya Desai", gender="female", portrait_url="assets/female_anchor.png", is_active=True))
+             db.add(models.Anchor(name="Arjun Sharma", gender="male", portrait_url="assets/male_anchor.png", is_active=True))
+             db.commit()
+        db.close()
+        print("--- [SYSTEM] Database Ready ---")
+    except Exception as e:
+        print(f"--- [SYSTEM] Init Error: {e} ---")
     
-    async def run_init():
-        try:
-            # Run the synchronous init_db in a separate thread to avoid blocking the event loop
-            await asyncio.to_thread(database.init_db)
-            db = next(database.get_db())
-            
-            # Seed Admin User
-            if not db.query(models.User).filter(models.User.id == 1).first():
-                default_user = models.User(
-                    id=1,
-                    email="admin@vartapravah.com",
-                    hashed_password="hashed_password",
-                    full_name="Admin User"
-                )
-                db.add(default_user)
-                db.commit()
-
-            # Seed Anchors
-            if not db.query(models.Anchor).filter(models.Anchor.gender == "female").first():
-                db.add(models.Anchor(name="Priya Desai", gender="female", portrait_url="assets/female_anchor.png", is_active=True))
-            if not db.query(models.Anchor).filter(models.Anchor.gender == "male").first():
-                db.add(models.Anchor(name="Arjun Sharma", gender="male", portrait_url="assets/male_anchor.png", is_active=True))
-            
-            db.commit()
-            db.close()
-            print("--- [SYSTEM] Initialization Background Task Complete (User & Anchors Seeded) ---")
-        except Exception as e:
-            print(f"--- [SYSTEM] Background Init Failed: {e} ---")
-
-    asyncio.create_task(run_init())
     yield
 
 app = FastAPI(title="VartaPravah API", lifespan=lifespan)
