@@ -185,14 +185,16 @@ class MasterBulletinWorkflow:
         )
         
         if not latest_path:
-            return "No bulletin found to broadcast."
+            print(f"--- [FALLBACK] No bulletin for {file_prefix}. Falling back to promo.")
+            latest_path = f"videos/promo_ch{channel_id}.mp4"
 
-        # 2. Start Telecast (This will interrupt current, but it's a scheduled slot switch)
+        # 2. Start Telecast
         await workflow.execute_activity(
             start_stream_activity,
-            {"channel_id": channel_id, "stream_key": stream_key, "video_url": latest_path, "is_promo": False},
+            {"channel_id": channel_id, "stream_key": stream_key, "video_url": latest_path, "is_promo": True if "promo" in latest_path else False},
             start_to_close_timeout=timedelta(minutes=5)
         )
+
         
         return f"Broadcasting {file_prefix} started."
 

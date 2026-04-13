@@ -285,7 +285,9 @@ async def generate_news_video_activity(input_data: dict) -> str:
         ticker_text = "  |  ".join(top_headlines) if top_headlines else title
         ticker_text = ticker_text.replace("'", "").replace(":", "") # Clean for ffmpeg
         
-        filter_complex = ""
+        logo_path = os.path.join(BASE_DIR, "logo.png")
+        has_logo = os.path.exists(logo_path)
+
         if synced_v:
             filter_complex = f"[1:v]scale=950:-1[anchor];[0:v][anchor]overlay=1920-950-50:H-h[v1];"
         else:
@@ -304,20 +306,31 @@ async def generate_news_video_activity(input_data: dict) -> str:
         else:
             ffmpeg_cmd += ["-i", audio_path]
             
-        ffmpeg_cmd += [
-            "-filter_complex", filter_complex + ticker_filter,
-            "-map", "[outv]"
-        ]
-        
-        if synced_v:
-            ffmpeg_cmd += ["-map", "1:a"]
+        if has_logo:
+            ffmpeg_cmd += ["-i", logo_path]
+            l_idx = 2
+            logo_pre = f";[{l_idx}:v]scale=120:-1[logo_s]"
+            logo_overlay = f";[outv][logo_s]overlay=W-w-10:10[finalv]"
+            filter_chain = filter_complex + ticker_filter + logo_pre + logo_overlay
+            map_node = "[finalv]"
         else:
-            ffmpeg_cmd += ["-map", "1:a"]
+            filter_chain = filter_complex + ticker_filter
+            map_node = "[outv]"
             
         ffmpeg_cmd += [
-            "-c:v", "libx264", "-preset", "ultrafast", "-pix_fmt", "yuv420p",
+            "-filter_complex", filter_chain,
+            "-map", map_node,
+            "-map", "1:a"
+        ]
+
+            
+        ffmpeg_cmd += [
+            "-c:v", "libx264", "-preset", "ultrafast", "-b:v", "2500k", 
+            "-maxrate", "2500k", "-bufsize", "5000k", "-r", "30", "-g", "60",
+            "-pix_fmt", "yuv420p", "-c:a", "aac", "-b:a", "128k", "-ar", "44100",
             "-shortest", out_p
         ]
+
         
         subprocess.run(ffmpeg_cmd, check=True)
         return out_p
