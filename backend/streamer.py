@@ -44,14 +44,11 @@ class Streamer:
         has_audio = self._get_has_audio()
         
         # Base CMD
-        cmd = ["ffmpeg", "-y", "-loglevel", "warning", "-re"]
+        # Added -stream_loop -1 to ensure gapless 24/7 playback
+        cmd = ["ffmpeg", "-y", "-loglevel", "warning", "-re", "-stream_loop", "-1"]
         
         if start_time:
             cmd += ["-ss", start_time]
-
-        # Use stream_loop for promos to keep them looping infinitely
-        if self.is_promo:
-            cmd += ["-stream_loop", "-1"]
 
         # Input 0: Main Video or Standby Pattern
         if "=" in self.current_video and " " not in self.current_video:
@@ -101,9 +98,9 @@ class Streamer:
         # YouTube recommended settings (720p CBR)
         cmd += [
             "-c:v",        "libx264",
-            "-preset",     "ultrafast",       # Lower CPU usage for dual-channel
+            "-preset",     "ultrafast",
             "-tune",       "zerolatency",
-            "-threads",    "2",                # Isolate CPU usage
+            "-threads",    "2",
             "-r",          "30",
             "-g",          "60",
             "-keyint_min", "60",
@@ -111,14 +108,13 @@ class Streamer:
             "-b:v",        "2500k",
             "-minrate",    "2500k",
             "-maxrate",    "2500k",
-            "-bufsize",    "5000k",            # Larger buffer for stability
+            "-bufsize",    "5000k",
             "-pix_fmt",    "yuv420p",
             # Audio
             "-c:a",  "aac",
             "-ar",   "44100",
             "-b:a",  "128k",
             "-ac",   "2",
-            # Metadata to identify the process for pkill -f
             "-metadata", f"vp_channel={self.channel_id}",
             "-f",        "flv",
             "-flvflags", "no_duration_filesize",
@@ -130,7 +126,6 @@ class Streamer:
         if not self.current_video:
             raise ValueError("No video file set for streaming")
         
-        # ── EMERGENCY FALLBACK ──
         final_video = os.path.abspath(self.current_video)
         if not os.path.exists(final_video) and "color=" not in final_video:
             print(f"  {final_video} not found yet. Using emergency standby pattern.", flush=True)
@@ -171,9 +166,6 @@ class Streamer:
             low = line.lower()
             if any(k in low for k in ("error", "warning", "failed", "invalid", "connection")):
                 print(f"[FFMPEG ERROR] {line}", flush=True)
-            elif line.startswith("frame="):
-                # Optionally print every Nth frame log or just stay quiet
-                pass
 
     def _monitor(self):
         while not self.stop_event.is_set():
@@ -184,9 +176,10 @@ class Streamer:
                     time.sleep(5)
                     try:
                         self.start_stream()
+                        # Important: return here because start_stream creates a NEW monitor thread
+                        return 
                     except Exception as e:
                         print(f"❌ Restart failed: {e}", flush=True)
-                break
             time.sleep(2)
 
     def stop_stream(self):
