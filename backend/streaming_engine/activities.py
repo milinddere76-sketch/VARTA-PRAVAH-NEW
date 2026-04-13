@@ -159,7 +159,7 @@ async def generate_script_activity(input_data: dict) -> dict:
 
 @activity.defn
 async def generate_headlines_activity(input_data: dict) -> dict:
-    news_items = input_data["news_items"]
+    news_items = input_data.get("news_items", [])
     is_female = input_data.get("is_female", False)
     anchor_name = "Priya Desai" if is_female else "Arjun Sharma"
 

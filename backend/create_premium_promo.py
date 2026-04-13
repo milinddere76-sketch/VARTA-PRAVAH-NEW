@@ -27,41 +27,55 @@ def create_premium_promo(output_path):
     # 3. Overlay 2: News Ticker
     # 4. Audio: Low-fi "cyber" beat generated via lavfi
     
+    # 3. Check for Manual Creative Music Override
+    manual_music = os.path.join(os.path.dirname(os.path.abspath(__file__)), "creative_music.mp3")
+    if os.path.exists(manual_music):
+        audio_input = ["-i", manual_music]
+        audio_map = ["-map", "3:a", "-c:a", "aac", "-b:a", "192k"]
+        print("🎵 Using manual creative_music.mp3 found in backend.")
+    else:
+        # High-Quality procedural Lo-Fi Synth Beat
+        audio_input = [
+            "-f", "lavfi", "-i", 
+            "sine=f=55:d=60,tremolo=f=1:d=1,lowpass=f=100[kick];"
+            "sine=f=440:d=60,tremolo=f=0.5:d=0.8,aecho=0.8:0.8:1000:0.5,highpass=f=200[pad];"
+            "sine=f=880:d=60,tremolo=f=4:d=0.2,aecho=0.8:0.9:500:0.3[lead];"
+            "[kick][pad][lead]amix=inputs=3:weights=1 0.4 0.2,volume=2.5[outa]"
+        ]
+        audio_map = ["-map", "[outa]", "-c:a", "aac", "-b:a", "128k"]
+        print("🎹 Generating procedural Creative Lo-Fi Beat.")
+
     cmd = [
         "ffmpeg", "-y",
         # Inputs
         "-loop", "1", "-t", "60", "-i", os.path.join(stems_dir, "globe_neon.png"),  # [0:v]
         "-loop", "1", "-t", "60", "-i", os.path.join(stems_dir, "neon_logo.png"),   # [1:v]
-        "-i", os.path.join(stems_dir, "raw_concat.mp4"),                           # [2:v] (8s loop)
-        
-        # Audio Synth: Deep Pulse + Sine sweep
-        "-f", "lavfi", "-i", "sine=f=40:d=60,aecho=0.8:0.8:1000:0.5,lowpass=f=200[a1];sine=f=800:d=60[a2];[a2]tremolo=f=10:d=0.8[a2t];[a1][a2t]amix=inputs=2[outa]",
-        
+        "-stream_loop", "-1", "-t", "60", "-i", os.path.join(stems_dir, "raw_concat.mp4"), # [2:v] (8s loop)
+    ] + audio_input + [
         "-filter_complex", (
-            # 1. Base Loop (8s video looped to 60s)
-            "[2:v]streamloop=loop=7,scale=1280:720,setsar=1[base];"
+            # 1. Base Loop (Looped to 60s)
+            "[2:v]scale=1280:720,setsar=1[base];"
             
-            # 2. Globe Overlay (Bottom Right, Scale and Rotate slightly)
-            "[0:v]scale=300:-1,rotate='0.2*t':c=none:ow=300:oh=300[globe];"
+            # 2. Globe Overlay (Bottom Right, pulsing)
+            "[0:v]scale=350:-1[globe_s];"
+            "[globe_s]format=rgba,geq=r='r(X,Y)':g='g(X,Y)':b='b(X,Y)':a='alpha(X,Y)*(0.8+0.2*sin(2*PI*t/3))'[globe_pulsed];"
             
             # 3. Pulsing Logo (Center, Brightness pulse)
             "[1:v]scale=600:-1[logo_s];"
             "[logo_s]geq=r='r(X,Y)*(1+0.2*sin(2*PI*t/2))':g='g(X,Y)*(1+0.2*sin(2*PI*t/2))':b='b(X,Y)*(1+0.2*sin(2*PI*t/2))'[logo_p];"
             
             # 4. Compose
-            "[base][globe]overlay=W-350:H-350[tmp1];"
+            "[base][globe_pulsed]overlay=W-400:H-400[tmp1];"
             "[tmp1][logo_p]overlay=(W-w)/2:(H-h)/2-50[v_pre];"
             
             # 5. Vignette and Color Grading
             "[v_pre]vignette=angle=0.5,hue=s=1.2[v_final]"
         ),
         "-map", "[v_final]",
-        "-map", "[outa]",
-        "-c:v", "libx264",
-        "-preset", "fast",
-        "-crf", "23",
-        "-c:a", "aac",
-        "-b:a", "128k",
+    ] + audio_map + [
+        "-c:v", "libx264", "-preset", "ultrafast",
+        "-b:v", "2500k", "-minrate", "2500k", "-maxrate", "2500k", "-bufsize", "5000k",
+        "-pix_fmt", "yuv420p", "-g", "60",
         "-t", "60",
         output_path
     ]

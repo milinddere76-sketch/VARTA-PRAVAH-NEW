@@ -40,26 +40,26 @@ class Streamer:
         except:
             return False
 
-    def _build_ffmpeg_cmd(self) -> list:
-        has_audio = self._get_has_audio()
-        
-        # Base CMD (Zero-CPU Push)
-        cmd = ["ffmpeg", "-y", "-loglevel", "warning", "-progress", "-", "-re"]
-        
-        # Input 0: Main Video
-        if "=" in self.current_video and " " not in self.current_video:
-            cmd += ["-f", "lavfi", "-i", self.current_video]
-        else:
-            cmd += ["-i", self.current_video]
-        
-        # Input 1: Always provide silence as a fallback
-        cmd += ["-f", "lavfi", "-i", "anullsrc=channel_layout=stereo:sample_rate=44100"]
-
         # ── Dynamic Encoding Selection ────────────────────────────
         # MP4 files (baked) should be copied; everything else (lavfi, standby) must be encoded.
         is_mp4 = str(self.current_video).lower().endswith(".mp4")
-        print(f"🎬 [CH{self.channel_id}] Stream Mode: {'ZERO-CPU COPY' if is_mp4 else 'LAVFI ENCODE'} | File: {self.current_video}")
+        print(f"🎬 [CH{self.channel_id}] Stream Mode: {'ZERO-CPU COPY' if is_mp4 else 'LAVFI ENCODE'}")
+        print(f"   Target: {self.current_video}")
         
+        # Base CMD (Zero-CPU Push)
+        cmd = ["ffmpeg", "-y", "-loglevel", "warning", "-progress", "-"]
+        
+        # Input 0: Main Video (Surgical -re placement)
+        if "=" in str(self.current_video) and " " not in str(self.current_video):
+            # For virtual sources, -re is often implicit or handled by the source
+            cmd += ["-f", "lavfi", "-i", self.current_video]
+        else:
+            # For files, -re MUST precede -i to work correctly
+            cmd += ["-re", "-i", self.current_video]
+        
+        # Input 1: Always provide silence as a fallback (also real-time)
+        cmd += ["-re", "-f", "lavfi", "-i", "anullsrc=channel_layout=stereo:sample_rate=44100"]
+
         if not is_mp4:
             cmd += [
                 "-map", "0:v", "-c:v", "libx264", "-preset", "ultrafast", "-tune", "zerolatency",
@@ -71,7 +71,7 @@ class Streamer:
             cmd += ["-map", "0:v", "-c:v", "copy"]
 
         # Audio handling: copy if available in file, encode if lavfi/standby
-        if has_audio and not is_lavfi:
+        if has_audio and is_mp4:
             cmd += ["-map", "0:a", "-c:a", "copy"]
         else:
             # For standby or files without audio, use Input 1 (anullsrc)
