@@ -145,6 +145,20 @@ services:
     networks:
       - vartapravah-net
 
+  frontend:
+    container_name: vartapravah_frontend
+    build: ./frontend
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    environment:
+      - BACKEND_URL=http://backend:8000
+    depends_on:
+      backend:
+        condition: service_healthy
+    networks:
+      - vartapravah-net
+
 networks:
   vartapravah-net:
     driver: bridge
