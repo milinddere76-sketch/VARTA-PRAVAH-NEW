@@ -39,8 +39,8 @@ async def get_temporal_client(retries: int = 20, delay: int = 5) -> Client:
         current_target = temporal_address if attempt % 2 == 0 else "localhost:7233"
         try:
             print(f"Connecting to Temporal ({current_target})... Attempt {attempt+1}/{retries}")
-            # Increased timeout to 15s to handle 4GB RAM startup spikes
-            client = await asyncio.wait_for(Client.connect(current_target), timeout=15.0)
+            # Increased timeout to 60s to handle 4GB RAM startup spikes
+            client = await asyncio.wait_for(Client.connect(current_target), timeout=60.0)
             print(f"Connected to Temporal successfully via {current_target}")
             return client
 

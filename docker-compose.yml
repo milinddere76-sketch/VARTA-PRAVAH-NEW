@@ -47,7 +47,7 @@ services:
     deploy:
       resources:
         limits:
-          memory: 1024M
+          memory: 1280M
         reservations:
           memory: 512M
     depends_on:
