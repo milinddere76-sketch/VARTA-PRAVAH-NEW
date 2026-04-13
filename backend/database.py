@@ -16,12 +16,20 @@ SessionLocal = None
 
 # ================= SOCKET CHECK ================= #
 
+def is_db_open(url: str, timeout: float = 1.0) -> bool:
+    """Fast socket check to see if DB is reachable."""
+    if not url or "localhost" in url: return True
+    try:
+        host_info = url.split('@')[-1].split('/')[0]
+        host = host_info.split(':')[0]
+        port = host_info.split(':')[1] if ':' in host_info else 5432
+        
         # Increased timeout to 2.0s for 4GB server stability
         with socket.create_connection((host, int(port)), timeout=2.0):
             return True
-
-    except (socket.timeout, ConnectionRefusedError, OSError):
+    except (socket.timeout, ConnectionRefusedError, OSError, IndexError):
         return False
+
 
 
 
