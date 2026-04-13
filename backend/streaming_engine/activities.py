@@ -72,7 +72,9 @@ async def fetch_news_activity(language: str) -> list[dict]:
     lang_code = LANGUAGE_CONFIG.get(language, {"code": "hi"})["code"]
     
     news_items = []
-    priorities = [("Maharashtra", 4), ("India", 3), ("World", 3)]
+    # Upgraded priorities: Maharashtra (State focus), India (National), World (International)
+    # Total targets ~28 items to ensure at least 25 ready as per "PRO TIPS"
+    priorities = [("Maharashtra", 12), ("India", 8), ("World", 8)]
     
     for category, count in priorities:
         url = f"https://api.worldnewsapi.com/search-news?api-key={api_key}&text={category}&language={lang_code}&number={count}"
@@ -89,15 +91,16 @@ async def fetch_news_activity(language: str) -> list[dict]:
         except Exception as e:
             print(f"Error fetching {category} news: {e}")
             
-    if not news_items:
+    if len(news_items) < 10:
         # Generic fallback if absolutely nothing found
-        news_items = [{
+        news_items.append({
             "headline": "Varta Pravah Breaking Updates",
             "description": "Namaskar, Maharashtra. Aaj chya thak batmya ani parinamkarak ghadamodi fakt Varta Pravah var.",
             "category": "BREAKING"
-        }]
+        })
         
-    return news_items[:10]
+    return news_items
+
 
 
 @activity.defn
@@ -223,6 +226,7 @@ async def generate_news_video_activity(input_data: dict) -> str:
     audio_path = input_data.get("audio_url", "")
     synced_v = input_data.get("synced_video_url", "")
     is_female = input_data.get("is_female", True)
+    top_headlines = input_data.get("top_headlines", [])
     
     from database import SessionLocal
     from models import Anchor
@@ -235,7 +239,6 @@ async def generate_news_video_activity(input_data: dict) -> str:
     bg_p = os.path.join(assets_dir, "studio_bg.png")
     logo_p = os.path.join(assets_dir, "logo.png")
     
-    # Use anchor portrait if found, else fallback to defaults
     if anchor and anchor.portrait_url:
         port_p = os.path.join(BASE_DIR, anchor.portrait_url)
     else:
@@ -244,7 +247,6 @@ async def generate_news_video_activity(input_data: dict) -> str:
     try:
         studio = Image.open(bg_p).convert("RGBA").resize((1920, 1080)) if os.path.exists(bg_p) else Image.new("RGBA", (1920, 1080), (15, 25, 45, 255))
         
-        # Static portrait only if NOT using lip-sync video
         if not synced_v and os.path.exists(port_p):
             port = Image.open(port_p).convert("RGBA")
             p_w = 950
@@ -262,36 +264,67 @@ async def generate_news_video_activity(input_data: dict) -> str:
         draw.rectangle([0, 960, 350, 1080], fill=(200, 0, 0, 255))
 
         # Font discovery for Marathi
-        font_t = ImageFont.load_default()
-        for fp in ["C:/Windows/Fonts/Nirmala.ttf", "/usr/share/fonts/truetype/noto/NotoSansDevanagari-Bold.ttf", "arial.ttf"]:
+        font_t_path = "arial.ttf"
+        for fp in ["C:/Windows/Fonts/Nirmala.ttf", "/usr/share/fonts/truetype/noto/NotoSansDevanagari-Bold.ttf"]:
             if os.path.exists(fp):
-                try: font_t = ImageFont.truetype(fp, 45); break
-                except: continue
+                font_t_path = fp; break
 
+        font_t = ImageFont.truetype(font_t_path, 45) if os.path.exists(font_t_path) else ImageFont.load_default()
         draw.text((40, 985), "ताज्या बातम्या", font=font_t, fill=(255, 255, 255))
-        draw.text((380, 985), title[:70], font=font_t, fill=(255, 255, 255))
         
-        frame_p = os.path.join(tempfile.gettempdir(), "studio_base.png")
+        # Draw current title in the main area (if not scrolling)
+        # However, user wants scrolling ticker for top 5 headlines.
+        # We will use drawtext filter for the scrolling effect.
+        
+        frame_p = os.path.join(tempfile.gettempdir(), f"studio_{uuid.uuid4().hex}.png")
         studio.save(frame_p)
         
-        out_p = os.path.join(BASE_DIR, "videos", "news_generated.mp4")
+        out_p = os.path.join(BASE_DIR, "videos", f"news_{uuid.uuid4().hex}.mp4")
+        
+        # Ticker text assembly
+        ticker_text = "  |  ".join(top_headlines) if top_headlines else title
+        ticker_text = ticker_text.replace("'", "").replace(":", "") # Clean for ffmpeg
+        
+        filter_complex = ""
+        if synced_v:
+            filter_complex = f"[1:v]scale=950:-1[anchor];[0:v][anchor]overlay=1920-950-50:H-h[v1];"
+        else:
+            filter_complex = "[0:v]copy[v1];"
+            
+        # Add scrolling ticker filter
+        # x=w-mod(t*200,w+tw) for scrolling from right to left
+        # We target the blue/navy bar at y=960
+        ticker_filter = f"[v1]drawtext=fontfile='{font_t_path}':text='{ticker_text}':fontcolor=white:fontsize=45:y=995:x=380+(w-380)-mod(t*150\,(tw+w-380)):check_resample=1[outv]"
+        
+        ffmpeg_cmd = [
+            "ffmpeg", "-y", "-loop", "1", "-i", frame_p
+        ]
+        if synced_v:
+            ffmpeg_cmd += ["-i", synced_v]
+        else:
+            ffmpeg_cmd += ["-i", audio_path]
+            
+        ffmpeg_cmd += [
+            "-filter_complex", filter_complex + ticker_filter,
+            "-map", "[outv]"
+        ]
         
         if synced_v:
-            # Composite talking anchor video onto studio background
-            ffmpeg_cmd = [
-                "ffmpeg", "-y", "-loop", "1", "-i", frame_p,
-                "-i", synced_v,
-                "-filter_complex", 
-                "[1:v]scale=950:-1[anchor];[0:v][anchor]overlay=1920-950-50:H-h[outv]",
-                "-map", "[outv]", "-map", "1:a",
-                "-c:v", "libx264", "-preset", "ultrafast", "-pix_fmt", "yuv420p",
-                "-shortest", out_p
-            ]
+            ffmpeg_cmd += ["-map", "1:a"]
         else:
-            ffmpeg_cmd = ["ffmpeg", "-y", "-loop", "1", "-i", frame_p, "-i", audio_path, "-c:v", "libx264", "-preset", "ultrafast", "-pix_fmt", "yuv420p", "-c:a", "aac", "-shortest", out_p]
+            ffmpeg_cmd += ["-map", "1:a"]
+            
+        ffmpeg_cmd += [
+            "-c:v", "libx264", "-preset", "ultrafast", "-pix_fmt", "yuv420p",
+            "-shortest", out_p
+        ]
         
         subprocess.run(ffmpeg_cmd, check=True)
         return out_p
+    except Exception as e:
+        print(f"Render Error: {e}")
+        return os.path.join(BASE_DIR, "videos", "promo.mp4")
+
     except Exception as e:
         print(f"Render Error: {e}")
         return os.path.join(BASE_DIR, "videos", "promo.mp4")
@@ -311,21 +344,36 @@ async def ensure_promo_video_activity(channel_id: int = 1) -> bool:
 @activity.defn
 async def start_stream_activity(data: dict) -> str:
     c_id, s_key, v_url = data["channel_id"], data["stream_key"], data["video_url"]
+    is_priority = data.get("is_priority", False)
+    
+    if not os.path.isabs(v_url): v_url = os.path.join(BASE_DIR, v_url)
+    
+    # 1. Non-Interrupting logic for Breaking News
+    if is_priority and c_id in STREAMER_INSTANCES:
+        streamer = STREAMER_INSTANCES[c_id]
+        if streamer.process and streamer.process.poll() is None:
+            streamer.enqueue_video(v_url)
+            return "enqueued"
+
+    # 2. Standard Interrupt (Scheduled Bulletin or Force Play)
     _terminate_stream_process(c_id)
     time.sleep(2)
+    
     try:
-        if not os.path.isabs(v_url): v_url = os.path.join(BASE_DIR, v_url)
         # Fallback to channel-specific standby video
         fallback_v = os.path.join(BASE_DIR, "videos", f"promo_ch{c_id}.mp4")
         if not os.path.exists(v_url) or os.path.getsize(v_url) < 10000: 
             v_url = fallback_v if os.path.exists(fallback_v) else os.path.join(BASE_DIR, "videos", "promo.mp4")
             
         streamer = Streamer(s_key, c_id)
-        streamer.create_initial_playlist(v_url)
+        streamer.current_video = v_url
         streamer.start_stream()
         STREAMER_INSTANCES[c_id] = streamer
         return "stream_started"
-    except Exception: return "failed"
+    except Exception as e:
+        print(f"Start Stream Fallback Error: {e}")
+        return "failed"
+
 
 @activity.defn
 async def stop_stream_activity(channel_id: int) -> str:
@@ -420,52 +468,70 @@ async def find_latest_bulletin_activity(channel_id: int) -> str:
 @activity.defn
 async def stitch_bulletin_activity(data: dict) -> str:
     channel_id = data.get("channel_id", 0)
-    # Organize news stories and promos into a 1-hour bulletin
-    intro_path = data.get("intro_path")
+    intro_path = data.get("intro_path", "assets/intro.mp4")
     headlines_path = data.get("headlines_path")
     story_paths = data.get("story_paths", [])
-    promo_path = data.get("promo_path")
-    target_duration = 3600 # 1 hour
+    promo_path = data.get("promo_path", "videos/promo.mp4")
+    target_minutes = data.get("target_minutes", 60)
     
-    if not story_paths: return ""
-    
+    if not story_paths: 
+        return promo_path if os.path.exists(promo_path) else ""
+
+    def get_duration(p):
+        if not p or not os.path.exists(p): return 0
+        try:
+            cmd = ["ffprobe", "-v", "error", "-show_entries", "format=duration", "-of", "default=noprint_wrappers=1:nokey=1", p]
+            res = subprocess.run(cmd, capture_output=True, text=True, timeout=5)
+            return float(res.stdout.strip())
+        except: return 0
+
     final_sequence = []
-    if intro_path and os.path.exists(intro_path):
+    total_duration = 0
+    
+    # 1. Opening
+    if os.path.exists(intro_path):
         final_sequence.append(intro_path)
+        total_duration += get_duration(intro_path)
+        
+    # 2. Headlines
     if headlines_path and os.path.exists(headlines_path):
         final_sequence.append(headlines_path)
-        
-    block_news_count = 5 # ~5 minutes of news
+        total_duration += get_duration(headlines_path)
+
+    # 3. Main News with Promo Rule (Every 15 mins)
+    last_promo_at = total_duration
     current_idx = 0
     
-    # Assembly loop
-    while True:
-        # Add a block of stories
-        for _ in range(block_news_count):
-            if current_idx >= len(story_paths):
-                # We ran out of stories, start repeating in shuffled order
-                import random
-                shuffled = story_paths[:]
-                random.shuffle(shuffled)
-                story_paths.extend(shuffled)
+    while total_duration < (target_minutes * 60):
+        # Pick a story
+        if current_idx >= len(story_paths):
+            current_idx = 0 # Loop back
             
-            final_sequence.append(story_paths[current_idx])
-            current_idx += 1
+        story_p = story_paths[current_idx]
+        if os.path.exists(story_p):
+            story_dur = get_duration(story_p)
             
-        # Add Promo
-        if promo_path and os.path.exists(promo_path):
-            final_sequence.append(promo_path)
+            # Check if it's time for a promo BEFORE adding the news
+            # User Rule: [News 15 min] -> [Promo Video 1–2 min] -> Continue News
+            if (total_duration - last_promo_at) >= 900: # 15 mins
+                if os.path.exists(promo_path):
+                    final_sequence.append(promo_path)
+                    total_duration += get_duration(promo_path)
+                    last_promo_at = total_duration
             
-        # Check current duration
-        if len(final_sequence) > 50: # Safety break (approx 50-60 mins)
-            break
+            final_sequence.append(story_p)
+            total_duration += story_dur
+            
+        current_idx += 1
+        
+        # Safety break to avoid infinite loops
+        if len(final_sequence) > 200: break
 
     # Final Merge
     video_dir = os.path.join(BASE_DIR, "videos")
-    output_p = os.path.join(video_dir, f"full_bulletin_ch{channel_id}_{uuid.uuid4().hex}.mp4")
-
-
+    output_p = os.path.join(video_dir, f"bulletin_batch_{uuid.uuid4().hex}.mp4")
     list_p = os.path.join(tempfile.gettempdir(), f"stitch_list_{uuid.uuid4().hex}.txt")
+    
     with open(list_p, "w") as f:
         for p in final_sequence:
             abs_p = os.path.abspath(p).replace("\\", "/")
@@ -474,6 +540,7 @@ async def stitch_bulletin_activity(data: dict) -> str:
     try:
         # Step 1: Concat everything
         # On 4GB servers, we use a slower but safer re-encode for the first/last few frames
+
         # to ensure the file header is perfectly valid for YouTube.
         temp_p = os.path.join(tempfile.gettempdir(), f"full_merged_{uuid.uuid4().hex}.mp4")
         subprocess.run([

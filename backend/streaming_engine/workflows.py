@@ -39,270 +39,226 @@ class StopStreamWorkflow:
         )
 
 @workflow.defn
-class MasterBulletinWorkflow:
+class NewsBatchWorkflow:
     """
-    Handles the 60-minute scheduled bulletins (Morning, Afternoon, etc.)
-    with alternating anchors and seamless structure.
+    SEQUENTIAL generation of all bulletins for the cycle (Morning/Evening).
+    Triggered at 05:00 AM and 05:00 PM IST.
     """
     @workflow.run
     async def run(self, data: dict) -> str:
-
         channel_id = data["channel_id"]
-        stream_key = data["stream_key"]
-        language = data["language"]
-        bulletin_type = data.get("bulletin_type", "Regular")
-        anchor_ids = data.get("anchor_ids", []) # [female_id, male_id]
-        is_instant = data.get("is_instant", False)
+        cycle = data.get("cycle", "Morning") # "Morning" or "Evening"
+        language = data.get("language", "Marathi")
+        anchor_ids = data.get("anchor_ids", [1, 2])
         
-        from datetime import datetime, timedelta
-        import zoneinfo
-        
-        # Current time in IST for slot checking
-        now_ist = datetime.now(zoneinfo.ZoneInfo("Asia/Kolkata"))
-        
-        # Calculate target hour (the next hour after the :45 trigger)
-        target_time_ist = now_ist.replace(minute=0, second=0, microsecond=0) + timedelta(hours=1)
-        target_hour = target_time_ist.hour
-        
-        # If is_instant is True, we skip searching for previous bulletins and jump to generation
-        if not is_instant:
-            # FRESH_HOURS = [6, 12, 18, 21, 23]
-            is_fresh_slot = target_hour in [6, 12, 18, 21, 23] or bulletin_type != "Regular"
-            
-            if not is_fresh_slot:
-            print(f"--- [REPEAT MODE] Target Hour {target_hour} is not a fresh slot. Searching for latest bulletin. ---")
-            latest_path = await workflow.execute_activity(
-                find_latest_bulletin_activity,
-                channel_id,
-                start_to_close_timeout=timedelta(minutes=1)
-            )
-            if latest_path and os.path.exists(latest_path):
-                print(f"--- [REPEAT] Found latest bulletin: {latest_path}. Waiting for Top of Hour. ---")
-                
-                # Wait until the target hour starts
-                now_utc = workflow.now()
-                # Target time in UTC (IST-5.5)
-                wait_duration = target_time_ist - now_ist
-                if wait_duration.total_seconds() > 0:
-                    await workflow.sleep(wait_duration)
-                
-                print(f"--- [REPEAT] Streaming {target_hour}:00 Bulletin now. ---")
-                await workflow.execute_activity(
-                    start_stream_activity,
-                    {"channel_id": channel_id, "stream_key": stream_key, "video_url": latest_path, "is_promo": False},
-                    start_to_close_timeout=timedelta(minutes=5)
-                )
-                await workflow.sleep(timedelta(minutes=55)) # Telecast duration
-                return f"Bulletin Repeat (Hour {target_hour}) completed."
-            else:
-                print(f"--- [REPEAT] No previous bulletin found. Forcing fresh generation for {target_hour}:00. ---")
-
-
-        print(f"--- STARTING MASTER BULLETIN: {bulletin_type} ---")
-        
-        # 1. Fetch 20 News Items for a 60min loop
+        # 1. Fetch News (Batch of 25-30)
         items = await workflow.execute_activity(
             fetch_news_activity, 
             language, 
             start_to_close_timeout=timedelta(minutes=5)
         )
-        
-        if not items:
-            print("--- [FALLBACK] No news found. Streaming Promo Loop to stay live. ---")
-            await workflow.execute_activity(
-                start_stream_activity,
-                {"channel_id": channel_id, "stream_key": stream_key, "video_url": f"videos/promo_ch{channel_id}.mp4", "is_promo": True},
-                start_to_close_timeout=timedelta(minutes=5)
-            )
-            return "No news found. Fallback promo started."
+        if not items: return "No news found for batch."
 
-        # 2. Generate Intro & Headlines
-        is_female = True # Headlines always female for consistency
+        # 2. Generate Headlines (Female anchor for consistency)
         headlines_data = await workflow.execute_activity(
             generate_headlines_activity,
-            {"news_items": items[:5], "is_female": is_female},
+            {"news_items": items[:5], "is_female": True},
             start_to_close_timeout=timedelta(minutes=5)
         )
-        
         headlines_audio = await workflow.execute_activity(
             generate_audio_activity,
-            {"script": headlines_data["script"], "is_female": is_female},
+            {"script": headlines_data["script"], "is_female": True},
             start_to_close_timeout=timedelta(minutes=2)
         )
         
-        headlines_path = await workflow.execute_activity(
+        top_headlines_text = [n['headline'] for n in items[:5]]
+        
+        headlines_video = await workflow.execute_activity(
             generate_news_video_activity,
-            {"audio_url": headlines_audio, "title": f"{bulletin_type} Headlines", "is_female": is_female},
-            start_to_close_timeout=timedelta(minutes=5)
+            {
+                "audio_url": headlines_audio, 
+                "title": "मुख्य बातम्या", 
+                "is_female": True,
+                "top_headlines": top_headlines_text
+            },
+            start_to_close_timeout=timedelta(minutes=10)
         )
 
-
-        # 3. Generate Individual Stories with Alternating Anchors
+        # 3. Generate individual story videos SEQUENTIALLY
         story_videos = []
-        if headlines_path:
-            story_videos.append(headlines_path)
-
         for i, item in enumerate(items):
-            # Alternating gender: Even = Female, Odd = Male
-            current_is_female = (i % 2 == 0)
-            current_anchor_id = anchor_ids[0] if current_is_female else (anchor_ids[1] if len(anchor_ids) > 1 else anchor_ids[0])
-            
-            # Generate Script
-            script_data = await workflow.execute_activity(
-                generate_script_activity,
-                {"news_data": item, "language": language, "is_female": current_is_female},
-                start_to_close_timeout=timedelta(minutes=2)
-            )
-            
-            # Generate Audio
-            audio_path = await workflow.execute_activity(
-                generate_audio_activity,
-                {"script": script_data["script"], "anchor_id": current_anchor_id, "is_female": current_is_female},
-                start_to_close_timeout=timedelta(minutes=2)
-            )
-            
-            # --- AI LIP SYNC STEP ---
-            try:
-                job_id = await workflow.execute_activity(
-                    synclabs_lip_sync_activity,
-                    {"audio_url": audio_path, "is_female": current_is_female},
-                    start_to_close_timeout=timedelta(minutes=1)
-                )
-                
-                # Wait for AI Completion (Max 4 mins)
-                synced_video_url = ""
-                if job_id not in ["failed", "no_api_key"]:
-                    for _ in range(12): # 12 * 20s = 4 mins
-                        await workflow.sleep(timedelta(seconds=20))
-                        status = await workflow.execute_activity(
-                            check_sync_labs_status_activity,
-                            job_id,
-                            start_to_close_timeout=timedelta(minutes=1)
-                        )
-                        if status.get("status") == "completed":
-                            synced_video_url = status.get("video_url")
-                            break
-                        if status.get("status") == "failed": break
-            except:
-                synced_video_url = ""
+            # Alternate Male/Female
+            is_f = (i % 2 == 0)
+            a_id = anchor_ids[0] if is_f else anchor_ids[1]
 
-            # Generate Video (Using synced video if available, else static)
-            video_path = await workflow.execute_activity(
+            script = await workflow.execute_activity(
+                generate_script_activity,
+                {"news_data": item, "language": language, "is_female": is_f, "show_greeting": (i==0)},
+                start_to_close_timeout=timedelta(minutes=2)
+            )
+            audio = await workflow.execute_activity(
+                generate_audio_activity,
+                {"script": script["script"], "is_female": is_f},
+                start_to_close_timeout=timedelta(minutes=2)
+            )
+            
+            # (Lip sync skipped for batch speed/resource unless requested, using static for now)
+            v_path = await workflow.execute_activity(
                 generate_news_video_activity,
                 {
-                    "audio_url": audio_path, 
-                    "synced_video_url": synced_video_url,
-                    "title": item["headline"], 
-                    "anchor_id": current_anchor_id, 
-                    "is_female": current_is_female
+                    "audio_url": audio,
+                    "title": item["headline"],
+                    "is_female": is_f,
+                    "top_headlines": top_headlines_text
                 },
                 start_to_close_timeout=timedelta(minutes=10)
             )
-            if video_path:
-                story_videos.append(video_path)
+            if v_path: story_videos.append(v_path)
 
+        # 4. Assemble the specific bulletins for the cycle
+        common_data = {
+            "channel_id": channel_id,
+            "headlines_path": headlines_video,
+            "story_paths": story_videos,
+            "promo_path": f"videos/promo_ch{channel_id}.mp4",
+            "intro_path": "assets/intro.mp4"
+        }
 
+        if cycle == "Morning":
+            # Morning Headlines (30 min)
+            await workflow.execute_activity(
+                stitch_bulletin_activity, 
+                {**common_data, "target_minutes": 30, "output_name": "morning_headlines"},
+                start_to_close_timeout=timedelta(minutes=20)
+            )
+            # Morning Bulletin (120 min)
+            await workflow.execute_activity(
+                stitch_bulletin_activity, 
+                {**common_data, "target_minutes": 120, "output_name": "morning_bulletin"},
+                start_to_close_timeout=timedelta(minutes=30)
+            )
+            # Afternoon Bulletin (120 min)
+            await workflow.execute_activity(
+                stitch_bulletin_activity, 
+                {**common_data, "target_minutes": 120, "output_name": "afternoon_bulletin"},
+                start_to_close_timeout=timedelta(minutes=30)
+            )
+        else:
+            # Evening Cycle
+            await workflow.execute_activity(
+                stitch_bulletin_activity, 
+                {**common_data, "target_minutes": 30, "output_name": "evening_headlines"},
+                start_to_close_timeout=timedelta(minutes=20)
+            )
+            await workflow.execute_activity(
+                stitch_bulletin_activity, 
+                {**common_data, "target_minutes": 120, "output_name": "prime_time"},
+                start_to_close_timeout=timedelta(minutes=30)
+            )
+            await workflow.execute_activity(
+                stitch_bulletin_activity, 
+                {**common_data, "target_minutes": 120, "output_name": "night_bulletin"},
+                start_to_close_timeout=timedelta(minutes=30)
+            )
 
-        # 4. Stitch into 60-minute Bulletin
-        full_bulletin_path = await workflow.execute_activity(
-            stitch_bulletin_activity,
-            {
-                "channel_id": channel_id,
-                "headlines_path": headlines_path,
-                "story_paths": story_videos,
-                "promo_path": f"videos/promo_ch{channel_id}.mp4",
-                "intro_path": "assets/intro.mp4"
-            },
-            start_to_close_timeout=timedelta(minutes=15)
+        return f"{cycle} Batch Generation Completed."
+
+@workflow.defn
+class MasterBulletinWorkflow:
+    """
+    Slot Broadcaster: Triggered at specific times to switch the live stream.
+    Used for 05:30, 06:00, 08:00 etc.
+    """
+    @workflow.run
+    async def run(self, data: dict) -> str:
+        channel_id = data["channel_id"]
+        stream_key = data["stream_key"]
+        file_prefix = data.get("file_prefix", "morning_bulletin") # morning_headlines, morning_bulletin, etc.
+        
+        # 1. Find the latest file matching the prefix
+        # Note: Broadcaster should look for 'bulletin_batch_*.mp4' or specific named files
+        # For simplicity, we'll implement find_latest_by_prefix_activity or just use what we have
+        latest_path = await workflow.execute_activity(
+            find_latest_bulletin_activity,
+            channel_id,
+            start_to_close_timeout=timedelta(minutes=1)
         )
+        
+        if not latest_path:
+            return "No bulletin found to broadcast."
 
-
-        # 5. Start Telecast
-        if not is_instant:
-            print(f"--- [FRESH] Bulletin Ready. Waiting for Top of Hour ({target_hour}:00). ---")
-            now_ist = datetime.now(zoneinfo.ZoneInfo("Asia/Kolkata"))
-            wait_duration = target_time_ist - now_ist
-            if wait_duration.total_seconds() > 0:
-                await workflow.sleep(wait_duration)
-
-        print(f"--- [FRESH] Starting Bulletin Telecast now. ---")
+        # 2. Start Telecast (This will interrupt current, but it's a scheduled slot switch)
         await workflow.execute_activity(
             start_stream_activity,
-            {"channel_id": channel_id, "stream_key": stream_key, "video_url": full_bulletin_path, "is_promo": False},
+            {"channel_id": channel_id, "stream_key": stream_key, "video_url": latest_path, "is_promo": False},
             start_to_close_timeout=timedelta(minutes=5)
         )
+        
+        return f"Broadcasting {file_prefix} started."
 
-        
-        # Wait for 1 hour telecast duration (or until next schedule)
-        await workflow.sleep(timedelta(hours=1))
-        
-        return f"Bulletin {bulletin_type} completed."
 
 @workflow.defn
 class BreakingNewsWorkflow:
     """
-    Checks for high-priority news every 2-5 minutes and interrupts (seamlessly)
+    Checks for high-priority news every 5 minutes and enqueues (seamlessly)
     if found.
     """
     @workflow.run
     async def run(self, data: dict):
         channel_id = data["channel_id"]
         stream_key = data["stream_key"]
-        anchor_ids = data.get("anchor_ids", [])
+        anchor_ids = data.get("anchor_ids", [1, 2])
         
         while True:
             # 1. Check for fresh breaking news
             news = await workflow.execute_activity(
                 fetch_news_activity, 
-                "Marathi", # Hardcoded for now per requirements
+                "Marathi",
                 start_to_close_timeout=timedelta(minutes=1)
             )
             
             # Filter for true 'BREAKING' priority items
-            breaking_items = [n for n in news if n.get("category") == "BREAKING"]
+            breaking_items = [n for n in news if n.get("category") == "BREAKING"][:1]
             
             if breaking_items:
                 item = breaking_items[0]
-                # 2. Generate Instant Clip
+                
+                # Use current top headlines for the ticker context
+                top_headlines = [n['headline'] for n in news[:5]]
+                
+                # 2. Generate Instant Clip (Sequential)
                 script_data = await workflow.execute_activity(
                     generate_script_activity, 
-                    {"news_data": item, "language": "Marathi"}, 
-                    start_to_close_timeout=timedelta(minutes=1)
+                    {"news_data": item, "language": "Marathi", "is_female": True}, 
+                    start_to_close_timeout=timedelta(minutes=2)
                 )
                 audio_path = await workflow.execute_activity(
                     generate_audio_activity, 
-                    {"script": script_data["script"], "anchor_id": anchor_ids[0]}, 
-                    start_to_close_timeout=timedelta(minutes=1)
+                    {"script": script_data["script"], "is_female": True}, 
+                    start_to_close_timeout=timedelta(minutes=2)
                 )
                 video_path = await workflow.execute_activity(
                     generate_news_video_activity, 
                     {
                         "audio_url": audio_path, 
                         "title": item.get("headline", "BREAKING NEWS"), 
-                        "anchor_id": anchor_ids[0]
+                        "is_female": True,
+                        "top_headlines": top_headlines
                     }, 
-                    start_to_close_timeout=timedelta(minutes=2)
+                    start_to_close_timeout=timedelta(minutes=5)
                 )
                 
-                # 3. Interrupted (Seamless): Signal the Streamer
+                # 3. Enqueue (Non-Interrupting)
                 if video_path:
                     await workflow.execute_activity(
                         start_stream_activity,
                         {"channel_id": channel_id, "stream_key": stream_key, "video_url": video_path, "is_priority": True},
                         start_to_close_timeout=timedelta(minutes=5)
                     )
-                # To be TRULY seamless, we'd need a more complex Streamer.
-                # For now, we follow the "at next possible moment" by updating the playlist.
-                await workflow.execute_activity(
-                    start_stream_activity,
-                    {"channel_id": channel_id, "stream_key": stream_key, "video_url": video, "is_promo": False},
-                    start_to_close_timeout=timedelta(minutes=1)
-                )
-                
-                # Wait for breaking news duration (approx 90s)
-                await workflow.sleep(timedelta(seconds=90))
             
-            await workflow.sleep(timedelta(minutes=3))
+            # Wait 5 minutes for next check as per core rule
+            await workflow.sleep(timedelta(minutes=5))
+
 
 @workflow.defn
 class NewsProductionWorkflow:

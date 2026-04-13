@@ -40,16 +40,12 @@ class Streamer:
         except:
             return False
 
-    def _build_ffmpeg_cmd(self, start_time: str = None) -> list:
+    def _build_ffmpeg_cmd(self) -> list:
         has_audio = self._get_has_audio()
         
-        # Base CMD
-        # Added -stream_loop -1 to ensure gapless 24/7 playback
-        cmd = ["ffmpeg", "-y", "-loglevel", "warning", "-re", "-stream_loop", "-1"]
+        # Base CMD (Removed -stream_loop -1 to allow 'wait for completion' logic)
+        cmd = ["ffmpeg", "-y", "-loglevel", "warning", "-re"]
         
-        if start_time:
-            cmd += ["-ss", start_time]
-
         # Input 0: Main Video or Standby Pattern
         if "=" in self.current_video and " " not in self.current_video:
             cmd += ["-f", "lavfi", "-i", self.current_video]
@@ -60,21 +56,13 @@ class Streamer:
         if not has_audio:
             cmd += ["-f", "lavfi", "-i", "anullsrc=channel_layout=stereo:sample_rate=44100"]
 
-
         # Selection logic
         audio_map = "0:a" if has_audio else "1:a"
 
         # ── Video/Audio Mappings ──────────────────────────────────
         if self.is_promo:
-            # Promo logic — simple loop
-            cmd += [
-                "-map", "0:v",
-                "-map", audio_map,
-                "-vf", "scale=1280:720,format=yuv420p,fps=30",
-            ]
-
+            cmd += ["-map", "0:v", "-map", audio_map, "-vf", "scale=1280:720,format=yuv420p,fps=30"]
         elif os.path.exists(self.logo_path):
-            # Input 2: Logo (if anullsrc occupied index 1) or Input 1 (if audio present)
             logo_idx = 2 if not has_audio else 1
             cmd += ["-i", self.logo_path]
             cmd += [
@@ -86,41 +74,24 @@ class Streamer:
                 "-map", audio_map,
             ]
         else:
-            cmd += [
-                "-map", "0:v",
-                "-map", audio_map,
-                "-vf",
-                "scale=1280:720:force_original_aspect_ratio=decrease,"
-                "pad=1280:720:(ow-iw)/2:(oh-ih)/2,"
-                "format=yuv420p,fps=30",
-            ]
+            cmd += ["-map", "0:v", "-map", audio_map, "-vf", "scale=1280:720:force_original_aspect_ratio=decrease,pad=1280:720:(ow-iw)/2:(oh-ih)/2,format=yuv420p,fps=30"]
 
         # YouTube recommended settings (720p CBR)
         cmd += [
-            "-c:v",        "libx264",
-            "-preset",     "ultrafast",
-            "-tune",       "zerolatency",
-            "-threads",    "2",
-            "-r",          "30",
-            "-g",          "60",
-            "-keyint_min", "60",
-            "-x264opts",   "scenecut=0:nal-hrd=cbr",
-            "-b:v",        "2500k",
-            "-minrate",    "2500k",
-            "-maxrate",    "2500k",
-            "-bufsize",    "5000k",
-            "-pix_fmt",    "yuv420p",
-            # Audio
-            "-c:a",  "aac",
-            "-ar",   "44100",
-            "-b:a",  "128k",
-            "-ac",   "2",
+            "-c:v", "libx264", "-preset", "ultrafast", "-tune", "zerolatency",
+            "-threads", "2", "-r", "30", "-g", "60", "-keyint_min", "60",
+            "-x264opts", "scenecut=0:nal-hrd=cbr", "-b:v", "2500k", "-minrate", "2500k", "-maxrate", "2500k", "-bufsize", "5000k", "-pix_fmt", "yuv420p",
+            "-c:a", "aac", "-ar", "44100", "-b:a", "128k", "-ac", "2",
             "-metadata", f"vp_channel={self.channel_id}",
-            "-f",        "flv",
-            "-flvflags", "no_duration_filesize",
+            "-f", "flv", "-flvflags", "no_duration_filesize",
             self.rtmp_url,
         ]
         return cmd
+
+    def enqueue_video(self, video_path: str):
+        """Sets the next video to play after the current one finishes."""
+        self.next_video = video_path
+        print(f"--- [QUEUE] Enqueued for Next: {video_path} ---")
 
     def start_stream(self):
         if not self.current_video:
@@ -155,14 +126,11 @@ class Streamer:
             self.monitor_thread.start()
 
     def _read_logs(self):
-        if not self.process:
-            return
+        if not self.process: return
         for line in iter(self.process.stdout.readline, ""):
-            if self.stop_event.is_set():
-                break
+            if self.stop_event.is_set(): break
             line = line.strip()
-            if not line:
-                continue
+            if not line: continue
             low = line.lower()
             if any(k in low for k in ("error", "warning", "failed", "invalid", "connection")):
                 print(f"[FFMPEG ERROR] {line}", flush=True)
@@ -171,16 +139,22 @@ class Streamer:
         while not self.stop_event.is_set():
             if self.process and self.process.poll() is not None:
                 if not self.stop_event.is_set():
-                    rc = self.process.returncode
-                    print(f"⚠️  FFmpeg exited (code {rc}). Restarting in 5 s…", flush=True)
-                    time.sleep(5)
+                    # Process exited naturally (video finished) or crashed
+                    if hasattr(self, 'next_video') and self.next_video:
+                        print(f"--- [TRANSITION] Playing next in queue: {self.next_video} ---")
+                        self.current_video = self.next_video
+                        self.next_video = None
+                    else:
+                        print(f"--- [LOOP] Video finished. Re-playing current: {self.current_video} ---")
+                    
+                    time.sleep(1) # Small gap to allow YouTube to stabilize
                     try:
                         self.start_stream()
-                        # Important: return here because start_stream creates a NEW monitor thread
                         return 
                     except Exception as e:
                         print(f"❌ Restart failed: {e}", flush=True)
             time.sleep(2)
+
 
     def stop_stream(self):
         self.stop_event.set()

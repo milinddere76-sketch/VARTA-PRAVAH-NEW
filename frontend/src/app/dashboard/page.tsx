@@ -42,11 +42,10 @@ function HourPicker({ value, onChange }: { value: string; onChange: (v: string) 
             key={h}
             type="button"
             onClick={() => toggle(h)}
-            className={`py-1.5 rounded-lg text-xs font-bold transition-all border ${
-              selected.has(h)
+            className={`py-1.5 rounded-lg text-xs font-bold transition-all border ${selected.has(h)
                 ? 'bg-purple-600 border-purple-500 text-white shadow-lg shadow-purple-500/20'
                 : 'bg-[#0d1120] border-[#1c2035] text-gray-500 hover:border-purple-500/40 hover:text-gray-300'
-            }`}
+              }`}
           >
             {h}
           </button>
@@ -62,19 +61,19 @@ function HourPicker({ value, onChange }: { value: string; onChange: (v: string) 
 }
 
 export default function DashboardPage() {
-  const [channels, setChannels]     = useState<Channel[]>([]);
-  const [loading, setLoading]       = useState(true);
+  const [channels, setChannels] = useState<Channel[]>([]);
+  const [loading, setLoading] = useState(true);
   const [processing, setProcessing] = useState(false);
 
-  const [showAdModal, setShowAdModal]   = useState(false);
-  const [ads, setAds]                   = useState<AdCampaign[]>([]);
-  const [adTab, setAdTab]               = useState<'upload' | 'url'>('upload');
-  const [newAd, setNewAd]               = useState({ name: '', video_url: '', scheduled_hours: '08,12,18,21' });
-  const [uploadState, setUploadState]   = useState<'idle' | 'uploading' | 'done' | 'error'>('idle');
+  const [showAdModal, setShowAdModal] = useState(false);
+  const [ads, setAds] = useState<AdCampaign[]>([]);
+  const [adTab, setAdTab] = useState<'upload' | 'url'>('upload');
+  const [newAd, setNewAd] = useState({ name: '', video_url: '', scheduled_hours: '08,12,18,21' });
+  const [uploadState, setUploadState] = useState<'idle' | 'uploading' | 'done' | 'error'>('idle');
   const [uploadedFile, setUploadedFile] = useState<{ filename: string; size_mb: number } | null>(null);
   const [uploadProgress, setUploadProgress] = useState(0);
-  const [isDragOver, setIsDragOver]     = useState(false);
-  const fileInputRef                    = useRef<HTMLInputElement>(null);
+  const [isDragOver, setIsDragOver] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const [showSettingsModal, setShowSettingsModal] = useState(false);
   const [settingsData, setSettingsData] = useState({ groq_api_key: '', world_news_api_key: '', youtube_stream_key: '' });
@@ -211,17 +210,15 @@ export default function DashboardPage() {
         ) : (
           <div className="w-full max-w-6xl grid grid-cols-1 lg:grid-cols-2 gap-8">
             {channels.map(channel => (
-              <div key={channel.id} className={`relative rounded-3xl border p-8 transition-all duration-500 ${
-                channel.is_streaming ? 'bg-gradient-to-br from-[#0d1f12] to-[#0f1a1a] border-green-500/30 shadow-2xl' : 'bg-[#111623] border-[#1c2035]'
-              }`}>
+              <div key={channel.id} className={`relative rounded-3xl border p-8 transition-all duration-500 ${channel.is_streaming ? 'bg-gradient-to-br from-[#0d1f12] to-[#0f1a1a] border-green-500/30 shadow-2xl' : 'bg-[#111623] border-[#1c2035]'
+                }`}>
                 <div className="flex justify-between items-start mb-6">
                   <div>
                     <h2 className="text-2xl font-bold">{channel.name}</h2>
                     <p className="text-gray-500 text-xs">ID: {channel.id} · Marathi</p>
                   </div>
-                  <div className={`px-3 py-1.5 rounded-full text-[10px] font-bold uppercase border ${
-                    channel.is_streaming ? 'bg-green-500/15 text-green-400 border-green-500/30' : 'bg-gray-500/10 text-gray-500 border-gray-500/20'
-                  }`}>
+                  <div className={`px-3 py-1.5 rounded-full text-[10px] font-bold uppercase border ${channel.is_streaming ? 'bg-green-500/15 text-green-400 border-green-500/30' : 'bg-gray-500/10 text-gray-500 border-gray-500/20'
+                    }`}>
                     {channel.is_streaming ? '● Live' : 'Offline'}
                   </div>
                 </div>
@@ -256,12 +253,12 @@ export default function DashboardPage() {
           <div className="bg-[#111623] w-full max-w-sm p-8 rounded-3xl border border-[#1c2035]">
             <h2 className="text-xl font-bold mb-6 text-center">Update Channel Key</h2>
             <div className="space-y-4">
-              <input 
-                type="text" 
-                value={settingsData.youtube_stream_key} 
+              <input
+                type="text"
+                value={settingsData.youtube_stream_key}
                 onChange={e => setSettingsData({ ...settingsData, youtube_stream_key: e.target.value })}
                 className="w-full bg-[#080b14] border border-[#1c2035] rounded-xl px-4 py-3 text-sm focus:border-blue-500 outline-none"
-                placeholder="Stream Key..." 
+                placeholder="Stream Key..."
               />
               <div className="flex gap-3 pt-2">
                 <button onClick={() => setShowSettingsModal(false)} className="flex-1 py-3 text-sm font-bold bg-white/5 rounded-xl">Cancel</button>
