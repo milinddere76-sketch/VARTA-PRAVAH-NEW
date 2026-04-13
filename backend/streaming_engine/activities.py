@@ -296,7 +296,7 @@ async def generate_news_video_activity(input_data: dict) -> str:
         # Add scrolling ticker filter
         # x=w-mod(t*200,w+tw) for scrolling from right to left
         # We target the blue/navy bar at y=960
-        ticker_filter = f"[v1]drawtext=fontfile='{font_t_path}':text='{ticker_text}':fontcolor=white:fontsize=45:y=995:x=380+(w-380)-mod(t*150\\,(tw+w-380)):check_resample=1[outv]"
+        ticker_filter = f"[v1]drawtext=fontfile='{font_t_path}':text='{ticker_text}':fontcolor=white:fontsize=45:y=995:x=380+(w-380)-mod(t*150\\,(tw+w-380))[outv]"
         
         ffmpeg_cmd = [
             "ffmpeg", "-y", "-loop", "1", "-i", frame_p
@@ -347,10 +347,11 @@ async def ensure_promo_video_activity(channel_id: int = 1) -> bool:
     promo_p = os.path.join(BASE_DIR, "videos", f"promo_ch{channel_id}.mp4")
     master_promo = os.path.join(BASE_DIR, "videos", "promo.mp4")
     
-    if not os.path.exists(promo_p) and os.path.exists(master_promo):
+    # Always sync if master exists to ensure we use the 'Premium' version
+    if os.path.exists(master_promo):
         import shutil
         shutil.copy2(master_promo, promo_p)
-        print(f"Created channel-specific promo: {promo_p}")
+        print(f"Synced channel-specific promo from master: {promo_p}")
         
     return os.path.exists(promo_p)
 

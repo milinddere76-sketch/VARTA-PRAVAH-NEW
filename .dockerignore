@@ -19,8 +19,12 @@ __pycache__/
 venv/
 env/
 
+# Data and Assets (Mounted as volumes)
+**/videos/
+**/assets/
+**/promo_stems/
+
 # System / OS
 .DS_Store
 Thumbs.db
-backend/videos/
-news-ai/videos/
+.git/

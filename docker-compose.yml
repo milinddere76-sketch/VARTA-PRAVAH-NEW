@@ -14,7 +14,7 @@ services:
     deploy:
       resources:
         limits:
-          memory: 512M
+          memory: 384M
         reservations:
           memory: 128M
     healthcheck:
@@ -30,7 +30,7 @@ services:
     image: temporalio/auto-setup:1.24.2
     restart: unless-stopped
     environment:
-      - DB=postgres12 # Updated to match valid drivers from logs
+      - DB=postgres12
       - DB_PORT=5432
       - DB_NAME=temporal
       - POSTGRES_USER=root
@@ -45,7 +45,7 @@ services:
     deploy:
       resources:
         limits:
-          memory: 1280M
+          memory: 768M
         reservations:
           memory: 512M
     depends_on:
@@ -82,7 +82,7 @@ services:
     deploy:
       resources:
         limits:
-          memory: 512M
+          memory: 384M
         reservations:
           memory: 128M
     healthcheck:
@@ -118,13 +118,13 @@ services:
     deploy:
       resources:
         limits:
-          memory: 1536M
+          memory: 1792M
         reservations:
-          memory: 512M
+          memory: 1024M
     environment:
       - DATABASE_URL=postgresql+psycopg://root:password@postgres:5432/temporal
       - TEMPORAL_ADDRESS=temporal:7233
-      - AUTO_START_ALL_CHANNELS=True
+      - AUTO_START_ALL_CHANNELS=False
       - AUTO_START_CHANNEL_ID=1
       - PYTHONPATH=/app
       - GROQ_API_KEY=${GROQ_API_KEY}
@@ -134,33 +134,13 @@ services:
       - SYNC_LABS_MALE_VIDEO=${SYNC_LABS_MALE_VIDEO}
       - YOUTUBE_STREAM_KEY=${YOUTUBE_STREAM_KEY}
       - YOUTUBE_STREAM_KEY_CH2=${YOUTUBE_STREAM_KEY_CH2}
-      - YOUTUBE_STREAM_KEY_CH2=${YOUTUBE_STREAM_KEY_CH2}
     volumes:
       - ./backend/videos:/app/videos
       - ./backend/assets:/app/assets
     depends_on:
-      backend:
-        condition: service_started
+      postgres:
+        condition: service_healthy
       temporal:
-        condition: service_started
-    networks:
-      - vartapravah-net
-
-
-  frontend:
-    container_name: vartapravah_frontend
-    build: ./frontend
-    restart: unless-stopped
-    dns:
-      - 8.8.8.8
-      - 1.1.1.1
-    ports:
-      - "3000:3000"
-    environment:
-      - BACKEND_URL=http://backend:8000
-      - NEXT_SERVER_ACTIONS_ENCRYPTION_KEY=W3mUwLYSQC9bPN68YyAr6l7FBw9KHAcrnReU/tiSjBg=
-    depends_on:
-      backend:
         condition: service_started
     networks:
       - vartapravah-net

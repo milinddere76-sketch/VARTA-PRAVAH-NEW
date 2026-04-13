@@ -57,10 +57,10 @@ class Streamer:
 
         # ── Dynamic Encoding Selection ────────────────────────────
         # MP4 files (baked) should be copied; everything else (lavfi, standby) must be encoded.
-        is_lavfi = not str(self.current_video).lower().endswith(".mp4")
-
+        is_mp4 = str(self.current_video).lower().endswith(".mp4")
+        print(f"🎬 [CH{self.channel_id}] Stream Mode: {'ZERO-CPU COPY' if is_mp4 else 'LAVFI ENCODE'} | File: {self.current_video}")
         
-        if is_lavfi:
+        if not is_mp4:
             cmd += [
                 "-map", "0:v", "-c:v", "libx264", "-preset", "ultrafast", "-tune", "zerolatency",
                 "-r", "30", "-g", "60", "-keyint_min", "60",

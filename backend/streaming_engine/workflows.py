@@ -278,8 +278,13 @@ class StartImmediateStreamWorkflow:
     async def run(self, data: dict):
         channel_id = data.get("channel_id", 1)
         
-        # 1. Ensure the promo video exists for this channel
-        # This prevents the "missing file" error on fresh boots
+        # 1. Ensure the PREMIUM promo exists
+        await workflow.execute_activity(
+            ensure_premium_promo_activity,
+            start_to_close_timeout=timedelta(minutes=5)
+        )
+
+        # 2. Ensure the channel-specific synced version exists
         await workflow.execute_activity(
             ensure_promo_video_activity,
             channel_id,
