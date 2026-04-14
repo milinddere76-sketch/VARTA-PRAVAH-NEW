@@ -157,8 +157,8 @@ async def trigger_auto_start(client: Client):
             print(f"--- [INSTANT CONNECT] Starting Standby for Ch {channel_id} ---")
             
             # 1. FORCE Generation directly in the OS first
-            promo_script = "/app/backend/create_premium_promo.py"
-            abs_promo = "/app/backend/videos/promo.mp4"
+            promo_script = "/app/create_premium_promo.py"
+            abs_promo = "/app/videos/promo.mp4"
             print(f"🛠️ Building initial promo: {abs_promo}")
             subprocess.run([sys.executable, promo_script, abs_promo])
 

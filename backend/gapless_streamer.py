@@ -19,7 +19,7 @@ def run_gapless_stream(rtmp_url, initial_video):
     print(f"📡 [GAPLESS] Starting Single Ingest to {rtmp_url[:20]}...")
     
     # Absolute paths are required for stable Docker symlinks
-    base_dir = "/app/backend"
+    base_dir = "/app"
     live_symlink = os.path.join(base_dir, "videos", "current_live.mp4")
     os.makedirs(os.path.join(base_dir, "videos"), exist_ok=True)
     

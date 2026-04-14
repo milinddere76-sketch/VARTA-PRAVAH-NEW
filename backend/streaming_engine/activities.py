@@ -12,10 +12,10 @@ from groq import Groq
 import edge_tts
 import asyncio
 
-# Ensure the 'backend' root is in sys.path
-BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-if BASE_DIR not in sys.path:
-    sys.path.insert(0, BASE_DIR)
+# --- CONSTANTS ---
+BASE_DIR = "/app"
+VIDEOS_DIR = "/app/videos"
+PROMO_PATH = "/app/videos/promo.mp4"
 
 from streamer import Streamer
 import database
