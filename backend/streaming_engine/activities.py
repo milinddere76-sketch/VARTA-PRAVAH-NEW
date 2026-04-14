@@ -273,36 +273,24 @@ async def ensure_promo_video_activity(channel_id: int = 1) -> bool:
 @activity.defn
 async def start_stream_activity(data: dict) -> str:
     c_id, s_key, v_url = data["channel_id"], data["stream_key"], data["video_url"]
-    
-    # 1. Resolve Path
-    if not os.path.isabs(v_url): v_url = os.path.join(BASE_DIR, v_url)
-    if not os.path.exists(v_url) or os.path.getsize(v_url) < 10000: 
-        v_url = os.path.join(BASE_DIR, "videos", "promo.mp4")
-
-    # 2. SEAMLESS SWIPE (Symlink Switch)
-    live_symlink = os.path.join(BASE_DIR, "videos", "current_live.mp4")
-    try: 
-        if os.path.exists(live_symlink) or os.path.islink(live_symlink): os.remove(live_symlink)
-        os.symlink(v_url, live_symlink)
-        print(f"🔄 [LIVE] Switched stream source to: {v_url}")
-    except Exception as e:
-        print(f"⚠️ [LIVE] Symlink failed: {e}")
-
-    # 3. Ensure the Continuous Ingest is running
-    # If already running, FFmpeg will see the playlist update on next loop.
-    # If NOT running, we start it in the background.
     rtmp_url = f"rtmp://a.rtmp.youtube.com/live2/{s_key}"
     
-    # Check if a gapless streamer is already alive
-    check_cmd = ["pgrep", "-f", f"gapless_streamer.py.*{s_key[:5]}"]
-    if sys.platform == "win32": check_cmd = ["tasklist"] # simplified
+    # 1. Surgical Kill to start fresh
+    print("🧨 [EMERGENCY] Clearing all old FFmpeg...")
+    os.system("pkill -9 -f ffmpeg")
+    os.system("pkill -9 -f gapless")
+
+    # 2. THE DIRECT INGEST (Unbreakable Mode)
+    # We use a simple but high-quality direct command
+    cmd = f"ffmpeg -re -stream_loop -1 -i {v_url} -c:v libx264 -preset veryfast -b:v 2500k -maxrate 2500k -bufsize 5000k -pix_fmt yuv420p -g 60 -c:a aac -b:a 128k -f flv {rtmp_url} > /app/stream.log 2>&1 &"
     
-    res = subprocess.run(check_cmd, capture_output=True)
-    if b"gapless_streamer" not in res.stdout:
-        print(f"📡 [GHOST] Launching Permanent 24/7 Ingest for Channel {c_id}")
-        subprocess.Popen([sys.executable, os.path.join(BASE_DIR, "gapless_streamer.py"), rtmp_url, v_url])
-        
-    return "gapless_switch_complete"
+    try:
+        print(f"📡 [EMERGENCY] Launching Direct Ingest for Ch {c_id}")
+        os.system(cmd)
+        return "emergency_started"
+    except Exception as e:
+        print(f"❌ [EMERGENCY] Critical Fail: {e}")
+        return f"failed: {e}"
 
 @activity.defn
 async def stop_stream_activity(channel_id: int) -> str:
