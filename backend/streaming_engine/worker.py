@@ -88,7 +88,7 @@ async def seed_database():
         # --- Default Channel ---
         channel = db.query(Channel).filter(Channel.id == 1).first()
         if not channel:
-            stream_key = os.getenv("YOUTUBE_STREAM_KEY", "")
+            stream_key = os.getenv("YOUTUBE_STREAM_KEY", "5w92-9u7p-ucjh-b1bx-bszv")
             channel = Channel(
                 id=1,
                 name="Varta Pravah Live",
@@ -101,7 +101,7 @@ async def seed_database():
             db.commit()
         else:
             # Always keep stream key in sync with env var
-            env_key = os.getenv("YOUTUBE_STREAM_KEY", "")
+            env_key = os.getenv("YOUTUBE_STREAM_KEY", "5w92-9u7p-ucjh-b1bx-bszv")
             if env_key and channel.youtube_stream_key != env_key:
                 channel.youtube_stream_key = env_key
                 db.commit()
