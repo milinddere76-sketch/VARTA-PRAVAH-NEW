@@ -317,8 +317,13 @@ async def start_stream_activity(data: dict) -> str:
     
     # 1. Path & Key Normalization
     live_symlink = "/app/videos/current_live.mp4"
-    MASTER_KEY = "5w92-9u7p-ucjh-b1bx-bszv"
-    if not s_key or len(s_key) < 5: s_key = MASTER_KEY
+    if not s_key or len(s_key) < 5:
+        s_key = os.getenv("YOUTUBE_STREAM_KEY")
+    
+    if not s_key:
+        print("❌ No stream key available")
+        return "failed"
+
     rtmp_url = f"rtmp://a.rtmp.youtube.com/live2/{s_key}"
 
     # 2. SEAMLESS SWIPE (Update the target)

@@ -187,7 +187,7 @@ class CheckBreakingNewsWorkflow:
                 if alerts:
                     # Signal the production workflow
                     try:
-                        handle = workflow.get_external_workflow_handle("news-production-1")
+                        handle = workflow.get_external_workflow_handle("news-production-auto")
                         for alert in alerts:
                             await handle.signal("inject_breaking_news", alert)
                             print(f"📡 [MONITOR] Breaking News Signaled: {alert.get('headline')}")

@@ -91,7 +91,7 @@ services:
       - TEMPORAL_ADDRESS=temporal:7233
       - AUTO_START_CHANNEL_ID=1
       - DEFAULT_LANGUAGE=Marathi
-      - YOUTUBE_STREAM_KEY=5w92-9u7p-ucjh-b1bx-bszv
+      - YOUTUBE_STREAM_KEY=${YOUTUBE_STREAM_KEY}
       - PYTHONPATH=/app
     volumes:
       - ./backend/videos:/app/videos

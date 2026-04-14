@@ -71,29 +71,35 @@ async def trigger_auto_start(client: Client):
     await seed_database()
     channel_id = int(os.getenv("AUTO_START_CHANNEL_ID", "1"))
     language = "Marathi"
-    stream_key = os.getenv("YOUTUBE_STREAM_KEY", "5w92-9u7p-ucjh-b1bx-bszv")
+    stream_key = os.getenv("YOUTUBE_STREAM_KEY")
+    if not stream_key:
+        print("❌ CRITICAL: YOUTUBE_STREAM_KEY not found in environment!")
+        return
 
     # Start Main Production with static ID for signaling
     try:
         await client.start_workflow(
             NewsProductionWorkflow.run,
-            channel_id, stream_key, language,
-            id="news-production-1",
-            task_queue="news-task-queue"
+            channel_id,
+            stream_key,
+            language,
+            id="news-production-auto",
+            task_queue="news-task-queue-v2"
         )
-        print("🚀 News Production Workflow Started")
-    except: pass
+        print("🚀 News Production Workflow Started (Auto-Mode)")
+    except Exception as e:
+        print(f"⚠️ Production Workflow Start Error: {e}")
 
     # Start Breaking News Monitor
     try:
         await client.start_workflow(
             CheckBreakingNewsWorkflow.run,
             id="breaking-news-monitor",
-            task_queue="news-task-queue"
+            task_queue="news-task-queue-v2"
         )
         print("👀 Breaking News Monitor Started")
-    except: pass
-
+    except Exception as e:
+        print(f"⚠️ Monitor Workflow Start Error: {e}")
 
 # ================= MAIN ================= #
 
@@ -118,7 +124,7 @@ async def main():
 
     worker = Worker(
         client,
-        task_queue="news-task-queue",
+        task_queue="news-task-queue-v2",
         workflows=[NewsProductionWorkflow, StopStreamWorkflow, CheckBreakingNewsWorkflow],
         activities=[
             fetch_news_activity,
