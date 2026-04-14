@@ -13,13 +13,12 @@ def run_gapless_stream(rtmp_url, initial_video):
     if not os.path.exists(live_symlink):
         os.symlink(initial_video, live_symlink)
 
-    # Zero-Fail Ingest Command
+    # Zero-Fail Ingest Command (Safe Audio Merge)
     cmd = [
         "ffmpeg", "-y", "-loglevel", "warning",
         "-re", "-stream_loop", "-1", "-i", live_symlink,
-        # Ensure audio is ALWAYS present even if missing in source
         "-f", "lavfi", "-i", "anullsrc=cl=stereo:sr=44100",
-        "-filter_complex", "[0:a]adelay=1|1[a1];[a1][1:a]amix=inputs=2:dropout_transition=0[aout]",
+        "-filter_complex", "[0:a?]adelay=1|1[a1];[a1][1:a]amix=inputs=2:dropout_transition=0[aout]",
         "-map", "0:v", "-map", "[aout]",
         "-c:v", "libx264", "-preset", "veryfast", "-tune", "zerolatency",
         "-b:v", "2500k", "-maxrate", "2500k", "-bufsize", "5000k",
