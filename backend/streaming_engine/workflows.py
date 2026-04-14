@@ -200,5 +200,13 @@ class NewsProductionWorkflow:
                 await workflow.sleep(timedelta(minutes=5))
 
             except Exception as e:
-                print(f"Bulletin Loop Error: {e}")
+                print(f"Bulletin Loop ERROR: {e}. Falling back to Promo stand-by.")
+                # EMERGENCY FALLBACK: If news is unavailable, play Promo immediately and wait
+                try:
+                    await workflow.execute_activity(
+                        start_stream_activity,
+                        {"channel_id": channel_id, "stream_key": stream_key, "video_url": "videos/promo.mp4", "is_promo": True},
+                        start_to_close_timeout=timedelta(minutes=2)
+                    )
+                except: pass
                 await workflow.sleep(timedelta(minutes=5))

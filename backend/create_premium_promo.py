@@ -5,9 +5,15 @@ import sys
 def create_premium_promo(output_path):
     print(f"🎬 Creating Premium Gen-Z Promo -> {output_path}")
     
-    stems_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "promo_stems")
+    # Absolute internal paths for Docker/Hetzner environment
+    here = os.path.dirname(os.path.abspath(__file__))
+    stems_dir = os.path.join(here, "promo_stems")
+    
+    # Emergency fallback check for absolute container path
     if not os.path.exists(stems_dir):
-        stems_dir = "./promo_stems"
+        stems_dir = "/app/backend/promo_stems"
+    if not os.path.exists(stems_dir):
+        stems_dir = "/app/promo_stems"
     
     # --- DYNAMIC & CREATIVE AUDIO SYNTHESIS ---
     # Layer 1: Kick Drum (40Hz pulse)
