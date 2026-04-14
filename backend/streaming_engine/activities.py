@@ -274,37 +274,34 @@ async def ensure_promo_video_activity(channel_id: int = 1) -> bool:
 async def start_stream_activity(data: dict) -> str:
     c_id, s_key, v_url = data["channel_id"], data["stream_key"], data["video_url"]
     
-    # 1. Master Key Hardening
+    # 1. Path & Key Normalization
+    live_symlink = "/app/videos/current_live.mp4"
     MASTER_KEY = "5w92-9u7p-ucjh-b1bx-bszv"
     if not s_key or len(s_key) < 5: s_key = MASTER_KEY
     rtmp_url = f"rtmp://a.rtmp.youtube.com/live2/{s_key}"
-    
-    # 2. Cleanup old zombies
-    print(f"🧤 [STREAM] Preparing Channel {c_id}...")
-    os.system("pkill -9 -f ffmpeg")
 
-    # 3. Path Escalation (Tiered Fallback)
-    # Tier 1: The Requested Video (News)
-    final_video = v_url
-    if not os.path.exists(final_video):
-        # Tier 2: The Premium Promo
-        final_video = "/app/videos/promo.mp4"
-    
-    # 4. Ingest Logic
-    if os.path.exists(final_video) and os.path.getsize(final_video) > 1000:
-        print(f"📡 [STREAM] Ingesting: {final_video}")
-        cmd = f"ffmpeg -re -stream_loop -1 -i {final_video} -c:v libx264 -preset veryfast -b:v 4500k -maxrate 4500k -bufsize 9000k -pix_fmt yuv420p -g 60 -c:a aac -b:a 128k -ar 44100 -f flv {rtmp_url} > /app/stream.log 2>&1 &"
+    # 2. SEAMLESS SWIPE (Update the target)
+    if os.path.exists(v_url) and os.path.getsize(v_url) > 1000:
+        target = v_url
     else:
-        # Tier 3: Nuclear Procedural Fallback
-        print("☢️ [STREAM] Assets missing. Launching High-Fidelity Standby.")
-        cmd = (
-            f"ffmpeg -re -f lavfi -i \"testsrc2=s=1280x720:r=30,drawtext=text='VARTA PRAVAH STANDBY':fontcolor=white:fontsize=100:x=(w-tw)/2:y=(h-th)/2\" "
-            f"-f lavfi -i \"sine=f=440:r=44100\" -c:v libx264 -preset veryfast -b:v 4500k -maxrate 4500k -bufsize 9000k "
-            f"-pix_fmt yuv420p -g 60 -c:a aac -b:a 128k -ar 44100 -f flv {rtmp_url} > /app/stream.log 2>&1 &"
-        )
-    
-    os.system(cmd)
-    return "stream_initiated"
+        target = "/app/videos/promo.mp4"
+
+    try:
+        if os.path.exists(live_symlink) or os.path.islink(live_symlink): os.remove(live_symlink)
+        os.symlink(target, live_symlink)
+        print(f"🔄 [LIVE] Hot-Swapped stream to: {target}")
+    except Exception as e:
+        print(f"⚠️ [LIVE] Swap failed: {e}")
+
+    # 3. Ensure the Gapless Engine is alive
+    import subprocess
+    check = os.popen("pgrep -f gapless_streamer.py").read()
+    if not check:
+        print(f"📡 [INGEST] Launching Permanent 24/7 Engine for Ch {c_id}")
+        # We launch the gapless script which loops current_live.mp4 forever
+        os.system(f"python3 /app/gapless_streamer.py {rtmp_url} {live_symlink} &")
+        
+    return "switch_complete"
 
 @activity.defn
 async def stop_stream_activity(channel_id: int) -> str:
