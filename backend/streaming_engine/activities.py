@@ -273,24 +273,38 @@ async def ensure_promo_video_activity(channel_id: int = 1) -> bool:
 @activity.defn
 async def start_stream_activity(data: dict) -> str:
     c_id, s_key, v_url = data["channel_id"], data["stream_key"], data["video_url"]
+    
+    # 1. Master Key Hardening
+    MASTER_KEY = "5w92-9u7p-ucjh-b1bx-bszv"
+    if not s_key or len(s_key) < 5: s_key = MASTER_KEY
     rtmp_url = f"rtmp://a.rtmp.youtube.com/live2/{s_key}"
     
-    # 1. Surgical Kill to start fresh
-    print("🧨 [EMERGENCY] Clearing all old FFmpeg...")
+    # 2. Cleanup old zombies
+    print(f"🧤 [STREAM] Preparing Channel {c_id}...")
     os.system("pkill -9 -f ffmpeg")
-    os.system("pkill -9 -f gapless")
 
-    # 2. THE DIRECT INGEST (Unbreakable Mode)
-    # We use a simple but high-quality direct command
-    cmd = f"ffmpeg -re -stream_loop -1 -i {v_url} -c:v libx264 -preset veryfast -b:v 2500k -maxrate 2500k -bufsize 5000k -pix_fmt yuv420p -g 60 -c:a aac -b:a 128k -f flv {rtmp_url} > /app/stream.log 2>&1 &"
+    # 3. Path Escalation (Tiered Fallback)
+    # Tier 1: The Requested Video (News)
+    final_video = v_url
+    if not os.path.exists(final_video):
+        # Tier 2: The Premium Promo
+        final_video = "/app/videos/promo.mp4"
     
-    try:
-        print(f"📡 [EMERGENCY] Launching Direct Ingest for Ch {c_id}")
-        os.system(cmd)
-        return "emergency_started"
-    except Exception as e:
-        print(f"❌ [EMERGENCY] Critical Fail: {e}")
-        return f"failed: {e}"
+    # 4. Ingest Logic
+    if os.path.exists(final_video) and os.path.getsize(final_video) > 1000:
+        print(f"📡 [STREAM] Ingesting: {final_video}")
+        cmd = f"ffmpeg -re -stream_loop -1 -i {final_video} -c:v libx264 -preset veryfast -b:v 2500k -maxrate 2500k -bufsize 5000k -pix_fmt yuv420p -g 60 -c:a aac -b:a 128k -f flv {rtmp_url} > /app/stream.log 2>&1 &"
+    else:
+        # Tier 3: Nuclear Procedural Fallback
+        print("☢️ [STREAM] Assets missing. Launching Nuclear Procedural standby.")
+        cmd = (
+            f"ffmpeg -re -f lavfi -i \"testsrc2=s=1280x720:r=30,drawtext=text='VARTA PRAVAH STANDBY':fontcolor=white:fontsize=100:x=(w-tw)/2:y=(h-th)/2\" "
+            f"-f lavfi -i \"sine=f=440:b=4[a]\" -map 0:v -map 1:a -c:v libx264 -preset veryfast -b:v 2500k "
+            f"-c:a aac -b:a 128k -f flv {rtmp_url} > /app/stream.log 2>&1 &"
+        )
+    
+    os.system(cmd)
+    return "stream_initiated"
 
 @activity.defn
 async def stop_stream_activity(channel_id: int) -> str:
