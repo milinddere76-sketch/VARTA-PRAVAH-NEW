@@ -232,9 +232,9 @@ async def trigger_news_generation(
     try:
         handle = await temporal_client.start_workflow(
             NewsProductionWorkflow.run,
-            {"channel_id": channel_id, "language": channel.language, "stream_key": channel.youtube_stream_key},
+            args=[channel_id, channel.youtube_stream_key, channel.language],
             id=workflow_id,
-            task_queue="news-task-queue"
+            task_queue="news-task-queue-v2"
         )
         return {"status": "processing", "workflow_id": handle.id}
     except Exception as e:
@@ -257,9 +257,9 @@ async def stop_news_generation(
     # Kill processes via worker
     await temporal_client.start_workflow(
         StopStreamWorkflow.run,
-        channel_id,
+        args=[channel_id],
         id=f"stop-channel-{channel_id}-{int(time.time())}",
-        task_queue="news-task-queue"
+        task_queue="news-task-queue-v2"
     )
     
     try:
