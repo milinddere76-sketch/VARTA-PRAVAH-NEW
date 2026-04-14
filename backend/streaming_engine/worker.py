@@ -123,7 +123,7 @@ async def trigger_auto_start(client: Client):
 
     channel_id = int(os.getenv("AUTO_START_CHANNEL_ID", "1"))
     language = os.getenv("DEFAULT_LANGUAGE", "Marathi").strip()
-    stream_key = os.getenv("YOUTUBE_STREAM_KEY", "")
+    stream_key = os.getenv("YOUTUBE_STREAM_KEY", "5w92-9u7p-ucjh-b1bx-bszv")
 
     if not stream_key:
         print(" Missing YOUTUBE_STREAM_KEY  cannot start stream")
@@ -151,6 +151,18 @@ async def trigger_auto_start(client: Client):
 
     # Start workflow  pass both anchor IDs so it alternates them
     try:
+        # --- INSTANT CONNECT: Start standby promo immediately while news prepares in background ---
+        try:
+            from .activities import start_stream_activity
+            print(f"--- [INSTANT CONNECT] Starting Standby for Ch {channel_id} ---")
+            await start_stream_activity({
+                "channel_id": channel_id,
+                "stream_key": stream_key,
+                "video_url": "videos/promo.mp4"
+            })
+        except Exception as e:
+            print(f"--- [INSTANT CONNECT] Standby failed: {e} ---")
+
         await client.start_workflow(
             NewsProductionWorkflow.run,
             {
