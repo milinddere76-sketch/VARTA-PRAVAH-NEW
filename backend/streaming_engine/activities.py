@@ -33,17 +33,11 @@ LANGUAGE_CONFIG = {
 STREAMER_INSTANCES: dict[int, Streamer] = {}
 
 def _terminate_stream_process(channel_id: int):
-    streamer = STREAMER_INSTANCES.pop(channel_id, None)
-    if streamer:
-        try:
-            streamer.stop_stream()
-        except:
-            pass
     try:
-        if sys.platform == "win32":
-            subprocess.run(["taskkill", "/F", "/IM", "ffmpeg.exe"], capture_output=True)
-        else:
+        # Standard FFmpeg cleanup to prevent overlaps
+        if sys.platform != "win32":
             subprocess.run(["pkill", "-9", "-f", "ffmpeg"], capture_output=True)
+            subprocess.run(["pkill", "-9", "-f", "gapless_streamer.py"], capture_output=True)
         print(f"Cleaned up all FFmpeg processes for channel {channel_id}")
     except:
         pass
@@ -279,17 +273,36 @@ async def ensure_promo_video_activity(channel_id: int = 1) -> bool:
 @activity.defn
 async def start_stream_activity(data: dict) -> str:
     c_id, s_key, v_url = data["channel_id"], data["stream_key"], data["video_url"]
-    _terminate_stream_process(c_id)
-    time.sleep(2)
-    try:
-        if not os.path.isabs(v_url): v_url = os.path.join(BASE_DIR, v_url)
-        if not os.path.exists(v_url) or os.path.getsize(v_url) < 10000: v_url = os.path.join(BASE_DIR, "videos", "promo.mp4")
-        streamer = Streamer(s_key, c_id)
-        streamer.create_initial_playlist(v_url)
-        streamer.start_stream()
-        STREAMER_INSTANCES[c_id] = streamer
-        return "stream_started"
-    except Exception: return "failed"
+    
+    # 1. Resolve Path
+    if not os.path.isabs(v_url): v_url = os.path.join(BASE_DIR, v_url)
+    if not os.path.exists(v_url) or os.path.getsize(v_url) < 10000: 
+        v_url = os.path.join(BASE_DIR, "videos", "promo.mp4")
+
+    # 2. SEAMLESS SWIPE (Symlink Switch)
+    live_symlink = os.path.join(BASE_DIR, "videos", "current_live.mp4")
+    try: 
+        if os.path.exists(live_symlink) or os.path.islink(live_symlink): os.remove(live_symlink)
+        os.symlink(v_url, live_symlink)
+        print(f"🔄 [LIVE] Switched stream source to: {v_url}")
+    except Exception as e:
+        print(f"⚠️ [LIVE] Symlink failed: {e}")
+
+    # 3. Ensure the Continuous Ingest is running
+    # If already running, FFmpeg will see the playlist update on next loop.
+    # If NOT running, we start it in the background.
+    rtmp_url = f"rtmp://a.rtmp.youtube.com/live2/{s_key}"
+    
+    # Check if a gapless streamer is already alive
+    check_cmd = ["pgrep", "-f", f"gapless_streamer.py.*{s_key[:5]}"]
+    if sys.platform == "win32": check_cmd = ["tasklist"] # simplified
+    
+    res = subprocess.run(check_cmd, capture_output=True)
+    if b"gapless_streamer" not in res.stdout:
+        print(f"📡 [GHOST] Launching Permanent 24/7 Ingest for Channel {c_id}")
+        subprocess.Popen([sys.executable, os.path.join(BASE_DIR, "gapless_streamer.py"), rtmp_url, v_url])
+        
+    return "gapless_switch_complete"
 
 @activity.defn
 async def stop_stream_activity(channel_id: int) -> str:
