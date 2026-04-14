@@ -45,29 +45,25 @@ def create_premium_promo(output_path):
         audio_map = ["-map", "3:a", "-c:a", "aac", "-b:a", "128k"]
         print("🎹 Generating procedural Creative Lo-Fi Beat.")
 
+    import tempfile
+    import uuid
+    # Create the 60-second base video rapidly
+    temp_60s = os.path.join(tempfile.gettempdir(), f"promo_60s_{uuid.uuid4().hex}.mp4")
+    
     cmd = [
         "ffmpeg", "-y",
         # Inputs
-        "-loop", "1", "-t", "3600", "-i", os.path.join(stems_dir, "globe_neon.png"),  # [0:v]
-        "-loop", "1", "-t", "3600", "-i", os.path.join(stems_dir, "neon_logo.png"),   # [1:v]
-        "-stream_loop", "-1", "-t", "3600", "-i", os.path.join(stems_dir, "raw_concat.mp4"), # [2:v] (8s loop)
+        "-loop", "1", "-t", "60", "-i", os.path.join(stems_dir, "globe_neon.png"),
+        "-loop", "1", "-t", "60", "-i", os.path.join(stems_dir, "neon_logo.png"),
+        "-stream_loop", "-1", "-t", "60", "-i", os.path.join(stems_dir, "raw_concat.mp4"),
     ] + audio_input + [
         "-filter_complex", (
-            # 1. Base Loop (Looped to 60s)
             "[2:v]scale=1280:720,setsar=1[base];"
-            
-            # 2. Globe Overlay (Bottom Right, pulsing removed for stability)
             "[0:v]scale=350:-1[globe_s];"
             "[globe_s]format=rgba,colorchannelmixer=aa=0.8[globe_pulsed];"
-            
-            # 3. Logo (Center)
             "[1:v]scale=600:-1[logo_p];"
-            
-            # 4. Compose
             "[base][globe_pulsed]overlay=W-400:H-400[tmp1];"
             "[tmp1][logo_p]overlay=(W-w)/2:(H-h)/2-50[v_pre];"
-            
-            # 5. Vignette and Color Grading
             "[v_pre]vignette=angle=0.5,hue=s=1.2[v_final]"
         ),
         "-map", "[v_final]",
@@ -75,18 +71,37 @@ def create_premium_promo(output_path):
         "-c:v", "libx264", "-preset", "ultrafast",
         "-b:v", "6800k", "-minrate", "6800k", "-maxrate", "6800k", "-bufsize", "13600k",
         "-pix_fmt", "yuv420p", "-g", "60",
-        "-t", "3600",
-        output_path
+        "-t", "60",
+        temp_60s
     ]
     
     try:
         subprocess.run(cmd, check=True, capture_output=True)
-        print(f"✅ Premium Promo Created: {output_path}")
+        print(f"🎬 Baseline 60s Promo Created. Expanding to 1 hour...")
+        
+        # Multiply to 1 Hour Instantly via Concat DEMUXER
+        list_p = os.path.join(tempfile.gettempdir(), f"concat_{uuid.uuid4().hex}.txt")
+        with open(list_p, "w") as f:
+            for _ in range(60): # 60 * 60s = 3600s
+                f.write(f"file '{temp_60s.replace(chr(92), '/')}'\n")
+                
+        concat_cmd = [
+            "ffmpeg", "-y", "-f", "concat", "-safe", "0", "-i", list_p,
+            "-c", "copy", output_path
+        ]
+        subprocess.run(concat_cmd, check=True, capture_output=True)
+        print(f"✅ Premium 1-Hour Promo Created Instantly: {output_path}")
+        
     except subprocess.CalledProcessError as e:
-        print(f"❌ Failed to create premium promo: {e.stderr.decode()}")
-        # Fallback
-        fallback_cmd = ["ffmpeg", "-y", "-stream_loop", "-1", "-i", os.path.join(stems_dir, "raw_concat.mp4"), "-c:v", "libx264", "-preset", "ultrafast", "-b:v", "6800k", "-minrate", "6800k", "-maxrate", "6800k", "-bufsize", "13600k", "-t", "3600", "-pix_fmt", "yuv420p", output_path]
+        print(f"❌ Failed to create premium promo: {e.stderr.decode() if e.stderr else e}")
+        fallback_cmd = ["ffmpeg", "-y", "-stream_loop", "-1", "-i", os.path.join(stems_dir, "raw_concat.mp4"), "-c:v", "libx264", "-preset", "ultrafast", "-b:v", "6800k", "-minrate", "6800k", "-maxrate", "6800k", "-bufsize", "13600k", "-t", "60", "-pix_fmt", "yuv420p", output_path]
         subprocess.run(fallback_cmd)
+        
+    finally:
+        try: os.remove(temp_60s)
+        except: pass
+        try: os.remove(list_p)
+        except: pass
 
 if __name__ == "__main__":
     out = sys.argv[1] if len(sys.argv) > 1 else "premium_promo.mp4"
