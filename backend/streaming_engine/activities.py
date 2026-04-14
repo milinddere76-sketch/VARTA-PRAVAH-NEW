@@ -142,11 +142,11 @@ async def generate_script_activity(input_data: dict) -> dict:
     4. TAGLINE: Finish with: 'सत्य, वेग आणि विश्वासाचा प्रवाह. पाहत रहा, वार्ताप्रवाह. धन्यवाद.'
     
     GENDER RULES: Anchor is {anchor_name} | Use '{'आले आहे' if is_female else 'आलो आहे'}'.
-    LINGUISTIC: Devanagari ONLY. NO Roman/English characters."""
+    LINGUISTIC STRICTNESS: You must produce 100% grammatically flawless, native-level Shuddha Marathi. DO NOT use literal or awkward English-to-Marathi syntax. Ensure sentence structures flow naturally for a native Marathi speaker. Use Devanagari ONLY. NO Roman/English characters."""
     user_prompt = f"IF THE FOLLOWING NEWS IS IN ENGLISH, TRANSLATE IT TO PURE MARATHI FIRST AND THEN WRITE THE SCRIPT.\nHEADLINE: {news_data['headline']}\nDESCRIPTION: {news_data['description']}"
     try:
         client = Groq(api_key=os.getenv("GROQ_API_KEY"))
-        completion = client.chat.completions.create(model="llama-3.1-8b-instant", messages=[{"role": "system", "content": system_prompt}, {"role": "user", "content": user_prompt}], temperature=0.3)
+        completion = client.chat.completions.create(model="llama-3.3-70b-versatile", messages=[{"role": "system", "content": system_prompt}, {"role": "user", "content": user_prompt}], temperature=0.2)
         script = completion.choices[0].message.content
         print(f"--- [VERIFICATION] News Script Generated ---")
         print(f"Anchor: {anchor_name} | Language: Marathi")
@@ -180,11 +180,12 @@ async def generate_headlines_activity(input_data: dict) -> dict:
                     f"2. Read the following 5 headlines in impactful, short Marathi sentences.\n" \
                     f"3. Use a bullet-point style delivery ('पहिली मोठी बातमी...', 'दुसरीकडे...', 'तसेच...').\n" \
                     f"4. Suffix each headline with energy. Finish with: 'आता पाहूया सविस्तर बातम्या.'\n" \
+                    f"GRAMMAR: You MUST produce 100% grammatically flawless, native-level Marathi. Avoid awkward literal translations.\n" \
                     f"TONE: High-energy, professional, Devanagari ONLY."
     
     try:
         client = Groq(api_key=os.getenv("GROQ_API_KEY"))
-        completion = client.chat.completions.create(model="llama-3.1-8b-instant", messages=[{"role": "system", "content": system_prompt}, {"role": "user", "content": headlines_text}], temperature=0.3)
+        completion = client.chat.completions.create(model="llama-3.3-70b-versatile", messages=[{"role": "system", "content": system_prompt}, {"role": "user", "content": headlines_text}], temperature=0.2)
         return {"script": completion.choices[0].message.content, "is_female": is_female}
     except:
         return {"script": f"{greeting} ठळक बातम्या. सविस्तर बातम्या आता पाहूया.", "is_female": is_female}
