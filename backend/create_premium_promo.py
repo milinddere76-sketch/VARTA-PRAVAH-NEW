@@ -23,17 +23,25 @@ def create_premium_promo(output_path):
     # Layer 3: Neon Synth (Resonant Sweep)
     synth = "sine=f=440:d=60,atrim=0:60,tremolo=f=0.5:d=0.5,aecho=0.8:0.8:500:0.3[synth_raw];[synth_raw]lowpass=f=800[synth];"
     
+    # --- FAILSAFE IMAGE RESOLUTION ---
+    def get_input(filename, fallback_filter):
+        p = os.path.join(stems_dir, filename)
+        if os.path.exists(p): return ["-loop", "1", "-t", "60", "-i", p]
+        return ["-f", "lavfi", "-t", "60", "-i", fallback_filter]
+
+    v0 = get_input("globe_neon.png",   "testsrc2=s=250x250:r=30,format=rgba")
+    v1 = get_input("neon_logo.png",    "color=c=cyan@0.5:s=500x200:r=30,format=rgba")
+    v2 = get_input("mumbai_neon.png",  "fresnel=s=1280x720:r=30")
+    v3 = get_input("silhouettes.png", "color=c=black@0.8:s=1280x200:r=30,format=rgba")
+
     cmd = [
         "ffmpeg", "-y",
-        "-loop", "1", "-t", "60", "-i", os.path.join(stems_dir, "globe_neon.png"),    # [0:v]
-        "-loop", "1", "-t", "60", "-i", os.path.join(stems_dir, "neon_logo.png"),     # [1:v]
-        "-loop", "1", "-t", "60", "-i", os.path.join(stems_dir, "mumbai_neon.png"),   # [2:v]
-        "-loop", "1", "-t", "60", "-i", os.path.join(stems_dir, "silhouettes.png"),   # [3:v]
+        *v0, *v1, *v2, *v3,
         
-        # Audio Synth Layers
-        "-f", "lavfi", "-i", kick,    # [4:a]
-        "-f", "lavfi", "-i", hat,     # [5:a]
-        "-f", "lavfi", "-i", synth,   # [6:a]
+        # Audio Synth Layers (already logic-based)
+        "-f", "lavfi", "-i", kick,
+        "-f", "lavfi", "-i", hat,
+        "-f", "lavfi", "-i", synth,
         
         "-filter_complex", (
             # 1. Audio Mix
