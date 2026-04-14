@@ -67,61 +67,69 @@ async def seed_database():
 
 # ================= AUTOSTART ================= #
 
-async def trigger_auto_start(client: Client):
-    await seed_database()
-    channel_id = int(os.getenv("AUTO_START_CHANNEL_ID", "1"))
-    language = "Marathi"
-    stream_key = os.getenv("YOUTUBE_STREAM_KEY")
-    if not stream_key:
-        print("❌ CRITICAL: YOUTUBE_STREAM_KEY not found in environment!")
-        return
-
-    # Start Main Production with static ID for signaling
+async def launch_production(client, channel_id, stream_key, language):
+    """Isolated production launcher to prevent cross-failure."""
+    print(f"🎬 [AUTO-START] Attempting to launch Production Workflow for Channel {channel_id}...")
     try:
         await client.start_workflow(
             NewsProductionWorkflow.run,
-            channel_id,
-            stream_key,
-            language,
+            args=[channel_id, stream_key, language],
             id="news-production-auto",
             task_queue="news-task-queue-v2"
         )
-        print("🚀 News Production Workflow Started (Auto-Mode)")
+        print("✅ [AUTO-START] News Production Workflow ACTIVE.")
     except Exception as e:
-        print(f"⚠️ Production Workflow Start Error: {e}")
+        print(f"⚠️ [AUTO-START] Production already running or failed: {e}")
 
-    # Start Breaking News Monitor
+async def launch_monitor(client):
+    """Isolated monitor launcher."""
+    print("🎬 [AUTO-START] Attempting to launch Breaking News Monitor...")
     try:
         await client.start_workflow(
             CheckBreakingNewsWorkflow.run,
             id="breaking-news-monitor",
             task_queue="news-task-queue-v2"
         )
-        print("👀 Breaking News Monitor Started")
+        print("✅ [AUTO-START] Breaking News Monitor ACTIVE.")
     except Exception as e:
-        print(f"⚠️ Monitor Workflow Start Error: {e}")
-
-# ================= MAIN ================= #
+        print(f"⚠️ [AUTO-START] Monitor already running or failed: {e}")
 
 async def main():
-    write_status = lambda m: None # Simplified
     client = await temporal_utils.get_temporal_client()
     
-    # Instant Connect (Standby)
-    abs_promo = "/app/videos/promo.mp4"
-    if not os.path.exists(abs_promo):
-        subprocess.run([sys.executable, "/app/create_premium_promo.py", abs_promo])
-    
+    # 1. Database & Asset Prep
     try:
-        await start_stream_activity({
-            "channel_id": 1,
-            "stream_key": os.getenv("YOUTUBE_STREAM_KEY", "key"),
-            "video_url": abs_promo
-        })
+        await seed_database()
+        print("📂 [INIT] Database seed complete.")
     except: pass
 
-    asyncio.create_task(trigger_auto_start(client))
+    # 2. Ingest Sync Start (Instant Standby)
+    try:
+        abs_promo = "/app/videos/promo.mp4"
+        s_key = os.getenv("YOUTUBE_STREAM_KEY")
+        if s_key:
+            # Direct call for immediate standby broadcast
+            from streaming_engine.activities import start_stream_activity
+            await start_stream_activity({
+                "channel_id": 1,
+                "stream_key": s_key,
+                "video_url": abs_promo
+            })
+            print("📡 [INGEST] Standby Promo Live.")
+    except Exception as e:
+        print(f"⚠️ [INGEST] Initial standby failed: {e}")
 
+    # 3. Isolated Background Launches
+    channel_id = int(os.getenv("AUTO_START_CHANNEL_ID", "1"))
+    stream_key = os.getenv("YOUTUBE_STREAM_KEY")
+    language = "Marathi"
+
+    if stream_key:
+        asyncio.create_task(launch_production(client, channel_id, stream_key, language))
+    
+    asyncio.create_task(launch_monitor(client))
+
+    # 4. Start Worker
     worker = Worker(
         client,
         task_queue="news-task-queue-v2",
@@ -148,8 +156,12 @@ async def main():
         ],
         workflow_runner=UnsandboxedWorkflowRunner()
     )
-    print("✨ Worker Started - 24x7 Schedule Live")
+    
+    print("✨ [SYSTEM] Worker fully operational on news-task-queue-v2")
     await worker.run()
 
 if __name__ == "__main__":
+    import sys
+    # Force output flushing for Docker
+    sys.stdout.reconfigure(line_buffering=True)
     asyncio.run(main())
