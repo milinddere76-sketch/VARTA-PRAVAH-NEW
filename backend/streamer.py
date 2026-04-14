@@ -44,6 +44,7 @@ class Streamer:
         else:
             # For files
             cmd += ["-re", "-i", self.current_video]
+
         
         # Input 1: Always provide silence fallback
         cmd += ["-re", "-f", "lavfi", "-i", "anullsrc=channel_layout=stereo:sample_rate=44100"]

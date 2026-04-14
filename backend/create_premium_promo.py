@@ -14,9 +14,9 @@ def create_premium_promo(output_path):
         # FALLBACK: Create a cool dynamic grid with text if assets are missing
         cmd = [
             "ffmpeg", "-y", "-f", "lavfi", "-i", "testsrc=size=1280x720:rate=30",
-            "-f", "lavfi", "-i", "sine=f=40:d=60",
+            "-f", "lavfi", "-i", "sine=f=40:d=3600",
             "-vf", "hue=h=240:s=0.5,drawtext=text='VARTA PRAVAH':fontcolor=white:fontsize=80:x=(w-tw)/2:y=(h-th)/2:box=1:boxcolor=black@0.5:boxborderw=20",
-            "-t", "60", "-pix_fmt", "yuv420p", output_path
+            "-t", "3600", "-pix_fmt", "yuv420p", output_path
         ]
         subprocess.run(cmd, check=True)
         return
@@ -37,9 +37,9 @@ def create_premium_promo(output_path):
         # High-Quality procedural Lo-Fi Synth Beat
         audio_input = [
             "-f", "lavfi", "-i", 
-            "sine=f=55:d=60,tremolo=f=1:d=1,lowpass=f=100[kick];"
-            "sine=f=440:d=60,tremolo=f=0.5:d=0.8,aecho=0.8:0.8:1000:0.5,highpass=f=200[pad];"
-            "sine=f=880:d=60,tremolo=f=4:d=0.2,aecho=0.8:0.9:500:0.3[lead];"
+            "sine=f=55:d=3600,tremolo=f=1:d=1,lowpass=f=100[kick];"
+            "sine=f=440:d=3600,tremolo=f=0.5:d=0.8,aecho=0.8:0.8:1000:0.5,highpass=f=200[pad];"
+            "sine=f=880:d=3600,tremolo=f=4:d=0.2,aecho=0.8:0.9:500:0.3[lead];"
             "[kick][pad][lead]amix=inputs=3:weights=1 0.4 0.2,volume=2.5"
         ]
         audio_map = ["-map", "3:a", "-c:a", "aac", "-b:a", "128k"]
@@ -48,9 +48,9 @@ def create_premium_promo(output_path):
     cmd = [
         "ffmpeg", "-y",
         # Inputs
-        "-loop", "1", "-t", "60", "-i", os.path.join(stems_dir, "globe_neon.png"),  # [0:v]
-        "-loop", "1", "-t", "60", "-i", os.path.join(stems_dir, "neon_logo.png"),   # [1:v]
-        "-stream_loop", "-1", "-t", "60", "-i", os.path.join(stems_dir, "raw_concat.mp4"), # [2:v] (8s loop)
+        "-loop", "1", "-t", "3600", "-i", os.path.join(stems_dir, "globe_neon.png"),  # [0:v]
+        "-loop", "1", "-t", "3600", "-i", os.path.join(stems_dir, "neon_logo.png"),   # [1:v]
+        "-stream_loop", "-1", "-t", "3600", "-i", os.path.join(stems_dir, "raw_concat.mp4"), # [2:v] (8s loop)
     ] + audio_input + [
         "-filter_complex", (
             # 1. Base Loop (Looped to 60s)
@@ -75,7 +75,7 @@ def create_premium_promo(output_path):
         "-c:v", "libx264", "-preset", "ultrafast",
         "-b:v", "6800k", "-minrate", "6800k", "-maxrate", "6800k", "-bufsize", "13600k",
         "-pix_fmt", "yuv420p", "-g", "60",
-        "-t", "60",
+        "-t", "3600",
         output_path
     ]
     
@@ -85,7 +85,7 @@ def create_premium_promo(output_path):
     except subprocess.CalledProcessError as e:
         print(f"❌ Failed to create premium promo: {e.stderr.decode()}")
         # Fallback
-        fallback_cmd = ["ffmpeg", "-y", "-stream_loop", "-1", "-i", os.path.join(stems_dir, "raw_concat.mp4"), "-c:v", "libx264", "-preset", "ultrafast", "-b:v", "6800k", "-minrate", "6800k", "-maxrate", "6800k", "-bufsize", "13600k", "-t", "60", "-pix_fmt", "yuv420p", output_path]
+        fallback_cmd = ["ffmpeg", "-y", "-stream_loop", "-1", "-i", os.path.join(stems_dir, "raw_concat.mp4"), "-c:v", "libx264", "-preset", "ultrafast", "-b:v", "6800k", "-minrate", "6800k", "-maxrate", "6800k", "-bufsize", "13600k", "-t", "3600", "-pix_fmt", "yuv420p", output_path]
         subprocess.run(fallback_cmd)
 
 if __name__ == "__main__":
