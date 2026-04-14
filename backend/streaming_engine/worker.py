@@ -137,7 +137,7 @@ async def trigger_auto_start(client: Client):
     from .scheduler import setup_schedules
 
     # Determine if we should start all channels or just one
-    auto_all = os.getenv("AUTO_START_ALL_CHANNELS", "False").lower() == "true"
+    auto_all = os.getenv("AUTO_START_ALL_CHANNELS", "True").lower() == "true"
     auto_cid = int(os.getenv("AUTO_START_CHANNEL_ID", "1"))
     
     db = next(database.get_db())
