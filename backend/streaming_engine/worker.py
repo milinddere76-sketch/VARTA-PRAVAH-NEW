@@ -154,14 +154,20 @@ async def trigger_auto_start(client: Client):
         # --- INSTANT CONNECT: Start standby promo immediately while news prepares in background ---
         try:
             from .activities import start_stream_activity
-            print(f"--- [INSTANT CONNECT] Starting Standby for Ch {channel_id} ---")
-            # USE ABSOLUTE PATH for Docker reliability
-            abs_promo = "/app/backend/videos/promo.mp4"
-            await start_stream_activity({
-                "channel_id": channel_id,
-                "stream_key": stream_key,
-                "video_url": abs_promo
-            })
+        print(f"--- [INSTANT CONNECT] Starting Standby for Ch {channel_id} ---")
+        
+        # 1. FORCE Generation directly in the OS first
+        promo_script = os.path.join(BASE_DIR, "create_premium_promo.py")
+        abs_promo = "/app/backend/videos/promo.mp4"
+        print(f"🛠️ Building initial promo: {abs_promo}")
+        subprocess.run([sys.executable, promo_script, abs_promo])
+
+        # 2. Start the Ingest
+        await start_stream_activity({
+            "channel_id": channel_id,
+            "stream_key": stream_key,
+            "video_url": abs_promo
+        })
         except Exception as e:
             print(f"--- [INSTANT CONNECT] Standby failed: {e} ---")
 
