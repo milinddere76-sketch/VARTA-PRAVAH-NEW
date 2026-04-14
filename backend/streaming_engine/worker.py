@@ -197,6 +197,14 @@ async def main():
                 f.write(f"{time.ctime()}: {msg}")
         except: pass
 
+    # --- SURGICAL CLEANUP: Kill any ghost streamers from previous Docker runs ---
+    try:
+        if sys.platform != "win32":
+            print("🧤 Cleaning up ghost processes...")
+            subprocess.run(["pkill", "-9", "-f", "ffmpeg"], capture_output=True)
+            subprocess.run(["pkill", "-9", "-f", "gapless_streamer.py"], capture_output=True)
+    except: pass
+
     write_status("Connecting to Temporal (Retrying for 5 mins)...")
     client = None
     for i in range(60):
