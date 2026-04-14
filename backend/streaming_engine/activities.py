@@ -294,12 +294,13 @@ async def start_stream_activity(data: dict) -> str:
         print(f"⚠️ [LIVE] Swap failed: {e}")
 
     # 3. Ensure the Gapless Engine is alive
-    import subprocess
+    import sys
     check = os.popen("pgrep -f gapless_streamer.py").read()
     if not check:
         print(f"📡 [INGEST] Launching Permanent 24/7 Engine for Ch {c_id}")
-        # We launch the gapless script which loops current_live.mp4 forever
-        os.system(f"python3 /app/gapless_streamer.py {rtmp_url} {live_symlink} &")
+        # Use sys.executable for absolute reliability
+        cmd = f"{sys.executable} /app/gapless_streamer.py {rtmp_url} {live_symlink} &"
+        os.system(cmd)
         
     return "switch_complete"
 

@@ -32,10 +32,10 @@ def run_gapless_stream(rtmp_url, initial_video):
         "ffmpeg", "-y", "-loglevel", "warning",
         "-re", "-stream_loop", "-1", "-i", live_symlink,
         "-f", "lavfi", "-i", "anullsrc=cl=stereo:sr=44100",
-        "-filter_complex", "[0:a?]adelay=1|1[a1];[a1][1:a]amix=inputs=2:dropout_transition=0[aout]",
+        "-filter_complex", "[0:a]amix=inputs=2:dropout_transition=0:normalize=0[aout]",
         "-map", "0:v", "-map", "[aout]",
         "-c:v", "libx264", "-preset", "veryfast", "-tune", "zerolatency",
-        "-b:v", "2500k", "-maxrate", "2500k", "-bufsize", "5000k",
+        "-b:v", "4500k", "-maxrate", "4500k", "-bufsize", "9000k",
         "-pix_fmt", "yuv420p", "-g", "60",
         "-c:a", "aac", "-b:a", "128k", "-ar", "44100",
         "-f", "flv", rtmp_url
