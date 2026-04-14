@@ -2,16 +2,16 @@ import os
 import sys
 
 # Fix imports for Docker/Production/Local
-# Ensure the 'backend' root is in sys.path before importing local modules
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 if BASE_DIR not in sys.path:
     sys.path.insert(0, BASE_DIR)
 
 import asyncio
 import time
+import subprocess
 from temporalio.client import Client
 from temporalio.worker import Worker, UnsandboxedWorkflowRunner
-from .workflows import NewsProductionWorkflow, StopStreamWorkflow
+from .workflows import NewsProductionWorkflow, StopStreamWorkflow, CheckBreakingNewsWorkflow
 from .activities import (
     fetch_news_activity,
     generate_script_activity,
@@ -23,11 +23,14 @@ from .activities import (
     check_sync_labs_status_activity,
     upload_to_s3_activity,
     start_stream_activity,
+    merge_videos_activity,
     ensure_promo_video_activity,
     ensure_premium_promo_activity,
     stop_stream_activity,
     check_scheduled_ads_activity,
-    cleanup_old_videos_activity
+    cleanup_old_videos_activity,
+    get_channel_anchor_activity,
+    check_breaking_news_activity
 )
 
 from database import get_session_local
@@ -39,205 +42,84 @@ import temporal_utils
 # ================= DB SEED ================= #
 
 async def seed_database():
-    """
-    Ensures the default user, 2 anchors (female + male), and default channel
-    all exist. Returns (anchor_female_id, anchor_male_id).
-    """
     SessionLocal = get_session_local()
     db: Session = SessionLocal()
-    anchor_female_id = None
-    anchor_male_id = None
     try:
-        # --- Default System User ---
-        user = db.query(User).filter(User.id == 1).first()
-        if not user:
-            user = User(id=1, email="system@vartapravah.ai", hashed_password="seed_password")
-            db.add(user)
-            db.commit()
-
-        # --- Female Anchor (Priya) ---
-        female = db.query(Anchor).filter(Anchor.gender == "female", Anchor.is_active == True).first()
+        # Female Anchor (Priya)
+        female = db.query(Anchor).filter(Anchor.gender == "female").first()
         if not female:
-            female = Anchor(
-                name="Priya Desai", 
-                gender="female", 
-                portrait_url="assets/female_anchor.png",
-                description="Professional female news anchor", 
-                is_active=True
-            )
-            db.add(female)
+            db.add(Anchor(name="Priya Desai", gender="female", portrait_url="assets/female_anchor.png", is_active=True))
             db.commit()
-            db.refresh(female)
-        anchor_female_id = female.id
 
-        # --- Male Anchor (Arjun) ---
-        male = db.query(Anchor).filter(Anchor.gender == "male", Anchor.is_active == True).first()
+        # Male Anchor (Arjun)
+        male = db.query(Anchor).filter(Anchor.gender == "male").first()
         if not male:
-            male = Anchor(
-                name="Arjun Sharma", 
-                gender="male", 
-                portrait_url="assets/male_anchor.png",
-                description="Professional male news anchor", 
-                is_active=True
-            )
-            db.add(male)
+            db.add(Anchor(name="Arjun Sharma", gender="male", portrait_url="assets/male_anchor.png", is_active=True))
             db.commit()
-            db.refresh(male)
-        anchor_male_id = male.id
 
-        # --- Default Channel ---
+        # Channel
         channel = db.query(Channel).filter(Channel.id == 1).first()
         if not channel:
-            stream_key = os.getenv("YOUTUBE_STREAM_KEY", "5w92-9u7p-ucjh-b1bx-bszv")
-            channel = Channel(
-                id=1,
-                name="Varta Pravah Live",
-                language="Marathi",
-                youtube_stream_key=stream_key,
-                owner_id=1,
-                preferred_anchor_id=anchor_female_id
-            )
-            db.add(channel)
+            db.add(Channel(id=1, name="Varta Pravah Live", language="Marathi", youtube_stream_key=os.getenv("YOUTUBE_STREAM_KEY", "key"), owner_id=1))
             db.commit()
-        else:
-            # Always keep stream key in sync with env var
-            env_key = os.getenv("YOUTUBE_STREAM_KEY", "5w92-9u7p-ucjh-b1bx-bszv")
-            if env_key and channel.youtube_stream_key != env_key:
-                channel.youtube_stream_key = env_key
-                db.commit()
-
-        print(f" DB Seed complete  Female anchor id: {anchor_female_id}, Male anchor id: {anchor_male_id}")
-        return anchor_female_id, anchor_male_id
-
-    except Exception as e:
-        print(f" DB Seed error: {e}")
-        return None, None
     finally:
         db.close()
-
 
 # ================= AUTOSTART ================= #
 
 async def trigger_auto_start(client: Client):
-    anchor_female_id, anchor_male_id = await seed_database()
-
+    await seed_database()
     channel_id = int(os.getenv("AUTO_START_CHANNEL_ID", "1"))
-    language = os.getenv("DEFAULT_LANGUAGE", "Marathi").strip()
+    language = "Marathi"
     stream_key = os.getenv("YOUTUBE_STREAM_KEY", "5w92-9u7p-ucjh-b1bx-bszv")
 
-    if not stream_key:
-        print(" Missing YOUTUBE_STREAM_KEY  cannot start stream")
-        return
-
-    workflow_id = f"news-production-{channel_id}"
-
-    # Terminate any existing workflow (running or stuck) and start fresh.
-    # A healthy deployment always needs a clean workflow start.
+    # Start Main Production with static ID for signaling
     try:
-        handle = client.get_workflow_handle(workflow_id)
-        desc = await handle.describe()
-        status = desc.status.name  # e.g. RUNNING, FAILED, TIMED_OUT, COMPLETED
-        print(f" Found existing workflow '{workflow_id}' with status: {status}")
-        # Always terminate so we start fresh with new code/settings
-        try:
-            await handle.terminate(reason="Redeployment  starting fresh")
-            print(f" Terminated previous workflow ({status})")
-            await asyncio.sleep(3)   # give Temporal time to close it
-        except Exception as term_err:
-            print(f"  Could not terminate workflow (may be already closed): {term_err}")
-    except Exception:
-        # Workflow doesn't exist yet  fresh start
-        print(f"  No existing workflow '{workflow_id}'  will create fresh")
-
-    # Start workflow  pass both anchor IDs so it alternates them
-    try:
-        # --- INSTANT CONNECT: Start standby promo immediately while news prepares in background ---
-        try:
-            from .activities import start_stream_activity
-            print(f"--- [INSTANT CONNECT] Starting Standby for Ch {channel_id} ---")
-            
-            # 1. FORCE Generation directly in the OS first
-            promo_script = "/app/create_premium_promo.py"
-            abs_promo = "/app/videos/promo.mp4"
-            print(f"🛠️ Building initial promo: {abs_promo}")
-            subprocess.run([sys.executable, promo_script, abs_promo])
-
-            # 2. Start the Ingest
-            await start_stream_activity({
-                "channel_id": channel_id,
-                "stream_key": stream_key,
-                "video_url": abs_promo
-            })
-        except Exception as e:
-            print(f"--- [INSTANT CONNECT] Standby failed: {e} ---")
-
         await client.start_workflow(
             NewsProductionWorkflow.run,
-            {
-                "channel_id": channel_id,
-                "language": language,
-                "stream_key": stream_key,
-                "anchor_ids": [anchor_female_id, anchor_male_id]
-            },
-            id=workflow_id,
+            channel_id, stream_key, language,
+            id="news-production-1",
             task_queue="news-task-queue"
         )
-        print(" Varta Pravah workflow started  connecting to YouTube immediately")
+        print("🚀 News Production Workflow Started")
+    except: pass
 
-    except Exception as e:
-        if "already started" in str(e).lower():
-            print(" Workflow already running (race condition caught)")
-        else:
-            print(f" Workflow start issue: {e}")
+    # Start Breaking News Monitor
+    try:
+        await client.start_workflow(
+            CheckBreakingNewsWorkflow.run,
+            id="breaking-news-monitor",
+            task_queue="news-task-queue"
+        )
+        print("👀 Breaking News Monitor Started")
+    except: pass
 
 
 # ================= MAIN ================= #
 
 async def main():
-    from dotenv import load_dotenv
-    load_dotenv()
-
-    # Start heartbeat in background
-    def write_status(msg):
-        try:
-            os.makedirs("/app/videos", exist_ok=True)
-            with open("/app/videos/worker_status.txt", "w") as f:
-                f.write(f"{time.ctime()}: {msg}")
-        except: pass
-
-    # --- SURGICAL CLEANUP: Kill any ghost streamers from previous Docker runs ---
+    write_status = lambda m: None # Simplified
+    client = await temporal_utils.get_temporal_client()
+    
+    # Instant Connect (Standby)
+    abs_promo = "/app/videos/promo.mp4"
+    if not os.path.exists(abs_promo):
+        subprocess.run([sys.executable, "/app/create_premium_promo.py", abs_promo])
+    
     try:
-        if sys.platform != "win32":
-            print("🧤 Cleaning up ghost processes...")
-            subprocess.run(["pkill", "-9", "-f", "ffmpeg"], capture_output=True)
-            subprocess.run(["pkill", "-9", "-f", "gapless_streamer.py"], capture_output=True)
+        await start_stream_activity({
+            "channel_id": 1,
+            "stream_key": os.getenv("YOUTUBE_STREAM_KEY", "key"),
+            "video_url": abs_promo
+        })
     except: pass
 
-    write_status("Connecting to Temporal (Retrying for 5 mins)...")
-    client = None
-    for i in range(60):
-        try:
-            client = await temporal_utils.get_temporal_client()
-            if client:
-                write_status("Connected to Temporal - Registering Activities")
-                print(" Connected to Temporal")
-                break
-        except Exception as e:
-            write_status(f"Connect Retry {i+1}/60: {str(e)}")
-            await asyncio.sleep(5)
-
-    if not client:
-        write_status("CRITICAL: Failed to connect to Temporal after 12 retries")
-        raise RuntimeError(" Cannot connect to Temporal")
-
-    # Start workflow in background 
     asyncio.create_task(trigger_auto_start(client))
-    write_status("Worker Running - Polling news-task-queue")
 
     worker = Worker(
         client,
         task_queue="news-task-queue",
-        workflows=[NewsProductionWorkflow, StopStreamWorkflow],
+        workflows=[NewsProductionWorkflow, StopStreamWorkflow, CheckBreakingNewsWorkflow],
         activities=[
             fetch_news_activity,
             generate_script_activity,
@@ -249,28 +131,19 @@ async def main():
             check_sync_labs_status_activity,
             upload_to_s3_activity,
             start_stream_activity,
+            merge_videos_activity,
             ensure_promo_video_activity,
             ensure_premium_promo_activity,
             stop_stream_activity,
             check_scheduled_ads_activity,
-            cleanup_old_videos_activity
+            cleanup_old_videos_activity,
+            get_channel_anchor_activity,
+            check_breaking_news_activity
         ],
         workflow_runner=UnsandboxedWorkflowRunner()
     )
-
-    print(" Worker started and polling")
-
-    try:
-        await worker.run()
-    except Exception as e:
-        print(f" Worker crashed: {e}")
-        raise
-
-
-# ================= ENTRY ================= #
+    print("✨ Worker Started - 24x7 Schedule Live")
+    await worker.run()
 
 if __name__ == "__main__":
-    try:
-        asyncio.run(main())
-    except Exception as e:
-        print(f" Fatal error: {e}")
+    asyncio.run(main())

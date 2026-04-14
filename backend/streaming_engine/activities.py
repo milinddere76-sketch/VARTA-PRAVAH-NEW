@@ -43,27 +43,45 @@ def _terminate_stream_process(channel_id: int):
         pass
 
 @activity.defn
-async def fetch_news_activity(language: str) -> dict:
+async def fetch_news_activity(language: str) -> list[dict]:
     load_dotenv(override=True)
     api_key = os.getenv("WORLD_NEWS_API_KEY")
-    lang_code = LANGUAGE_CONFIG.get(language, {"code": "hi"})["code"]
-    combined_headline = "Top Updates: "
-    combined_description = ""
-    priorities = [("Maharashtra", 3), ("India", 3), ("World", 2)]
-    for category, count in priorities:
-        url = f"https://api.worldnewsapi.com/search-news?api-key={api_key}&text={category}&language={lang_code}&number={count}"
+    lang_code = LANGUAGE_CONFIG.get(language, {"code": "mr"})["code"]
+    
+    results = []
+    # Priority: Maharashtra (Local) -> India (National) -> World
+    queries = [
+        ("Maharashtra", 10),
+        ("Mumbai", 5),
+        ("Pune", 5),
+        ("India National", 10),
+        ("World News", 5)
+    ]
+    
+    for query, count in queries:
+        url = f"https://api.worldnewsapi.com/search-news?api-key={api_key}&text={query}&language={lang_code}&number={count}"
         try:
-            r = requests.get(url, timeout=5)
+            r = requests.get(url, timeout=10)
             data = r.json()
             if data.get("news"):
                 for n in data["news"]:
-                    combined_headline += f" | {n['title']}"
-                    combined_description += f"\n[{category.upper()} NEWS]: {n['text'][:250]}..."
-        except Exception: pass
-    if not combined_description:
-        combined_headline = "Varta Pravah Morning Updates | "
-        combined_description = "Namaskar, Maharashtra. Aajchya thak batmya."
-    return {"headline": combined_headline, "description": combined_description}
+                    results.append({
+                        "id": n.get("id") or uuid.uuid4().hex[:8],
+                        "headline": n.get("title", ""),
+                        "description": n.get("text", "")[:500]
+                    })
+        except: continue
+        if len(results) >= 25: break
+
+    # FALLBACK: If API is empty or fails
+    if not results:
+        results = [
+            {"headline": "महाराष्ट्रातील ताज्या घडामोडी", "description": "राज्यातील राजकीय आणि सामाजिक घडामोडींचा आढावा लवकरच सविस्तर स्वरूपात."},
+            {"headline": "मुंबईची जीवनवाहिनी सुरळीत", "description": "मध्य आणि पश्चिम रेल्वेच्या लोकल फेऱ्या वेळेवर धावत आहेत."},
+            {"headline": "पुण्यातील हवामान अपडेट", "description": "पुणे शहरात पुढील २४ तासांत पावसाची शक्यता वर्तवण्यात आली आहे."}
+        ]
+    
+    return results[:25]
 
 @activity.defn
 async def generate_script_activity(input_data: dict) -> dict:
@@ -77,45 +95,49 @@ async def generate_script_activity(input_data: dict) -> dict:
     import datetime
     from zoneinfo import ZoneInfo
     now_ist = datetime.datetime.now(ZoneInfo("Asia/Kolkata"))
-    
-    # Only use greeting if it's the start of the bulletin
-    if show_greeting:
-        if 5 <= now_ist.hour < 12:
-            greeting = f"नमस्कार, शुभ प्रभात! आपण पाहत आहात 'वार्ताप्रवाह'. मी {anchor_name}, घेऊन {'आले आहे' if is_female else 'आलो आहे'} सकाळच्या प्रमुख घडामोडी. चला पाहूया आजच्या दिवसाची सुरुवात करणाऱ्या महत्त्वाच्या बातम्या."
-        elif 12 <= now_ist.hour < 17:
-            greeting = f"नमस्कार! आपण पाहत आहात 'वार्ताप्रवाह'. मी {anchor_name}, घेऊन {'आले आहे' if is_female else 'आलो आहे'} दुपारच्या ताज्या अपडेट्स. चला जाणून घेऊया आतापर्यंतच्या महत्त्वाच्या बातम्या."
-        elif 17 <= now_ist.hour < 20:
-            greeting = f"नमस्कार! आपण पाहत आहात 'वार्ताप्रवाह'. मी {anchor_name}, घेऊन {'आले आहे' if is_female else 'आलो आहे'} दिवसभरातील महत्त्वाच्या घडामोडी. चला पाहूया संध्याकाळच्या प्रमुख बातम्या."
-        elif 20 <= now_ist.hour < 22:
-            greeting = f"नमस्कार! आपण पाहत आहात 'वार्ताप्रवाह' — सत्याचा आरसा. मी {anchor_name}, घेऊन {'आले आहे' if is_female else 'आलो आहे'} आजच्या दिवसातील सर्वात मोठ्या आणि परिणामकारक बातम्या. सुरुवात करूया हेडलाईन्सने."
-        else:
-            greeting = f"नमस्कार! आपण पाहत आहात 'वार्ताप्रवाह'. मी {anchor_name}, घेऊन {'आले आहे' if is_female else 'आलो आहे'} दिवसभराचा संक्षिप्त आढावा. चला पाहूया आजच्या मुख्य बातम्या."
-    else:
-        # Standard inner-bulletin transition
-        greeting = f"पुढील महत्त्वाची बातमी समोर येत आहे..."
+    bulletin_type = input_data.get("bulletin_type", "Standard")
+    anchor_name   = "Priya Desai" if is_female else "Arjun Sharma"
 
-    system_prompt = f"""You are a Marathi News Scholar for 'VARTA PRAVAH'. 
-    TONE: Neutral, Professional, Authoritative. NO DRAMA.
+    import datetime
+    from zoneinfo import ZoneInfo
+    now_ist = datetime.datetime.now(ZoneInfo("Asia/Kolkata"))
+    
+    # Custom Slot Logic
+    if "Morning" in bulletin_type: 
+        greeting = f"सकाळच्या ताज्या घडामोडींमध्ये आपले स्वागत..."
+        focus = "Focus on overnight developments, weather, and traffic updates."
+    elif "Prime" in bulletin_type:
+        greeting = f"आजच्या प्राइमिटाईम विशेष चर्चेत आपले स्वागत..."
+        focus = "Provide deep analysis, debate-style counter-points, and impact assessment."
+    elif "Afternoon" in bulletin_type:
+        greeting = f"दुपारच्या या सत्रात पाहूया आतापर्यंतच्या मोठ्या बातम्या..."
+        focus = "Focus on politics, economy, and local Maharashtra updates."
+    else:
+        greeting = f"पुढील महत्त्वाची बातमी समोर येत आहे..."
+        focus = "Standard professional reporting."
+
+    system_prompt = f"""You are a Distinguished Marathi News Journalist for 'VARTA PRAVAH'. 
+    TONE: Professional, Authoritative, Shuddha Marathi.
+    SLOT FOCUS: {focus}
     
     STRICT STRUCTURE:
-    1. OPENING: Start with: '{greeting}'
-    2. BREAKING HOOK: Say: 'थांबा जरा! एक मोठी ब्रेकिंग न्यूज समोर येत आहे…'
-    3. CONTENT: 6-8 professional Marathi sentences (Shuddha Marathi). This should take ~25 seconds to speak.
-    4. TAGLINE: Finish with: 'सत्य, वेग आणि विश्वासाचा प्रवाह. पाहत रहा, वार्ताप्रवाह. धन्यवाद.'
+    1. OPENING: Start with: '{greeting if show_greeting else 'पुढची बातमी...'}'
+    2. CONTENT: 6-8 comprehensive Marathi sentences. Use sophisticated vocabulary.
+    3. TAGLINE: Finish with: 'पाहत राहा, वार्ताप्रवाह. धन्यवाद.'
     
-    GENDER RULES: Anchor is {anchor_name} | Use '{'आले आहे' if is_female else 'आलो आहे'}'.
-    LINGUISTIC: Devanagari ONLY. NO Roman/English characters."""
-    user_prompt = f"IF THE FOLLOWING NEWS IS IN ENGLISH, TRANSLATE IT TO PURE MARATHI FIRST AND THEN WRITE THE SCRIPT.\nHEADLINE: {news_data['headline']}\nDESCRIPTION: {news_data['description']}"
+    GENDER RULES: Anchor is {anchor_name} | Use correct gendered grammar.
+    LINGUISTIC: Devanagari ONLY."""
+    
+    user_prompt = f"WRITE NEWS FOR: {news_data['headline']}\nDETAILS: {news_data['description']}"
+    
     try:
         client = Groq(api_key=os.getenv("GROQ_API_KEY"))
         completion = client.chat.completions.create(model="llama-3.1-8b-instant", messages=[{"role": "system", "content": system_prompt}, {"role": "user", "content": user_prompt}], temperature=0.3)
         script = completion.choices[0].message.content
-        print(f"--- [VERIFICATION] News Script Generated ---")
-        print(f"Anchor: {anchor_name} | Language: Marathi")
-        print(f"Script Context:\n{script[:200]}...")
-        print(f"-------------------------------------------")
         return {"script": script, "is_female": is_female}
     except Exception as e:
+        print(f"Script Generation Failed: {e}")
+        return {"script": f"नमस्कार, वार्ताप्रवाहमध्ये आपले स्वागत. ताजी बातमी आहे - {news_data['headline']}. सविस्तर वृत्त लवकरच.", "is_female": is_female}
         print(f"Groq Script Error: {e}")
         return {"script": f"Namaskar, Varta Pravah madhe aaple swagat aahe. Me {anchor_name}. Aajchya thak batmya. Dhanyavad.", "is_female": is_female}
 
@@ -123,26 +145,30 @@ async def generate_script_activity(input_data: dict) -> dict:
 async def generate_headlines_activity(input_data: dict) -> dict:
     news_items = input_data["news_items"]
     is_female = input_data.get("is_female", False)
+    bulletin_type = input_data.get("bulletin_type", "Standard")
     anchor_name = "Priya Desai" if is_female else "Arjun Sharma"
 
     import datetime
     from zoneinfo import ZoneInfo
     now_ist = datetime.datetime.now(ZoneInfo("Asia/Kolkata"))
     
-    if 5 <= now_ist.hour < 12: greeting = f"नमस्कार, शुभ प्रभात! आपण पाहत आहात 'वार्ताप्रवाह'. मी {anchor_name}, घेऊन {'आले आहे' if is_female else 'आलो आहे'} सकाळच्या प्रमुख घडामोडी. सुरुवात करूया मुख्य हेडलाईन्सने."
-    elif 12 <= now_ist.hour < 17: greeting = f"नमस्कार! आपण पाहत आहात 'वार्ताप्रवाह'. मी {anchor_name}, घेऊन {'आले आहे' if is_female else 'आलो आहे'} दुपारच्या ताज्या अपडेट्स. सुरुवात करूया मुख्य हेडलाईन्सने."
-    elif 17 <= now_ist.hour < 20: greeting = f"नमस्कार! आपण पाहत आहात 'वार्ताप्रवाह'. मी {anchor_name}, घेऊन {'आले आहे' if is_female else 'आलो आहे'} दिवसभरातील महत्त्वाच्या घडामोडी. सुरुवात करूया मुख्य हेडलाईन्सने."
-    elif 20 <= now_ist.hour < 22: greeting = f"नमस्कार! आपण पाहत आहात 'वार्ताप्रवाह' — सत्याचा आरसा. मी {anchor_name}, घेऊन {'आले आहे' if is_female else 'आलो आहे'} आजच्या दिवसातील सर्वात मोठ्या आणि परिणामकारक बातम्या. सुरुवात करूया हेडलाईन्सने."
-    else: greeting = f"नमस्कार! आपण पाहत आहात 'वार्ताप्रवाह'. मी {anchor_name}, घेऊन {'आले आहे' if is_female else 'आलो आहे'} दिवसभराचा संक्षिप्त आढावा. सुरुवात करूया मुख्य हेडलाईन्सने."
+    # Context-aware greetings based on User Schedule
+    if "Morning" in bulletin_type:
+        greeting = f"नमस्कार, शुभ प्रभात! आपण पाहत आहात 'सकाळच्या बातम्या'. मी {anchor_name}, घेऊन आले आहे आजच्या मुख्य घडामोडी आणि रात्रभराचे अपडेट्स."
+    elif "Prime" in bulletin_type:
+        greeting = f"नमस्कार, आपण पाहत आहात 'प्राइम टाइम विशेष'. मी {anchor_name}, आजच्या दिवसातील 'Top 10' मोठ्या बातम्यांचे सविस्तर विश्लेषण घेऊन आले आहे."
+    elif "Night" in bulletin_type:
+        greeting = f"शुभ रात्री. आपण पाहत आहात 'रात्रीच्या बातम्या'. मी {anchor_name}, दिवसभराचा संपूर्ण आढावा घेऊन आले आहे."
+    else:
+        greeting = f"नमस्कार, आपण पाहत आहात 'वार्ताप्रवाह'. मी {anchor_name}, या वेळच्या प्रमुख बातम्यांसह."
 
     headlines_text = "\n".join([f"- {item['headline']}" for item in news_items[:5]])
     
-    system_prompt = f"You are a Marathi News Anchor for 'VARTA PRAVAH'. Write a FAST-PACED headlines segment.\n" \
-                    f"1. Start with exactly: '{greeting}'\n" \
-                    f"2. Read the following 5 headlines in impactful, short Marathi sentences.\n" \
-                    f"3. Use a bullet-point style delivery ('पहिली मोठी बातमी...', 'दुसरीकडे...', 'तसेच...').\n" \
-                    f"4. Suffix each headline with energy. Finish with: 'आता पाहूया सविस्तर बातम्या.'\n" \
-                    f"TONE: High-energy, professional, Devanagari ONLY."
+    system_prompt = f"You are a Senior Marathi News Editor for 'VARTA PRAVAH'. Write a {bulletin_type} headlines segment.\n" \
+                    f"PERSONA: {anchor_name} | GENDER: {'Female' if is_female else 'Male'}\n" \
+                    f"RULE 1: Start with: '{greeting}'\n" \
+                    f"RULE 2: Use impact-heavy Marathi words (e.g., 'खळबळजनक', 'ऐतिहासिक', 'कठोर पाऊल').\n" \
+                    f"RULE 3: Professional News Tone. Devanagari ONLY."
     
     try:
         client = Groq(api_key=os.getenv("GROQ_API_KEY"))
@@ -184,17 +210,21 @@ async def generate_news_video_activity(input_data: dict) -> str:
     audio_path = input_data.get("audio_url", "")
     synced_v = input_data.get("synced_video_url", "")
     
+    is_female = input_data.get("is_female", True)
+    
     from database import SessionLocal
     from models import Channel, Anchor
     db = SessionLocal()
-    channel = db.query(Channel).first()
-    anchor = db.query(Anchor).filter(Anchor.id == channel.preferred_anchor_id).first() if channel else None
+    # Find a matching anchor by gender
+    anchor = db.query(Anchor).filter(Anchor.gender == ("female" if is_female else "male")).first()
     db.close()
 
     assets_dir = os.path.join(BASE_DIR, "assets")
     bg_p = os.path.join(assets_dir, "studio_bg.png")
     logo_p = os.path.join(assets_dir, "logo.png")
-    port_p = os.path.join(BASE_DIR, anchor.portrait_url) if anchor and anchor.portrait_url else os.path.join(assets_dir, "female_anchor.png")
+    
+    default_port = "female_anchor.png" if is_female else "male_anchor.png"
+    port_p = os.path.join(BASE_DIR, anchor.portrait_url) if anchor and anchor.portrait_url else os.path.join(assets_dir, default_port)
 
     try:
         studio = Image.open(bg_p).convert("RGBA").resize((1920, 1080)) if os.path.exists(bg_p) else Image.new("RGBA", (1920, 1080), (15, 25, 45, 255))
@@ -229,7 +259,9 @@ async def generate_news_video_activity(input_data: dict) -> str:
         frame_p = os.path.join(tempfile.gettempdir(), "studio_base.png")
         studio.save(frame_p)
         
-        out_p = os.path.join(BASE_DIR, "videos", "news_generated.mp4")
+        # Use unique filename to prevent overwriting files while streamer is reading them
+        file_id = uuid.uuid4().hex[:8]
+        out_p = os.path.join(BASE_DIR, "videos", f"news_{file_id}.mp4")
         
         if synced_v:
             # Composite talking anchor video onto studio background
@@ -237,13 +269,21 @@ async def generate_news_video_activity(input_data: dict) -> str:
                 "ffmpeg", "-y", "-loop", "1", "-i", frame_p,
                 "-i", synced_v,
                 "-filter_complex", 
-                "[1:v]scale=950:-1[anchor];[0:v][anchor]overlay=1920-950-50:H-h[outv]",
-                "-map", "[outv]", "-map", "1:a",
+                "[1:v]scale=950:-1[anchor];[0:v][anchor]overlay=1920-950-50:H-h[outv];"
+                "[1:a]aformat=sample_rates=44100:channel_layouts=stereo[aout]",
+                "-map", "[outv]", "-map", "[aout]",
                 "-c:v", "libx264", "-preset", "ultrafast", "-pix_fmt", "yuv420p",
                 "-shortest", out_p
             ]
         else:
-            ffmpeg_cmd = ["ffmpeg", "-y", "-loop", "1", "-i", frame_p, "-i", audio_path, "-c:v", "libx264", "-preset", "ultrafast", "-pix_fmt", "yuv420p", "-c:a", "aac", "-shortest", out_p]
+            ffmpeg_cmd = [
+                "ffmpeg", "-y", "-loop", "1", "-i", frame_p,
+                "-i", audio_path,
+                "-filter_complex", "[1:a]aformat=sample_rates=44100:channel_layouts=stereo[aout]",
+                "-map", "0:v", "-map", "[aout]",
+                "-c:v", "libx264", "-preset", "ultrafast", "-pix_fmt", "yuv420p", "-c:a", "aac",
+                "-shortest", out_p
+            ]
         
         subprocess.run(ffmpeg_cmd, check=True)
         return out_p
@@ -293,15 +333,22 @@ async def start_stream_activity(data: dict) -> str:
     except Exception as e:
         print(f"⚠️ [LIVE] Swap failed: {e}")
 
-    # 3. Ensure the Gapless Engine is alive
-    import sys
-    check = os.popen("pgrep -f gapless_streamer.py").read()
-    if not check:
-        print(f"📡 [INGEST] Launching Permanent 24/7 Engine for Ch {c_id}")
-        # Use sys.executable for absolute reliability
-        cmd = f"{sys.executable} /app/gapless_streamer.py {rtmp_url} {live_symlink} &"
-        os.system(cmd)
-        
+    # 3. Ensure a SINGLE Gapless Engine is alive (Kill any duplicates)
+    print("🧹 [SWEEP] Flushing stale streamer processes...")
+    subprocess.run(["pkill", "-9", "-f", "gapless_streamer.py"], capture_output=True)
+    subprocess.run(["pkill", "-9", "-f", "GAPLESS_STREAMER"], capture_output=True)
+    time.sleep(1) # Wait for port/socket release
+    
+    print(f"📡 [INGEST] Launching Fresh Permanent 24/7 Engine for Ch {c_id}")
+    log_f = open("/app/videos/streamer_output.log", "a")
+    proc = subprocess.Popen(
+        [sys.executable, "/app/gapless_streamer.py", rtmp_url, live_symlink],
+        stdout=log_f,
+        stderr=log_f,
+        start_new_session=True
+    )
+    print(f"📡 [INGEST] Process launched with PID {proc.pid}")
+    
     return "switch_complete"
 
 @activity.defn
@@ -313,7 +360,47 @@ async def stop_stream_activity(channel_id: int) -> str:
 async def check_scheduled_ads_activity(data: dict) -> list[str]: return []
 
 @activity.defn
-async def cleanup_old_videos_activity() -> str: return "Cleanup skipped"
+async def merge_videos_activity(video_paths: list[str]) -> str:
+    """Merges multiple MP4 clips into a single bulletin using FFmpeg concat demuxer."""
+    if not video_paths: return ""
+    if len(video_paths) == 1: return video_paths[0]
+    
+    output_path = os.path.join(VIDEOS_DIR, f"bulletin_{uuid.uuid4().hex[:8]}.mp4")
+    
+    # Create concat list file
+    list_file = os.path.join(tempfile.gettempdir(), f"concat_{uuid.uuid4().hex[:8]}.txt")
+    with open(list_file, "w") as f:
+        for p in video_paths:
+            # Ensure path is absolute for internal Docker context
+            abs_p = p if p.startswith("/") else os.path.join(BASE_DIR, p)
+            if os.path.exists(abs_p):
+                f.write(f"file '{abs_p}'\n")
+
+    # Perform fast stream-copy merge
+    cmd = [
+        "ffmpeg", "-y", "-f", "concat", "-safe", "0",
+        "-i", list_file, "-c", "copy", output_path
+    ]
+    try:
+        subprocess.run(cmd, check=True)
+        return output_path
+    except Exception as e:
+        print(f"Merge Failed: {e}")
+        return video_paths[0]
+
+@activity.defn
+async def cleanup_old_videos_activity() -> str: 
+    """Purges news and bulletin files older than 24 hours to save disk space."""
+    import time
+    now = time.time()
+    count = 0
+    for f in os.listdir(VIDEOS_DIR):
+        if f.startswith("news_") or f.startswith("bulletin_"):
+            p = os.path.join(VIDEOS_DIR, f)
+            if os.path.getmtime(p) < (now - 86400):
+                os.remove(p)
+                count += 1
+    return f"Cleaned {count} files"
 
 
 
@@ -374,3 +461,29 @@ async def check_sync_labs_status_activity(job_id: str) -> dict:
     except Exception as e:
         print(f"SyncLabs Polling Failed: {e}")
         return {"status": "failed"}
+
+_last_checked_news = set()
+
+@activity.defn
+async def check_breaking_news_activity() -> list[dict]:
+    global _last_checked_news
+    try:
+        from database import SessionLocal
+        from models import News
+        db = SessionLocal()
+        latest = db.query(News).order_by(News.created_at.desc()).limit(10).all()
+        db.close()
+        
+        breaking = []
+        for n in latest:
+            hid = str(n.id)
+            if hid not in _last_checked_news:
+                text = (n.headline + n.description).lower()
+                if any(k in text for k in ["breaking", "urgent", "महत्त्वाची", "धक्कादायक", "मोठी बातमी"]):
+                    breaking.append({"headline": n.headline, "description": n.description, "id": n.id})
+                    _last_checked_news.add(hid)
+        
+        if len(_last_checked_news) > 100: _last_checked_news = set()
+        return breaking
+    except Exception as e:
+        return []

@@ -55,20 +55,19 @@ def create_premium_promo(output_path):
             "[b]lutrgb=r=0:g=0,overlay=x='-2*sin(t*5)':y=0[bo];"
             "[ro][go]blend=all_mode='addition'[rg];[rg][bo]blend=all_mode='addition'[bg_final];"
             
-            # 3. Silhouettes: Breathing pulse
-            "[3:v]scale=1280:-1[sil];"
-            "[sil]colorkey=black:0.1:0.1,format=rgba,geq=a='if(gt(sin(t*2.5),0.4),255,100)'[sil_p];"
+            # 3. Silhouettes: Simplest possible processing
+            "[3:v]scale=1280:-1,colorkey=black:0.1:0.1,format=rgba[sil_p];"
             
-            # 4. Logo/Globe Pulsing
+            # 4. Logo/Globe
             "[1:v]scale=500:-1[logo];[0:v]scale=250:-1,rotate='0.5*t':c=none:ow=250:oh=250[globe];"
             
-            # 5. Composite everything
+            # 5. Composite
             "[bg_final][sil_p]overlay=0:H-h[v1];"
             "[v1][globe]overlay=W-300:50[v2];"
             "[v2][logo]overlay=(W-w)/2:(H-h)/2[v_pre];"
             
-            # 6. Neon Glitch Ticker
-            "drawtext=text='VARTA PRAVAH • वार्ता प्रवाह • 24/7 LIVE • AUTHENTIC NEWS':fontcolor=0x00FFFF:fontsize=70:x=W-mod(t*250\,W+2500):y=H-120:shadowcolor=0xFF00FF:shadowx=3:shadowy=3[ticker];"
+            # 6. Ticker (Simple)
+            "drawtext=text='VARTA PRAVAH | 24/7 LIVE | AUTHENTIC NEWS':fontcolor=cyan:fontsize=70:x=W-mod(t*250\,W+3000):y=H-100[ticker];"
             "[v_pre][ticker]overlay=0:0[v_out]"
         ),
         "-map", "[v_out]",
@@ -83,7 +82,7 @@ def create_premium_promo(output_path):
         print(f"✅ Premium Promo Created with Dynamic Audio: {output_path}")
     except Exception as e:
         print(f"Error: {e}")
-        subprocess.run(["ffmpeg", "-y", "-f", "lavfi", "-i", "color=c=black:s=1280x720:d=60", "-vf", "drawtext=text='VARTA PRAVAH':fontcolor=cyan:fontsize=60:x=(w-tw)/2:y=(h-th)/2", "-t", "60", output_path])
+        subprocess.run(["ffmpeg", "-y", "-f", "lavfi", "-i", "color=c=black:s=1280x720:d=60", "-f", "lavfi", "-i", "anullsrc=cl=stereo:r=44100", "-vf", "drawtext=text='VARTA PRAVAH':fontcolor=cyan:fontsize=60:x=(w-tw)/2:y=(h-th)/2", "-c:v", "libx264", "-c:a", "aac", "-shortest", "-t", "60", output_path])
 
 
 

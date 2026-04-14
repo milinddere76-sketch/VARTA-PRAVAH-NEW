@@ -29,16 +29,19 @@ def run_gapless_stream(rtmp_url, initial_video):
     # --- THE INDESTRUCTIBLE COMMAND ---
     # We use -f lavfi 'color' as a secondary input if the first fails
     cmd = [
-        "ffmpeg", "-y", "-loglevel", "warning",
-        "-re", "-stream_loop", "-1", "-i", live_symlink,
-        "-f", "lavfi", "-i", "anullsrc=cl=stereo:sr=44100",
+        "ffmpeg", "-y",
+        "-re", "-stream_loop", "-1", "-fflags", "+genpts", "-i", live_symlink,
+        "-f", "lavfi", "-i", "anullsrc=cl=stereo:r=44100",
         "-filter_complex", "[0:a]amix=inputs=2:dropout_transition=0:normalize=0[aout]",
         "-map", "0:v", "-map", "[aout]",
-        "-c:v", "libx264", "-preset", "veryfast", "-tune", "zerolatency",
-        "-b:v", "4500k", "-maxrate", "4500k", "-bufsize", "9000k",
-        "-pix_fmt", "yuv420p", "-g", "60",
+        "-r", "25", "-g", "50",
+        "-c:v", "libx264", "-preset", "ultrafast", "-tune", "zerolatency",
+        "-b:v", "2500k", "-minrate", "2500k", "-maxrate", "2500k", "-bufsize", "5000k",
+        "-x264-params", "nal-hrd=cbr:force-cfr=1",
+        "-pix_fmt", "yuv420p", "-threads", "0",
+        "-metadata", 'title="GAPLESS_STREAMER"',
         "-c:a", "aac", "-b:a", "128k", "-ar", "44100",
-        "-f", "flv", rtmp_url
+        "-f", "flv", "-rtmp_buffer", "10000", rtmp_url
     ]
 
     try:
