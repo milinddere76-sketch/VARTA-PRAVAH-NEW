@@ -4,23 +4,27 @@ import time
 import sys
 
 def run_gapless_stream(rtmp_url, initial_video):
-    # --- LOCK FILE: Absolute prevention of duplicate ingestion ---
-    lock_file = "/tmp/streamer.lock"
+    # --- SMART LOCK: Check if the process is REALLY alive ---
+    lock_file = "/tmp/streamer.pid"
     if os.path.exists(lock_file):
-        print("🛑 [LOCK] Streamer already running. Aborting duplicate.")
-        return
+        with open(lock_file, "r") as f:
+            old_pid = f.read().strip()
+            if old_pid and os.path.exists(f"/proc/{old_pid}"):
+                print(f"🛑 [LOCK] Streamer already running (PID {old_pid}). Aborting.")
+                return
+        os.remove(lock_file)
+    
     with open(lock_file, "w") as f: f.write(str(os.getpid()))
 
     print(f"📡 [GAPLESS] Starting Single Ingest to {rtmp_url[:20]}...")
     
-    live_symlink = "/app/videos/current_live.mp4"
-    os.makedirs("/app/videos", exist_ok=True)
+    # Absolute paths are required for stable Docker symlinks
+    base_dir = "/app/backend"
+    live_symlink = os.path.join(base_dir, "videos", "current_live.mp4")
+    os.makedirs(os.path.join(base_dir, "videos"), exist_ok=True)
     
-    # Ensure the symlink exists to prevent 'file not found' crash
-    if not os.path.exists(live_symlink):
-        # Even if promo.mp4 is missing, we create a link to it
-        try: os.symlink(initial_video, live_symlink)
-        except: pass
+    if not os.path.isabs(initial_video):
+        initial_video = os.path.join(base_dir, initial_video)
 
     # --- THE INDESTRUCTIBLE COMMAND ---
     # We use -f lavfi 'color' as a secondary input if the first fails

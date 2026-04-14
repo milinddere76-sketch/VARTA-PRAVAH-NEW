@@ -155,10 +155,12 @@ async def trigger_auto_start(client: Client):
         try:
             from .activities import start_stream_activity
             print(f"--- [INSTANT CONNECT] Starting Standby for Ch {channel_id} ---")
+            # USE ABSOLUTE PATH for Docker reliability
+            abs_promo = "/app/backend/videos/promo.mp4"
             await start_stream_activity({
                 "channel_id": channel_id,
                 "stream_key": stream_key,
-                "video_url": "videos/promo.mp4"
+                "video_url": abs_promo
             })
         except Exception as e:
             print(f"--- [INSTANT CONNECT] Standby failed: {e} ---")
