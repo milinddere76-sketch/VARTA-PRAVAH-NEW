@@ -40,9 +40,9 @@ def create_premium_promo(output_path):
             "sine=f=55:d=60,tremolo=f=1:d=1,lowpass=f=100[kick];"
             "sine=f=440:d=60,tremolo=f=0.5:d=0.8,aecho=0.8:0.8:1000:0.5,highpass=f=200[pad];"
             "sine=f=880:d=60,tremolo=f=4:d=0.2,aecho=0.8:0.9:500:0.3[lead];"
-            "[kick][pad][lead]amix=inputs=3:weights=1 0.4 0.2,volume=2.5[outa]"
+            "[kick][pad][lead]amix=inputs=3:weights=1 0.4 0.2,volume=2.5"
         ]
-        audio_map = ["-map", "[outa]", "-c:a", "aac", "-b:a", "128k"]
+        audio_map = ["-map", "3:a", "-c:a", "aac", "-b:a", "128k"]
         print("🎹 Generating procedural Creative Lo-Fi Beat.")
 
     cmd = [
@@ -56,13 +56,12 @@ def create_premium_promo(output_path):
             # 1. Base Loop (Looped to 60s)
             "[2:v]scale=1280:720,setsar=1[base];"
             
-            # 2. Globe Overlay (Bottom Right, pulsing)
+            # 2. Globe Overlay (Bottom Right, pulsing removed for stability)
             "[0:v]scale=350:-1[globe_s];"
-            "[globe_s]format=rgba,geq=r='r(X,Y)':g='g(X,Y)':b='b(X,Y)':a='alpha(X,Y)*(0.8+0.2*sin(2*PI*t/3))'[globe_pulsed];"
+            "[globe_s]format=rgba,colorchannelmixer=aa=0.8[globe_pulsed];"
             
-            # 3. Pulsing Logo (Center, Brightness pulse)
-            "[1:v]scale=600:-1[logo_s];"
-            "[logo_s]geq=r='r(X,Y)*(1+0.2*sin(2*PI*t/2))':g='g(X,Y)*(1+0.2*sin(2*PI*t/2))':b='b(X,Y)*(1+0.2*sin(2*PI*t/2))'[logo_p];"
+            # 3. Logo (Center)
+            "[1:v]scale=600:-1[logo_p];"
             
             # 4. Compose
             "[base][globe_pulsed]overlay=W-400:H-400[tmp1];"
@@ -74,7 +73,7 @@ def create_premium_promo(output_path):
         "-map", "[v_final]",
     ] + audio_map + [
         "-c:v", "libx264", "-preset", "ultrafast",
-        "-b:v", "2500k", "-minrate", "2500k", "-maxrate", "2500k", "-bufsize", "5000k",
+        "-b:v", "6800k", "-minrate", "6800k", "-maxrate", "6800k", "-bufsize", "13600k",
         "-pix_fmt", "yuv420p", "-g", "60",
         "-t", "60",
         output_path
@@ -85,8 +84,9 @@ def create_premium_promo(output_path):
         print(f"✅ Premium Promo Created: {output_path}")
     except subprocess.CalledProcessError as e:
         print(f"❌ Failed to create premium promo: {e.stderr.decode()}")
-        # Fallback: copy raw_concat if main fails
-        subprocess.run(["ffmpeg", "-y", "-i", os.path.join(stems_dir, "raw_concat.mp4"), "-t", "60", output_path])
+        # Fallback
+        fallback_cmd = ["ffmpeg", "-y", "-stream_loop", "-1", "-i", os.path.join(stems_dir, "raw_concat.mp4"), "-c:v", "libx264", "-preset", "ultrafast", "-b:v", "6800k", "-minrate", "6800k", "-maxrate", "6800k", "-bufsize", "13600k", "-t", "60", "-pix_fmt", "yuv420p", output_path]
+        subprocess.run(fallback_cmd)
 
 if __name__ == "__main__":
     out = sys.argv[1] if len(sys.argv) > 1 else "premium_promo.mp4"

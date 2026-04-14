@@ -53,16 +53,12 @@ class Streamer:
             cmd += [
                 "-map", "0:v", "-c:v", "libx264", "-preset", "ultrafast", "-tune", "zerolatency",
                 "-r", "30", "-g", "60", "-keyint_min", "60",
-                "-x264opts", "scenecut=0:nal-hrd=cbr", "-b:v", "4500k", "-minrate", "4500k", "-maxrate", "4500k", "-bufsize", "9000k",
+                "-x264opts", "scenecut=0:nal-hrd=cbr", "-b:v", "6800k", "-minrate", "6800k", "-maxrate", "6800k", "-bufsize", "13600k",
                 "-pix_fmt", "yuv420p"
             ]
         else:
-            # surgical re-encoding for stability despite being mp4, or keep copy if we want 0-cpu
-            # Using re-encoding for ALL streams now to ensure YouTube's strict CBR requirements are met.
             cmd += [
-                "-map", "0:v", "-c:v", "libx264", "-preset", "veryfast",
-                "-r", "30", "-g", "60", "-b:v", "4500k", "-maxrate", "4500k", "-bufsize", "9000k",
-                "-pix_fmt", "yuv420p"
+                "-map", "0:v", "-c:v", "copy"
             ]
 
         # Audio handling

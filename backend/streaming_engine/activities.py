@@ -326,8 +326,8 @@ async def generate_news_video_activity(input_data: dict) -> str:
 
             
         ffmpeg_cmd += [
-            "-c:v", "libx264", "-preset", "ultrafast", "-b:v", "2500k", 
-            "-maxrate", "2500k", "-bufsize", "5000k", "-r", "30", "-g", "60",
+            "-c:v", "libx264", "-preset", "ultrafast", "-b:v", "6800k", "-minrate", "6800k", "-maxrate", "6800k", "-bufsize", "13600k",
+            "-r", "30", "-g", "60",
             "-pix_fmt", "yuv420p", "-c:a", "aac", "-b:a", "128k", "-ar", "44100",
             "-shortest", out_p
         ]
@@ -337,7 +337,6 @@ async def generate_news_video_activity(input_data: dict) -> str:
         return out_p
     except Exception as e:
         print(f"Render Error: {e}")
-        return os.path.join(BASE_DIR, "videos", "promo.mp4")
 
     except Exception as e:
         print(f"Render Error: {e}")
