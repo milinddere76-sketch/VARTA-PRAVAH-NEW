@@ -53,7 +53,7 @@ class Streamer:
             cmd += [
                 "-map", "0:v", "-c:v", "libx264", "-preset", "ultrafast", "-tune", "zerolatency",
                 "-r", "30", "-g", "60", "-keyint_min", "60",
-                "-x264opts", "scenecut=0:nal-hrd=cbr", "-b:v", "2500k", "-minrate", "2500k", "-maxrate", "2500k", "-bufsize", "5000k",
+                "-x264opts", "scenecut=0:nal-hrd=cbr", "-b:v", "4500k", "-minrate", "4500k", "-maxrate", "4500k", "-bufsize", "9000k",
                 "-pix_fmt", "yuv420p"
             ]
         else:
@@ -61,7 +61,7 @@ class Streamer:
             # Using re-encoding for ALL streams now to ensure YouTube's strict CBR requirements are met.
             cmd += [
                 "-map", "0:v", "-c:v", "libx264", "-preset", "veryfast",
-                "-r", "30", "-g", "60", "-b:v", "2500k", "-maxrate", "2500k", "-bufsize", "5000k",
+                "-r", "30", "-g", "60", "-b:v", "4500k", "-maxrate", "4500k", "-bufsize", "9000k",
                 "-pix_fmt", "yuv420p"
             ]
 
