@@ -293,14 +293,14 @@ async def start_stream_activity(data: dict) -> str:
     # 4. Ingest Logic
     if os.path.exists(final_video) and os.path.getsize(final_video) > 1000:
         print(f"📡 [STREAM] Ingesting: {final_video}")
-        cmd = f"ffmpeg -re -stream_loop -1 -i {final_video} -c:v libx264 -preset veryfast -b:v 2500k -maxrate 2500k -bufsize 5000k -pix_fmt yuv420p -g 60 -c:a aac -b:a 128k -f flv {rtmp_url} > /app/stream.log 2>&1 &"
+        cmd = f"ffmpeg -re -stream_loop -1 -i {final_video} -c:v libx264 -preset veryfast -b:v 4500k -maxrate 4500k -bufsize 9000k -pix_fmt yuv420p -g 60 -c:a aac -b:a 128k -ar 44100 -f flv {rtmp_url} > /app/stream.log 2>&1 &"
     else:
         # Tier 3: Nuclear Procedural Fallback
-        print("☢️ [STREAM] Assets missing. Launching Nuclear Procedural standby.")
+        print("☢️ [STREAM] Assets missing. Launching High-Fidelity Standby.")
         cmd = (
             f"ffmpeg -re -f lavfi -i \"testsrc2=s=1280x720:r=30,drawtext=text='VARTA PRAVAH STANDBY':fontcolor=white:fontsize=100:x=(w-tw)/2:y=(h-th)/2\" "
-            f"-f lavfi -i \"sine=f=440:b=4[a]\" -map 0:v -map 1:a -c:v libx264 -preset veryfast -b:v 2500k "
-            f"-c:a aac -b:a 128k -f flv {rtmp_url} > /app/stream.log 2>&1 &"
+            f"-f lavfi -i \"sine=f=440:r=44100\" -c:v libx264 -preset veryfast -b:v 4500k -maxrate 4500k -bufsize 9000k "
+            f"-pix_fmt yuv420p -g 60 -c:a aac -b:a 128k -ar 44100 -f flv {rtmp_url} > /app/stream.log 2>&1 &"
         )
     
     os.system(cmd)
