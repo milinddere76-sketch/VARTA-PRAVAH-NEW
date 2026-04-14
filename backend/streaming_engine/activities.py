@@ -257,10 +257,24 @@ async def generate_news_video_activity(input_data: dict) -> str:
         print(f"Render Error: {e}")
         return os.path.join(BASE_DIR, "videos", "promo.mp4")
 
+from create_premium_promo import create_premium_promo
+
+@activity.defn
+async def ensure_premium_promo_activity() -> bool:
+    promo_p = os.path.join(BASE_DIR, "videos", "promo.mp4")
+    if not os.path.exists(promo_p) or os.path.getsize(promo_p) < 100000:
+        print("🎬 Generating NEW Premium Promo...")
+        try:
+            create_premium_promo(promo_p)
+            return True
+        except Exception as e:
+            print(f"❌ Promo Generation Failed: {e}")
+            return False
+    return True
+
 @activity.defn
 async def ensure_promo_video_activity(channel_id: int = 1) -> bool:
-    promo_p = os.path.join(BASE_DIR, "videos", "promo.mp4")
-    return os.path.exists(promo_p)
+    return await ensure_premium_promo_activity()
 
 @activity.defn
 async def start_stream_activity(data: dict) -> str:
@@ -288,8 +302,7 @@ async def check_scheduled_ads_activity(data: dict) -> list[str]: return []
 @activity.defn
 async def cleanup_old_videos_activity() -> str: return "Cleanup skipped"
 
-@activity.defn
-async def ensure_premium_promo_activity() -> bool: return True
+
 
 @activity.defn
 async def get_channel_anchor_activity(channel_id: int) -> dict: return {"gender": "female", "name": "Priya"}
