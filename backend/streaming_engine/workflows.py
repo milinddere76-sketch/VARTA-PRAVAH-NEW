@@ -48,17 +48,9 @@ class NewsProductionWorkflow:
             start_to_close_timeout=timedelta(seconds=300)
         )
 
-        await workflow.execute_activity(
-            start_stream_activity,
-            {
-                "channel_id": channel_id,
-                "stream_key": stream_key,
-                "video_url": "videos/promo.mp4",
-                "is_promo": True
-            },
-            start_to_close_timeout=timedelta(seconds=60)
-        )
-
+        # REMOVED double-start call here to prevent duplicate ingestion.
+        # The 'Instant Connect' in worker.py handles the initial link.
+        
         last_cleanup_day = -1
         ist = ZoneInfo("Asia/Kolkata")
 
