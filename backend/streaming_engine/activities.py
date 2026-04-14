@@ -138,19 +138,20 @@ async def generate_script_activity(input_data: dict) -> dict:
     except Exception as e:
         print(f"Script Generation Failed: {e}")
         return {"script": f"नमस्कार, वार्ताप्रवाहमध्ये आपले स्वागत. ताजी बातमी आहे - {news_data['headline']}. सविस्तर वृत्त लवकरच.", "is_female": is_female}
-        print(f"Groq Script Error: {e}")
         return {"script": f"Namaskar, Varta Pravah madhe aaple swagat aahe. Me {anchor_name}. Aajchya thak batmya. Dhanyavad.", "is_female": is_female}
 
 @activity.defn
 async def generate_headlines_activity(input_data: dict) -> dict:
     news_items = input_data["news_items"]
-    is_female = input_data.get("is_female", False)
+    is_female = input_data.get("is_female", True)
+    voice = "mr-IN-AarohiNeural" if is_female else "mr-IN-ManoharNeural"
+    
+    print(f"--- [TTS] Generating Audio ({'Female' if is_female else 'Male'}) ---")
+    from zoneinfo import ZoneInfo
+    import datetime
+    now_ist = datetime.datetime.now(ZoneInfo("Asia/Kolkata"))
     bulletin_type = input_data.get("bulletin_type", "Standard")
     anchor_name = "Priya Desai" if is_female else "Arjun Sharma"
-
-    import datetime
-    from zoneinfo import ZoneInfo
-    now_ist = datetime.datetime.now(ZoneInfo("Asia/Kolkata"))
     
     # Context-aware greetings based on User Schedule
     if "Morning" in bulletin_type:
@@ -426,16 +427,40 @@ async def synclabs_lip_sync_activity(data: dict) -> str:
         base_video = "https://storage.googleapis.com/varta-pravah/female_anchor_clean.mp4" if is_female else "https://storage.googleapis.com/varta-pravah/male_anchor_clean.mp4"
 
     headers = {
-        "x-api-key": api_key,
-        "Content-Type": "application/json"
+        "x-api-key": api_key
     }
-    payload = {
-        "audioUrl": data['audio_url'], 
-        "videoUrl": base_video,
-        "synergize": True
-    }
+    
+    # Check if audio_url is a local file or a URL
+    audio_path = data.get('audio_url', '')
+    payload = {"model": "lipsync-2"}
+    
     try:
-        r = requests.post("https://api.synclabs.so/v2/lipsync", headers=headers, json=payload, timeout=15)
+        if audio_path.startswith("http"):
+            # URL Based
+            payload["input"] = [
+                {"type": "video", "url": base_video},
+                {"type": "audio", "url": audio_path}
+            ]
+            r = requests.post("https://api.sync.so/v2/generate", headers={**headers, "Content-Type": "application/json"}, json=payload, timeout=30)
+        else:
+            # Local File Upload (Multipart)
+            if not os.path.exists(audio_path):
+                print(f"Audio file not found: {audio_path}")
+                return "failed"
+            
+            # For Multipart, we send video as URL and audio as file
+            # SyncLabs V2 Multipart expects 'video' and 'audio' fields
+            files = {
+                "audio": open(audio_path, "rb")
+            }
+            # Note: For V2 Multipart, 'model' and 'video' (if URL) are passed as data
+            form_data = {
+                "model": "lipsync-2",
+                "video": base_video
+            }
+            r = requests.post("https://api.sync.so/v2/generate", headers=headers, data=form_data, files=files, timeout=45)
+            files["audio"].close()
+
         r.raise_for_status()
         return r.json().get("id")
     except Exception as e:
@@ -451,7 +476,7 @@ async def check_sync_labs_status_activity(job_id: str) -> dict:
     api_key = os.getenv("SYNCLABS_API_KEY")
     headers = {"x-api-key": api_key}
     try:
-        r = requests.get(f"https://api.synclabs.so/v2/lipsync/{job_id}", headers=headers, timeout=10)
+        r = requests.get(f"https://api.sync.so/v2/generate/{job_id}", headers=headers, timeout=10)
         r.raise_for_status()
         data = r.json()
         return {
