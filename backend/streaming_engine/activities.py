@@ -206,7 +206,7 @@ async def generate_closing_activity(input_data: dict) -> dict:
 async def generate_audio_activity(input_data: dict) -> str:
     script = input_data.get("script", "")
     is_female = input_data.get("is_female", True)
-    audio_path = os.path.join(tempfile.gettempdir(), f"news_{uuid.uuid4().hex}.mp3")
+    audio_path = os.path.join(VIDEOS_DIR, f"news_{uuid.uuid4().hex}.mp3")
     
     # Professional Marathi voices from Microsoft Edge TTS
     voice = "mr-IN-AarohiNeural" if is_female else "mr-IN-ManoharNeural"
@@ -273,7 +273,7 @@ async def generate_news_video_activity(input_data: dict) -> str:
         draw.text((40, 985), "ताज्या बातम्या", font=font_t, fill=(255, 255, 255))
         draw.text((380, 985), title[:70], font=font_t, fill=(255, 255, 255))
         
-        frame_p = os.path.join(tempfile.gettempdir(), "studio_base.png")
+        frame_p = os.path.join(VIDEOS_DIR, "studio_base.png")
         studio.save(frame_p)
         
         # Use unique filename to prevent overwriting files while streamer is reading them
@@ -390,7 +390,7 @@ async def merge_videos_activity(video_paths: list[str]) -> str:
     output_path = os.path.join(VIDEOS_DIR, f"bulletin_{uuid.uuid4().hex[:8]}.mp4")
     
     # Create concat list file
-    list_file = os.path.join(tempfile.gettempdir(), f"concat_{uuid.uuid4().hex[:8]}.txt")
+    list_file = os.path.join(VIDEOS_DIR, f"concat_{uuid.uuid4().hex[:8]}.txt")
     with open(list_file, "w") as f:
         for p in video_paths:
             # Ensure path is absolute for internal Docker context
