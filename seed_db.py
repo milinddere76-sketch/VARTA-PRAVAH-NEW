@@ -8,7 +8,7 @@ sys.path.append('.')
 # ENV SETUP (SAFE)
 # ---------------------------
 if not os.getenv("DATABASE_URL"):
-    os.environ["DATABASE_URL"] = "postgresql://root:password@localhost:5432/temporal"
+    os.environ["DATABASE_URL"] = "postgresql+psycopg://postgres:password@localhost:5432/temporal"
 
 if not os.getenv("SQLITE_URL"):
     os.environ["SQLITE_URL"] = "sqlite:///dev.db"
