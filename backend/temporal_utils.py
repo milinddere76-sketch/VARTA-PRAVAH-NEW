@@ -26,23 +26,21 @@ for path in env_paths:
 # Temporal Client Connector
 # ---------------------------
 
-async def get_temporal_client(retries: int = 10, delay: int = 5) -> Client:
+async def get_temporal_client(retries: int = 15, delay: int = 10) -> Client:
     """
-    Robust Temporal connection with retry (important for Docker startup)
+    Robust Temporal connection with retry (standard for production startup)
     """
     # Try temporal service name (Docker) then localhost (Local Dev)
-    temporal_address = os.getenv("TEMPORAL_ADDRESS")
-    if not temporal_address:
-        # Check if we are likely in Docker or not
-        # Inside Docker, 'temporal' usually resolves. Outside, it doesn't.
-        temporal_address = "temporal:7233"
+    temporal_address = os.getenv("TEMPORAL_ADDRESS", "temporal:7233")
 
     for attempt in range(retries):
         # Dynamically switch between docker and local addresses
-        current_target = temporal_address if attempt % 2 == 0 else "localhost:7233"
+        # On early attempts, prioritize the internal Docker name
+        current_target = temporal_address if attempt < (retries - 2) else "localhost:7233"
         try:
             print(f"Connecting to Temporal ({current_target})... Attempt {attempt+1}/{retries}")
-            client = await asyncio.wait_for(Client.connect(current_target), timeout=2.0)
+            # Increased timeout to 5s for the initial handshake
+            client = await asyncio.wait_for(Client.connect(current_target), timeout=5.0)
             print(f"✅ Connected to Temporal successfully via {current_target}")
             return client
 
