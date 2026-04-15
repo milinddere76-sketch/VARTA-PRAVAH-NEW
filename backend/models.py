@@ -42,3 +42,14 @@ class AdCampaign(Base):
     
     channel_id = Column(Integer, ForeignKey("channels.id"))
     preferred_anchor_id = Column(Integer, ForeignKey("anchors.id"), nullable=True)
+
+class News(Base):
+    __tablename__ = "news"
+    id = Column(Integer, primary_key=True, index=True)
+    headline = Column(String, index=True)
+    description = Column(Text)
+    category = Column(String, nullable=True)
+    language = Column(String, default="Marathi")
+    created_at = Column(DateTime, default=datetime.datetime.utcnow)
+    is_processed = Column(Boolean, default=False)
+

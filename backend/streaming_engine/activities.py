@@ -11,6 +11,7 @@ from temporalio import activity
 from groq import Groq
 import edge_tts
 import asyncio
+import datetime
 
 # --- CONSTANTS ---
 BASE_DIR = "/app"
@@ -48,13 +49,18 @@ async def fetch_news_activity(language: str) -> list[dict]:
     api_key = os.getenv("WORLD_NEWS_API_KEY")
     lang_code = LANGUAGE_CONFIG.get(language, {"code": "mr"})["code"]
     
+    from database import SessionLocal
+    from models import News
+    db = SessionLocal()
+    
+    # Get existing headlines from last 24h to avoid duplicates
+    yesterday = datetime.datetime.utcnow() - datetime.timedelta(days=1)
+    existing_headlines = {n.headline for n in db.query(News).filter(News.created_at >= yesterday).all()}
+    
     results = []
-    # Priority: Maharashtra (Local) -> India (National) -> World
     queries = [
-        ("Maharashtra", 10),
-        ("Mumbai", 5),
-        ("Pune", 5),
-        ("India National", 10),
+        ("Maharashtra", 15),
+        ("India", 10),
         ("World News", 5)
     ]
     
@@ -65,15 +71,25 @@ async def fetch_news_activity(language: str) -> list[dict]:
             data = r.json()
             if data.get("news"):
                 for n in data["news"]:
-                    results.append({
-                        "id": n.get("id") or uuid.uuid4().hex[:8],
-                        "headline": n.get("title", ""),
-                        "description": n.get("text", "")[:500]
-                    })
+                    title = n.get("title", "")
+                    if title and title not in existing_headlines:
+                        news_item = {
+                            "id": n.get("id") or uuid.uuid4().hex[:8],
+                            "headline": title,
+                            "description": n.get("text", "")[:800]
+                        }
+                        results.append(news_item)
+                        # Persist to DB immediately
+                        db_news = News(headline=title, description=news_item["description"], language=language)
+                        db.add(db_news)
+                        existing_headlines.add(title)
         except: continue
         if len(results) >= 25: break
 
-    # FALLBACK: If API is empty or fails
+    db.commit()
+    db.close()
+    
+    # FALLBACK
     if not results:
         results = [
             {"headline": "महाराष्ट्रातील ताज्या घडामोडी", "description": "राज्यातील राजकीय आणि सामाजिक घडामोडींचा आढावा लवकरच सविस्तर स्वरूपात."},

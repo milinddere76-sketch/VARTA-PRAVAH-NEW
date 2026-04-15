@@ -51,6 +51,14 @@ class NewsProductionWorkflow:
 
         # Initialize promo
         await workflow.execute_activity(ensure_promo_video_activity, start_to_close_timeout=timedelta(seconds=60))
+        
+        # 0.1 IMMERSE BROADCAST (Zero-Gap)
+        # Start the stream immediately with the promo video so YouTube has data while we produce
+        await workflow.execute_activity(
+            start_stream_activity, 
+            {"channel_id": channel_id, "stream_key": stream_key, "video_url": "videos/promo.mp4"}, 
+            start_to_close_timeout=timedelta(minutes=1)
+        )
 
         while True:
             try:
