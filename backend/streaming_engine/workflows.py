@@ -115,7 +115,7 @@ class NewsProductionWorkflow:
 
                     clips = [h_v] if h_v else []
                     
-                    # 2. Parallel Production of Story Clips
+                    # Helper to produce a single story
                     async def produce_story(s):
                         try:
                             s_s = await workflow.execute_activity(generate_script_activity, {"news_data": s, "is_female": is_female, "bulletin_type": bulletin_type}, start_to_close_timeout=timedelta(minutes=5))
@@ -139,8 +139,15 @@ class NewsProductionWorkflow:
                             print(f"[WORKFLOW] Failed story item: {e}")
                             return None
 
-                    print(f"⚡ [SCHEDULER] Launching {len(items)} items in PARALLEL")
-                    results = await asyncio.gather(*[produce_story(it) for it in items])
+                    # 2. Sequential/Batched Production of Story Clips (To prevent CPU saturation)
+                    print(f"⚡ [SCHEDULER] Producing {len(items)} items in BATCHES of 5")
+                    results = []
+                    for i in range(0, len(items), 5):
+                        batch = items[i:i+5]
+                        batch_results = await asyncio.gather(*[produce_story(it) for it in batch])
+                        results.extend(batch_results)
+                        print(f"✅ [SCHEDULER] Batch complete: {len(results)}/{len(items)}")
+                    
                     clips.extend([c for c in results if c])
 
                     # 3. Final Master Merge & Broadcast
