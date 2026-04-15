@@ -164,6 +164,21 @@ async def preview_latest_video():
     if os.path.exists(video_path):
         return FileResponse(video_path, media_type="video/mp4")
     return {"error": "No news video has been generated yet."}
+    
+@app.post("/system/regenerate-promo")
+async def regenerate_promo_manually():
+    """Triggers the creation of a high-fidelity premium studio promo."""
+    promo_path = "/app/videos/promo.mp4"
+    try:
+        from create_premium_promo import create_premium_promo
+        os.makedirs("/app/videos", exist_ok=True)
+        success = create_premium_promo(promo_path)
+        if success:
+            return {"status": "success", "message": "Premium promo regenerated.", "path": promo_path}
+        else:
+            raise HTTPException(status_code=500, detail="Promo generation script failed.")
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
 
 #  Settings 
 @app.post("/settings")

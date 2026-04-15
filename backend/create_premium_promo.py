@@ -1,72 +1,169 @@
 import subprocess
 import os
 import sys
+import platform
+import random
+from PIL import Image, ImageDraw, ImageFont
 
-def create_premium_promo(output_path):
-    print(f"Creating Premium Studio Promo -> {output_path}")
-    
+def create_premium_promo(output_path: str = None) -> bool:
+    # ── Resolve paths ──────────────────────────────────────────────
     here = os.path.dirname(os.path.abspath(__file__))
+    if output_path is None:
+        output_path = os.path.join(here, "videos", "promo.mp4")
+    
+    os.makedirs(os.path.dirname(output_path), exist_ok=True)
+    temp_dir = os.path.dirname(output_path)
     stems_dir = os.path.join(here, "promo_stems")
     
-    # Environment absolute path fallback
-    if not os.path.exists(stems_dir):
-        stems_dir = "/app/backend/promo_stems"
+    # Environment absolute path fallback for Docker
     if not os.path.exists(stems_dir):
         stems_dir = "/app/promo_stems"
         
-    # Dynamically find MP4 stems to use (prioritizing 'clip*', then 't*')
-    clips = [f for f in os.listdir(stems_dir) if f.startswith("clip") and f.endswith(".mp4")]
-    if not clips:
-         clips = [f for f in os.listdir(stems_dir) if f.startswith("t") and f.endswith(".mp4")]
-         
-    # Generate concat file cleanly with absolute paths
-    concat_txt_path = os.path.join(stems_dir, "dynamic_concat.txt")
-    with open(concat_txt_path, "w", encoding="utf-8") as f:
-        # Loop clips to ensure it surpasses the 60s target
-        for _ in range(15): 
-            for clip in sorted(clips):
-                # FFmpeg requires absolute paths formatted appropriately
-                clean_path = os.path.join(stems_dir, clip).replace('\\', '/')
-                f.write(f"file '{clean_path}'\n")
-                
-    music_path = os.path.join(stems_dir, "news_music.mp3")
-    
-    cmd = [
-        "ffmpeg", "-y",
-        "-f", "concat", "-safe", "0", "-i", concat_txt_path
-    ]
-    
-    if os.path.exists(music_path):
-        cmd.extend(["-stream_loop", "-1", "-i", music_path])
-        audio_map = "1:a"
+    print(f"🚀 Generating Premium Studio Promo -> {output_path}")
+
+    # ── Font Selection ──────────────────────────────────────────────
+    if platform.system() == "Windows":
+        font_marathi = "C:/Windows/Fonts/Nirmala.ttf"
+        font_english = "C:/Windows/Fonts/Arial.ttf"
+        font_bold    = "C:/Windows/Fonts/Arialbd.ttf"
     else:
-        cmd.extend(["-f", "lavfi", "-i", "anullsrc=cl=stereo:r=44100"])
-        audio_map = "1:a"
+        font_marathi = "/usr/share/fonts/truetype/noto/NotoSansDevanagari-Bold.ttf"
+        font_english = "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf"
+        font_bold    = "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf"
 
-    overlay_filter = (
-        "[0:v]scale=1280:720:force_original_aspect_ratio=increase,crop=1280:720[vbg];"
-        "drawtext=text='VARTA PRAVAH | 24/7 LIVE | AUTHENTIC MAHARASHTRA NEWS | NEXT BULLETIN COMING SOON...':"
-        "fontcolor=white:fontsize=50:box=1:boxcolor=red@0.9:boxborderw=10:"
-        "x=W-mod(t*200\\,W+4000):y=H-90[v_out]"
-    )
+    # Fallback
+    if not os.path.exists(font_marathi): font_marathi = "arial"
+    if not os.path.exists(font_english): font_english = "arial"
+    if not os.path.exists(font_bold):    font_bold    = "arial"
 
-    cmd.extend([
-        "-filter_complex", overlay_filter,
-        "-map", "[v_out]",
-        "-map", audio_map,
-        "-c:v", "libx264", "-preset", "veryfast", "-crf", "24",
-        "-c:a", "aac", "-b:a", "192k", 
-        "-t", "60",
-        "-r", "25",
-        output_path
-    ])
+    # ── Render UI Layers via Pillow ────────────────────────────────
+    print("🎨 Rendering high-fidelity UI layers...")
+    
+    # Layer 1: Static Branding (Logo, Corner Accents)
+    layer_ui = Image.new("RGBA", (1280, 720), (0, 0, 0, 0))
+    draw = ImageDraw.Draw(layer_ui)
     
     try:
-        subprocess.run(cmd, check=True)
-        print(f"Premium Studio Promo Created using True Stems: {output_path}")
+        # Title with Glow
+        f_title = ImageFont.truetype(font_marathi, 80)
+        title_text = "वार्ता प्रवाह"
+        # Glow
+        draw.text((640-3, 220-3), title_text, font=f_title, fill=(0, 255, 255, 120), anchor="mm")
+        draw.text((640+3, 220+3), title_text, font=f_title, fill=(255, 0, 255, 120), anchor="mm")
+        draw.text((640, 220), title_text, font=f_title, fill=(255, 255, 255, 255), anchor="mm")
+        
+        # Sub-branding
+        f_sub = ImageFont.truetype(font_bold, 40)
+        draw.text((640, 310), "VARTA PRAVAH NEWS", font=f_sub, fill=(255, 255, 255, 230), anchor="mm")
+        
+        # Slogan
+        f_slogan = ImageFont.truetype(font_marathi, 30)
+        draw.text((640, 370), "विश्वासार्हता आणि वेग", font=f_slogan, fill=(0, 255, 238, 255), anchor="mm")
+
+        # Top Left: LIVE indicator
+        draw.rectangle([40, 40, 140, 80], fill=(255, 0, 0, 200), outline="white", width=2)
+        f_live = ImageFont.truetype(font_bold, 24)
+        draw.text((90, 60), "LIVE", font=f_live, fill="white", anchor="mm")
+
     except Exception as e:
-        print(f"Error Generating Promo: {e}")
+        print(f"Pillow Layer 1 Error: {e}")
+
+    ui_png = os.path.join(temp_dir, "premium_layer_ui.png")
+    layer_ui.save(ui_png)
+
+    # Layer 2: Long Scrolling Ticker
+    ticker_text = "  VARTA PRAVAH NEWS LIVE  |  AUTHENTIC MAHARASHTRA NEWS  |  AI-POWERED BROADCASTING  |  FOLLOW FOR MORE UPDATES  |  NEXT BULLETIN STARTING SOON...  "
+    f_ticker = ImageFont.truetype(font_bold, 32)
+    t_width = int(f_ticker.getlength(ticker_text))
+    layer_ticker = Image.new("RGBA", (t_width + 100, 100), (0, 0, 0, 0))
+    tdraw = ImageDraw.Draw(layer_ticker)
+    tdraw.text((0, 50), ticker_text, font=f_ticker, fill=(255, 255, 255, 255), anchor="lm")
+    
+    ticker_png = os.path.join(temp_dir, "premium_layer_ticker.png")
+    layer_ticker.save(ticker_png)
+
+    # ── Background Concat Logic ────────────────────────────────────
+    print("🎬 Preparing dynamic background loop...")
+    clips = [f for f in os.listdir(stems_dir) if (f.startswith("clip") or f.startswith("t")) and f.endswith(".mp4")]
+    random.shuffle(clips) # High energy variety
+    
+    concat_txt_path = os.path.join(temp_dir, "premium_concat.txt")
+    with open(concat_txt_path, "w", encoding="utf-8") as f:
+        # Loop to ensure we hit 60s
+        for _ in range(20):
+            for clip in clips:
+                clean_path = os.path.join(stems_dir, clip).replace('\\', '/')
+                f.write(f"file '{clean_path}'\n")
+
+    # ── FFmpeg Composition ──────────────────────────────────────────
+    print("📽️ Composing core broadcast file...")
+    def ff_p(p): return p.replace("\\", "/")
+    
+    logo_path = os.path.join(stems_dir, "neon_logo.png")
+    globe_path = os.path.join(stems_dir, "globe_neon.png")
+    music_path = os.path.join(stems_dir, "news_music.mp3")
+
+    # Filter Strategy:
+    # [0:v] -> Concat background
+    # [1:v] -> UI static layer
+    # [2:v] -> Scrolling ticker
+    # [3:v] -> Logo
+    # [4:v] -> Globe (optional)
+    
+    filter_complex = (
+        "[0:v]scale=1280:720,setsar=1[vbg];"
+        # Pulsing neon logo in top-right
+        "[3:v]scale=150:-1,format=rgba,colorchannelmixer=aa='0.7+0.3*sin(2*PI*t/3)'[pulse_logo];"
+        "[vbg][pulse_logo]overlay=W-w-50:50[v1];"
+        # Add UI Layer
+        "[v1][1:v]overlay=0:0[v2];"
+        # Ticker Box (Red glassmorphism feel)
+        "[v2]drawbox=y=ih-100:w=iw:h=100:color=red@0.8:t=fill[v3];"
+        "[v3]drawbox=y=ih-103:w=iw:h=3:color=white@0.9:t=fill[v4];"
+        # Scrolling Ticker Overlay
+        f"[v4][2:v]overlay=x='w-mod(250*t,w+{t_width})':y=H-85[outv]"
+    )
+
+    inputs = [
+        "-f", "concat", "-safe", "0", "-i", ff_p(concat_txt_path),
+        "-i", ff_p(ui_png),
+        "-i", ff_p(ticker_png),
+        "-i", ff_p(logo_path)
+    ]
+    
+    audio_map = ""
+    if os.path.exists(music_path):
+        inputs.extend(["-stream_loop", "-1", "-i", ff_p(music_path)])
+        audio_map = "[4:a]volume=1.0[outa]"
+    else:
+        inputs.extend(["-f", "lavfi", "-i", "anullsrc=cl=stereo:r=44100"])
+        audio_map = "[4:a]volume=0[outa]"
+
+    cmd = [
+        "ffmpeg", "-y", "-loglevel", "warning"
+    ] + inputs + [
+        "-filter_complex", filter_complex + ";" + audio_map,
+        "-map", "[outv]", "-map", "[outa]",
+        "-t", "60",
+        "-c:v", "libx264", "-preset", "ultrafast", "-crf", "23",
+        "-pix_fmt", "yuv420p", "-c:a", "aac", "-b:a", "192k",
+        ff_p(output_path)
+    ]
+
+    try:
+        subprocess.run(cmd, check=True, timeout=300)
+        print(f"✨ PREMIUM PROMO READY: {output_path}")
+        return True
+    except Exception as e:
+        print(f"❌ Error Generating Premium Promo: {e}")
+        return False
+    finally:
+        # Cleanup
+        for p in [ui_png, ticker_png, concat_txt_path]:
+            try: os.remove(p)
+            except: pass
 
 if __name__ == "__main__":
-    out = sys.argv[1] if len(sys.argv) > 1 else "premium_promo.mp4"
+    out = sys.argv[1] if len(sys.argv) > 1 else None
     create_premium_promo(out)
+

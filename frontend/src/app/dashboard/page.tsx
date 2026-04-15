@@ -139,6 +139,20 @@ export default function DashboardPage() {
     }
   };
 
+  const handleRegeneratePromo = async () => {
+    if (!confirm('Regenerate high-fidelity promo video? This takes ~20s.')) return;
+    setProcessing(true);
+    try {
+      const res = await fetch(`${API_URL}/system/regenerate-promo`, { method: 'POST' });
+      if (res.ok) alert('✨ Premium promo regenerated!');
+      else alert('Failed to regenerate promo.');
+    } catch {
+      alert('Network error.');
+    } finally {
+      setProcessing(false);
+    }
+  };
+
   const fetchAds = async () => {
     if (!channel) return;
     try {
@@ -277,6 +291,13 @@ export default function DashboardPage() {
             className="flex items-center gap-2 text-sm text-gray-400 hover:text-purple-400 transition px-3 py-2 rounded-lg hover:bg-purple-500/10 border border-transparent hover:border-purple-500/20"
           >
             <Megaphone size={16} /> Ad Scheduler
+          </button>
+          <button
+            onClick={handleRegeneratePromo}
+            disabled={processing}
+            className="flex items-center gap-2 text-sm text-gray-400 hover:text-blue-400 transition px-3 py-2 rounded-lg hover:bg-blue-500/10 border border-transparent hover:border-blue-500/20"
+          >
+            <Activity size={16} /> {processing ? 'Generating...' : 'Refresh Assets'}
           </button>
           <button
             onClick={() => {
