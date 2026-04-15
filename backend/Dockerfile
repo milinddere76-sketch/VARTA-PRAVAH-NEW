@@ -1,11 +1,11 @@
 FROM python:3.11-slim
 
 # Install system dependencies
-RUN apt-get update && apt-get install -y \
+ENV DEBIAN_FRONTEND=noninteractive
+RUN apt-get update && apt-get install -y --no-install-recommends \
     ffmpeg \
     curl \
-    fonts-noto-core \
-    fonts-noto-ui-devanagari \
+    fonts-noto-hinted \
     fonts-dejavu-core \
     libfreetype6-dev \
     libjpeg-dev \
