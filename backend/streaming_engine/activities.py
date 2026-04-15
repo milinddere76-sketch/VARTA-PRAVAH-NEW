@@ -501,8 +501,14 @@ async def synclabs_lip_sync_activity(data: dict) -> str:
 
         r.raise_for_status()
         return r.json().get("id")
+    except requests.exceptions.HTTPError as e:
+        if e.response.status_code in [401, 403]:
+            print(f"❌ SyncLabs Authentication Failed (401/403): Please check your SYNCLABS_API_KEY in .env")
+        else:
+            print(f"❌ SyncLabs API Error: {e}")
+        return "failed"
     except Exception as e:
-        print(f"SyncLabs Request Failed: {e}")
+        print(f"❌ SyncLabs Request Failed: {e}")
         return "failed"
 
 @activity.defn

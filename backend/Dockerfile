@@ -4,6 +4,9 @@ FROM python:3.11-slim
 RUN apt-get update && apt-get install -y \
     ffmpeg \
     curl \
+    fonts-noto-core \
+    fonts-noto-ui-devanagari \
+    fonts-dejavu-core \
     libfreetype6-dev \
     libjpeg-dev \
     libpng-dev \

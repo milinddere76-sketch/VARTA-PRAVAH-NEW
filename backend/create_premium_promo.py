@@ -40,20 +40,25 @@ def create_premium_promo(output_path: str = None) -> bool:
         
     print(f"🚀 Generating Premium Studio Promo -> {output_path}")
 
-    # ── Font Selection ──────────────────────────────────────────────
-    if platform.system() == "Windows":
-        font_marathi = "C:/Windows/Fonts/Nirmala.ttf"
-        font_english = "C:/Windows/Fonts/Arial.ttf"
-        font_bold    = "C:/Windows/Fonts/Arialbd.ttf"
-    else:
-        font_marathi = "/usr/share/fonts/truetype/noto/NotoSansDevanagari-Bold.ttf"
-        font_english = "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf"
-        font_bold    = "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf"
+    # ── Font Selection (Robust Discovery) ──────────────────────────
+    def find_font(candidates):
+        for c in candidates:
+            if os.path.exists(c): return c
+        return "arial" # Final OS fallback
 
-    # Fallback
-    if not os.path.exists(font_marathi): font_marathi = "arial"
-    if not os.path.exists(font_english): font_english = "arial"
-    if not os.path.exists(font_bold):    font_bold    = "arial"
+    if platform.system() == "Windows":
+        font_marathi = find_font(["C:/Windows/Fonts/Nirmala.ttf", "C:/Windows/Fonts/mangal.ttf"])
+        font_english = find_font(["C:/Windows/Fonts/Arial.ttf"])
+        font_bold    = find_font(["C:/Windows/Fonts/Arialbd.ttf"])
+    else:
+        # Linux / Docker paths
+        font_marathi = find_font([
+            "/usr/share/fonts/truetype/noto/NotoSansDevanagari-Bold.ttf",
+            "/usr/share/fonts/truetype/noto/NotoSansDevanagari-Regular.ttf",
+            "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf"
+        ])
+        font_english = find_font(["/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf", "/usr/share/fonts/truetype/liberation/LiberationSans-Regular.ttf"])
+        font_bold    = find_font(["/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf", "/usr/share/fonts/truetype/liberation/LiberationSans-Bold.ttf"])
 
     # ── Render UI Layers via Pillow ────────────────────────────────
     print("🎨 Rendering high-fidelity UI layers...")
