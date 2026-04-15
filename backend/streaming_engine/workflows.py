@@ -173,8 +173,13 @@ class NewsProductionWorkflow:
                     
                     last_bulletin_type = bulletin_type
 
-                print(f"📡 [AIR] Current Mode: {bulletin_type}. Waiting 15m...")
-                await workflow.sleep(timedelta(minutes=15))
+                print(f"📡 [AIR] Current Mode: {bulletin_type}. Standing by for Breaking News or Next Cycle...")
+                
+                # Wait for 15m OR until breaking news arrives
+                await workflow.wait_condition(
+                    lambda: len(self._breaking_news_queue) > 0,
+                    timeout=timedelta(minutes=15)
+                )
 
             except Exception as e:
                 print(f"❌ [WORKFLOW CRITICAL ERROR] {e}")

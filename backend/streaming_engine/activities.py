@@ -259,19 +259,36 @@ async def generate_news_video_activity(input_data: dict) -> str:
             studio.paste(logo, (1920 - 280, 50), logo)
 
         draw = ImageDraw.Draw(studio)
-        draw.rectangle([0, 960, 1920, 1080], fill=(0, 0, 150, 240))
-        draw.rectangle([0, 950, 1920, 960], fill=(0, 180, 255, 255))
-        draw.rectangle([0, 960, 350, 1080], fill=(200, 0, 0, 255))
+        is_breaking = "breaking" in title.lower() or "flash" in title.lower()
+        
+        # 1. Main News Bar
+        bar_color = (180, 0, 0, 255) if is_breaking else (0, 0, 150, 240)
+        draw.rectangle([0, 960, 1920, 1080], fill=bar_color)
+        
+        # 2. Accent Top Line
+        line_color = (255, 255, 255, 255) if is_breaking else (0, 180, 255, 255)
+        draw.rectangle([0, 950, 1920, 960], fill=line_color)
+        
+        # 3. Label Badge
+        badge_text = "ब्रेकिंग न्यूज" if is_breaking else "ताज्या बातम्या"
+        badge_color = (255, 255, 255, 255) if is_breaking else (200, 0, 0, 255)
+        badge_txt_color = (200, 0, 0, 255) if is_breaking else (255, 255, 255, 255)
+        
+        draw.rectangle([0, 960, 380, 1080], fill=badge_color)
 
         # Font discovery for Marathi
         font_t = ImageFont.load_default()
+        font_b = ImageFont.load_default()
         for fp in ["C:/Windows/Fonts/Nirmala.ttf", "/usr/share/fonts/truetype/noto/NotoSansDevanagari-Bold.ttf", "arial.ttf"]:
             if os.path.exists(fp):
-                try: font_t = ImageFont.truetype(fp, 45); break
+                try: 
+                    font_t = ImageFont.truetype(fp, 45)
+                    font_b = ImageFont.truetype(fp, 50)
+                    break
                 except: continue
 
-        draw.text((40, 985), "ताज्या बातम्या", font=font_t, fill=(255, 255, 255))
-        draw.text((380, 985), title[:70], font=font_t, fill=(255, 255, 255))
+        draw.text((40, 985), badge_text, font=font_b, fill=badge_txt_color)
+        draw.text((410, 985), title[:70], font=font_t, fill=(255, 255, 255))
         
         frame_p = os.path.join(VIDEOS_DIR, "studio_base.png")
         studio.save(frame_p)
