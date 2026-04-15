@@ -5,6 +5,25 @@ import platform
 import random
 from PIL import Image, ImageDraw, ImageFont
 
+def _get_latest_news_headlines() -> str:
+    """Safely retrieves the latest 5 headlines from the DB to make the ticker dynamic."""
+    try:
+        from database import SessionLocal
+        from models import News
+        db = SessionLocal()
+        # Fetch latest 5 Marathi news
+        articles = db.query(News).filter(News.language == "Marathi").order_by(News.created_at.desc()).limit(5).all()
+        db.close()
+        
+        if articles:
+            texts = [a.headline.strip() for a in articles]
+            return "  |  ".join(texts)
+    except Exception as e:
+        print(f"Ticker dynamic fetch failed: {e}")
+    
+    # Static fallback
+    return "VARTA PRAVAH NEWS LIVE  |  AUTHENTIC MAHARASHTRA NEWS  |  AI-POWERED BROADCASTING  |  FOLLOW FOR MORE UPDATES"
+
 def create_premium_promo(output_path: str = None) -> bool:
     # ── Resolve paths ──────────────────────────────────────────────
     here = os.path.dirname(os.path.abspath(__file__))
@@ -71,9 +90,10 @@ def create_premium_promo(output_path: str = None) -> bool:
     ui_png = os.path.join(temp_dir, "premium_layer_ui.png")
     layer_ui.save(ui_png)
 
-    # Layer 2: Long Scrolling Ticker
-    ticker_text = "  VARTA PRAVAH NEWS LIVE  |  AUTHENTIC MAHARASHTRA NEWS  |  AI-POWERED BROADCASTING  |  FOLLOW FOR MORE UPDATES  |  NEXT BULLETIN STARTING SOON...  "
-    f_ticker = ImageFont.truetype(font_bold, 32)
+    # Layer 2: Long Scrolling Ticker (Dynamic News)
+    headlines = _get_latest_news_headlines()
+    ticker_text = f"  🔥🔥 BREAKING NEWS: {headlines}  |  VARTA PRAVAH: NEXT BULLETIN STARTING SOON  🔥🔥  "
+    f_ticker = ImageFont.truetype(font_marathi, 32) # Use Marathi font for headlines
     t_width = int(f_ticker.getlength(ticker_text))
     layer_ticker = Image.new("RGBA", (t_width + 100, 100), (0, 0, 0, 0))
     tdraw = ImageDraw.Draw(layer_ticker)
@@ -100,16 +120,8 @@ def create_premium_promo(output_path: str = None) -> bool:
     def ff_p(p): return p.replace("\\", "/")
     
     logo_path = os.path.join(stems_dir, "neon_logo.png")
-    globe_path = os.path.join(stems_dir, "globe_neon.png")
     music_path = os.path.join(stems_dir, "news_music.mp3")
 
-    # Filter Strategy:
-    # [0:v] -> Concat background
-    # [1:v] -> UI static layer
-    # [2:v] -> Scrolling ticker
-    # [3:v] -> Logo
-    # [4:v] -> Globe (optional)
-    
     filter_complex = (
         "[0:v]scale=1280:720,setsar=1[vbg];"
         # Pulsing neon logo in top-right
