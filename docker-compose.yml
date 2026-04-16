@@ -5,7 +5,7 @@ services:
     restart: unless-stopped
     environment:
       POSTGRES_USER: postgres
-      POSTGRES_PWD: postgres
+      POSTGRES_PASSWORD: postgres
       POSTGRES_DB: temporal
     ports:
       - "5432:5432"
@@ -24,10 +24,10 @@ services:
     image: temporalio/auto-setup:1.24.2
     restart: unless-stopped
     environment:
-      - DB=postgres12_pgx
+      - DB=postgres
       - DB_PORT=5432
       - POSTGRES_USER=postgres
-      - POSTGRES_PWD=password
+      - POSTGRES_PWD=postgres
       - POSTGRES_SEEDS=postgres
     ports:
       - "7233:7233"
@@ -66,7 +66,7 @@ services:
       retries: 10
       start_period: 60s
     environment:
-      - DATABASE_URL=postgresql+psycopg://postgres:password@postgres:5432/temporal
+      - DATABASE_URL=postgresql+psycopg://postgres:postgres@postgres:5432/temporal
       - TEMPORAL_ADDRESS=temporal:7233
       - PYTHONUNBUFFERED=1
       - PYTHONPATH=/app
@@ -87,7 +87,7 @@ services:
     restart: unless-stopped
     command: python -m streaming_engine.worker
     environment:
-      - DATABASE_URL=postgresql+psycopg://postgres:password@postgres:5432/temporal
+      - DATABASE_URL=postgresql+psycopg://postgres:postgres@postgres:5432/temporal
       - TEMPORAL_ADDRESS=temporal:7233
       - AUTO_START_CHANNEL_ID=1
       - DEFAULT_LANGUAGE=Marathi
