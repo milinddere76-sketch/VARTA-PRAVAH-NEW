@@ -32,13 +32,32 @@ def create_premium_promo(output_path: str = None) -> bool:
     
     os.makedirs(os.path.dirname(output_path), exist_ok=True)
     temp_dir = os.path.dirname(output_path)
-    stems_dir = os.path.join(here, "promo_stems")
     
-    # Environment absolute path fallback for Docker
-    if not os.path.exists(stems_dir):
-        stems_dir = "/app/promo_stems"
+    # Try multiple potential locations for stems
+    possible_stems = [
+        os.path.join(here, "promo_stems"),
+        "/app/backend/promo_stems",
+        "/app/promo_stems",
+        "./promo_stems"
+    ]
+    
+    stems_dir = None
+    for p in possible_stems:
+        if os.path.exists(p) and os.listdir(p):
+            stems_dir = p
+            break
+            
+    if not stems_dir:
+        print("⚠️ No promo_stems directory found. Creating recovery placeholder...")
+        stems_dir = os.path.join(temp_dir, "recovery_stems")
+        os.makedirs(stems_dir, exist_ok=True)
+        # Create a dummy music file if missing
+        open(os.path.join(stems_dir, "news_music.mp3"), 'a').close()
+        # Create a blank neon logo
+        logo = Image.new("RGBA", (200, 200), (0, 255, 255, 100))
+        logo.save(os.path.join(stems_dir, "neon_logo.png"))
         
-    print(f"🚀 Generating Premium Studio Promo -> {output_path}")
+    print(f"🚀 Using stems from -> {stems_dir}")
 
     # ── Font Selection (Robust Discovery) ──────────────────────────
     def find_font(candidates):
@@ -110,15 +129,19 @@ def create_premium_promo(output_path: str = None) -> bool:
     # ── Background Concat Logic ────────────────────────────────────
     print("🎬 Preparing dynamic background loop...")
     clips = [f for f in os.listdir(stems_dir) if (f.startswith("clip") or f.startswith("t")) and f.endswith(".mp4")]
-    random.shuffle(clips) # High energy variety
     
     concat_txt_path = os.path.join(temp_dir, "premium_concat.txt")
-    with open(concat_txt_path, "w", encoding="utf-8") as f:
-        # Loop to ensure we hit 60s
-        for _ in range(20):
-            for clip in clips:
-                clean_path = os.path.join(stems_dir, clip).replace('\\', '/')
-                f.write(f"file '{clean_path}'\n")
+    if not clips:
+        print("📺 No clips found - Activating Studio Emergency Mode (Synthetic Background)")
+        # Create an empty file to satisfy the logic if needed, but we'll swap inputs
+    else:
+        random.shuffle(clips) # High energy variety
+        with open(concat_txt_path, "w", encoding="utf-8") as f:
+            # Loop to ensure we hit 60s
+            for _ in range(20):
+                for clip in clips:
+                    clean_path = os.path.join(stems_dir, clip).replace('\\', '/')
+                    f.write(f"file '{clean_path}'\n")
 
     # ── FFmpeg Composition ──────────────────────────────────────────
     print("📽️ Composing core broadcast file...")
@@ -141,12 +164,22 @@ def create_premium_promo(output_path: str = None) -> bool:
         f"[v4][2:v]overlay=x='w-mod(250*t,w+{t_width})':y=H-85[outv]"
     )
 
-    inputs = [
-        "-f", "concat", "-safe", "0", "-i", ff_p(concat_txt_path),
-        "-i", ff_p(ui_png),
-        "-i", ff_p(ticker_png),
-        "-i", ff_p(logo_path)
-    ]
+    # Re-map inputs based on Emergency Mode
+    if not clips:
+        # Emergency mode uses filter for input 0
+        inputs = [
+            "-f", "lavfi", "-i", "cellauto=s=1280x720:rule=30,format=yuv420p,hue=h=180:s=0.5",
+            "-i", ff_p(ui_png),
+            "-i", ff_p(ticker_png),
+            "-i", ff_p(logo_path)
+        ]
+    else:
+        inputs = [
+            "-f", "concat", "-safe", "0", "-i", ff_p(concat_txt_path),
+            "-i", ff_p(ui_png),
+            "-i", ff_p(ticker_png),
+            "-i", ff_p(logo_path)
+        ]
     
     audio_map = ""
     if os.path.exists(music_path):
