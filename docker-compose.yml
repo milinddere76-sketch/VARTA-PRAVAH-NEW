@@ -10,7 +10,7 @@ services:
     ports:
       - "5432:5432"
     volumes:
-      - postgres_data_v10:/var/lib/postgresql/data
+      - postgres_data_v11:/var/lib/postgresql/data
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U postgres -d postgres"]
       interval: 10s
@@ -126,5 +126,5 @@ networks:
     driver: bridge
 
 volumes:
-  postgres_data_v10:
+  postgres_data_v11:
   backend_videos:
