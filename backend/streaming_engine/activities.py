@@ -244,37 +244,37 @@ async def generate_news_video_activity(input_data: dict) -> str:
     port_p = os.path.join(BASE_DIR, anchor.portrait_url) if anchor and anchor.portrait_url else os.path.join(assets_dir, default_port)
 
     try:
-        studio = Image.open(bg_p).convert("RGBA").resize((1920, 1080)) if os.path.exists(bg_p) else Image.new("RGBA", (1920, 1080), (15, 25, 45, 255))
+        studio = Image.open(bg_p).convert("RGBA").resize((1280, 720)) if os.path.exists(bg_p) else Image.new("RGBA", (1280, 720), (15, 25, 45, 255))
         
         # Static portrait only if NOT using lip-sync video
         if not synced_v and os.path.exists(port_p):
             port = Image.open(port_p).convert("RGBA")
-            p_w = 950
+            p_w = 600
             p_h = int(port.height * (p_w / port.width))
             port = port.resize((p_w, p_h))
-            studio.paste(port, (1920 - p_w - 50, 1080 - p_h), port)
+            studio.paste(port, (1280 - p_w - 30, 720 - p_h), port)
 
         if os.path.exists(logo_p):
-            logo = Image.open(logo_p).convert("RGBA").resize((220, 220))
-            studio.paste(logo, (1920 - 280, 50), logo)
+            logo = Image.open(logo_p).convert("RGBA").resize((150, 150))
+            studio.paste(logo, (1280 - 180, 40), logo)
 
         draw = ImageDraw.Draw(studio)
         is_breaking = "breaking" in title.lower() or "flash" in title.lower()
         
         # 1. Main News Bar
         bar_color = (180, 0, 0, 255) if is_breaking else (0, 0, 150, 240)
-        draw.rectangle([0, 960, 1920, 1080], fill=bar_color)
+        draw.rectangle([0, 640, 1280, 720], fill=bar_color)
         
         # 2. Accent Top Line
         line_color = (255, 255, 255, 255) if is_breaking else (0, 180, 255, 255)
-        draw.rectangle([0, 950, 1920, 960], fill=line_color)
+        draw.rectangle([0, 635, 1280, 640], fill=line_color)
         
         # 3. Label Badge
         badge_text = "ब्रेकिंग न्यूज" if is_breaking else "ताज्या बातम्या"
         badge_color = (255, 255, 255, 255) if is_breaking else (200, 0, 0, 255)
         badge_txt_color = (200, 0, 0, 255) if is_breaking else (255, 255, 255, 255)
         
-        draw.rectangle([0, 960, 380, 1080], fill=badge_color)
+        draw.rectangle([0, 640, 280, 720], fill=badge_color)
 
         # Font discovery for Marathi
         font_t = ImageFont.load_default()
@@ -282,13 +282,13 @@ async def generate_news_video_activity(input_data: dict) -> str:
         for fp in ["C:/Windows/Fonts/Nirmala.ttf", "/usr/share/fonts/truetype/noto/NotoSansDevanagari-Bold.ttf", "arial.ttf"]:
             if os.path.exists(fp):
                 try: 
-                    font_t = ImageFont.truetype(fp, 45)
-                    font_b = ImageFont.truetype(fp, 50)
+                    font_t = ImageFont.truetype(fp, 32)
+                    font_b = ImageFont.truetype(fp, 36)
                     break
                 except: continue
 
-        draw.text((40, 985), badge_text, font=font_b, fill=badge_txt_color)
-        draw.text((410, 985), title[:70], font=font_t, fill=(255, 255, 255))
+        draw.text((30, 660), badge_text, font=font_b, fill=badge_txt_color)
+        draw.text((310, 660), title[:70], font=font_t, fill=(255, 255, 255))
         
         frame_p = os.path.join(VIDEOS_DIR, "studio_base.png")
         studio.save(frame_p)
@@ -303,7 +303,7 @@ async def generate_news_video_activity(input_data: dict) -> str:
                 "ffmpeg", "-y", "-loop", "1", "-i", frame_p,
                 "-i", synced_v,
                 "-filter_complex", 
-                "[1:v]scale=950:-1[anchor];[0:v][anchor]overlay=1920-950-50:H-h[outv];"
+                "[1:v]scale=600:-1[anchor];[0:v][anchor]overlay=1280-600-30:H-h[outv];"
                 "[1:a]aformat=sample_rates=44100:channel_layouts=stereo[aout]",
                 "-map", "[outv]", "-map", "[aout]",
                 "-c:v", "libx264", "-preset", "ultrafast", "-pix_fmt", "yuv420p",

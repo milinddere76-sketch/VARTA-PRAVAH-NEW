@@ -28,15 +28,20 @@ def run_gapless_stream(rtmp_url, initial_video):
 
     # --- THE INDESTRUCTIBLE COMMAND ---
     # We use -f lavfi 'color' as a secondary input if the first fails
+    # Standardized to 720p (1280x720) for 1.0x speed on ARM
     cmd = [
         "ffmpeg", "-y",
         "-re", "-stream_loop", "-1", "-fflags", "+genpts", "-i", live_symlink,
+        "-f", "lavfi", "-i", "color=c=black:s=1280x720:r=25",
         "-f", "lavfi", "-i", "anullsrc=cl=stereo:r=44100",
-        "-filter_complex", "[0:a]amix=inputs=2:dropout_transition=0:normalize=0[aout]",
-        "-map", "0:v", "-map", "[aout]",
+        "-filter_complex", 
+        "[0:v]scale=1280:720,setsar=1[v_src];"
+        "[1:v][v_src]overlay=eof_action=pass[v_out];"
+        "[0:a][2:a]amix=inputs=2:dropout_transition=0:normalize=0[a_out]",
+        "-map", "[v_out]", "-map", "[a_out]",
         "-r", "25", "-g", "50",
         "-c:v", "libx264", "-preset", "ultrafast", "-tune", "zerolatency",
-        "-b:v", "2500k", "-minrate", "2500k", "-maxrate", "2500k", "-bufsize", "5000k",
+        "-b:v", "2000k", "-minrate", "2000k", "-maxrate", "2000k", "-bufsize", "4000k",
         "-x264-params", "nal-hrd=cbr:force-cfr=1",
         "-pix_fmt", "yuv420p", "-threads", "0",
         "-metadata", 'title="GAPLESS_STREAMER"',
@@ -46,14 +51,23 @@ def run_gapless_stream(rtmp_url, initial_video):
 
     try:
         while True:
-            # If the symlink is broken, FFmpeg might exit. We catch and retry.
+            # 1. Verify target exists, if not, wait or use fallback
             if not os.path.exists(live_symlink):
-                print("⚠️ [GAPLESS] Source missing. Fixing symlink...")
-                try: os.symlink(initial_video, live_symlink)
+                print(f"⚠️ [GAPLESS] Missing {live_symlink}. Attempting to restore...")
+                try: 
+                    if os.path.exists(initial_video):
+                        if os.path.islink(live_symlink): os.remove(live_symlink)
+                        os.symlink(initial_video, live_symlink)
+                    else:
+                        print("❌ [GAPLESS] ABSOLUTE SOURCE MISSING. Waiting for restoration...")
+                        time.sleep(5)
+                        continue
                 except: pass
             
+            print(f"🚀 [GAPLESS] Launching FFmpeg Ingest Engine...")
             subprocess.run(cmd)
-            time.sleep(1)
+            print("🛑 [GAPLESS] FFmpeg exited. Restarting in 2s...")
+            time.sleep(2)
     finally:
         # Cleanup lock on exit
         if os.path.exists(lock_file): os.remove(lock_file)
