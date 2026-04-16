@@ -49,14 +49,17 @@ class NewsProductionWorkflow:
         ist = ZoneInfo("Asia/Kolkata")
         full_bulletin_path = "videos/promo.mp4"
 
-        # Initialize promo
-        await workflow.execute_activity(ensure_promo_video_activity, start_to_close_timeout=timedelta(seconds=60))
+        # 0. Initialize Premium Promo First (Essential for Zero-Gap)
+        await workflow.execute_activity(
+            ensure_premium_promo_activity, 
+            start_to_close_timeout=timedelta(minutes=5)
+        )
         
-        # 0.1 IMMERSE BROADCAST (Zero-Gap)
-        # Start the stream immediately with the promo video so YouTube has data while we produce
+        # 0.1 IMMERSE BROADCAST (Instant YouTube Handshake)
+        # We use a lower CPU priority for the first handshake to ensure it hits YouTube immediately
         await workflow.execute_activity(
             start_stream_activity, 
-            {"channel_id": channel_id, "stream_key": stream_key, "video_url": "videos/promo.mp4"}, 
+            {"channel_id": channel_id, "stream_key": stream_key, "video_url": "backend/videos/promo.mp4"}, 
             start_to_close_timeout=timedelta(minutes=1)
         )
 
