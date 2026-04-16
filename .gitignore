@@ -34,3 +34,7 @@ news-ai/videos/
 Thumbs.db
 backend/dev.db
 *.db
+
+# Temporary deployment artifacts
+backend/wheels/
+project_bundle.tar.gz

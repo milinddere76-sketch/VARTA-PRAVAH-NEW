@@ -1,8 +1,11 @@
+# Use a more specific version for consistency
 FROM python:3.11-slim
 
-# Install system dependencies
+# Install system dependencies with cache mount
 ENV DEBIAN_FRONTEND=noninteractive
-RUN apt-get update && apt-get install -y --no-install-recommends \
+RUN --mount=type=cache,target=/var/lib/apt/lists \
+    --mount=type=cache,target=/var/cache/apt \
+    apt-get update && apt-get install -y --no-install-recommends \
     ffmpeg \
     curl \
     fonts-noto-hinted \
@@ -18,9 +21,10 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 
 WORKDIR /app
 
-# Copy requirements and install dependencies
-COPY setup_pip.sh .
-RUN chmod +x setup_pip.sh && ./setup_pip.sh
+# Copy requirements and setup script first for better caching
+COPY requirements.txt setup_pip.sh ./
+RUN --mount=type=cache,target=/root/.cache/pip \
+    chmod +x setup_pip.sh && ./setup_pip.sh
 
 # Copy the rest of the backend code
 COPY . .

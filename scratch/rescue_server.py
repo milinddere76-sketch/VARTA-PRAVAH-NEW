@@ -5,7 +5,7 @@ import sys
 def setup_server():
     server = "157.180.24.243"
     user = "root"
-    password = "bjPTVWtCx3j9"
+    password = "PJgWuwTpXjV7"
     pub_key = "ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAACAQC1JegvmLP6oL/Y9ksMji6XT8U1bUsSku2U5YLcaGhk2WDno82axz7bMV2cHv4OewgxNQedU6n1u62qoZ81xR0Zv99Xi35Rvp6jk4c/JTq8ZjuK569JWFmfMOMDIMOK2BpO69e+BaZlCcXml3zr0mxB9+isVNaCoiFYeF52jUBoU3bTMEPEK7pHXI8s3AoRnnfL4j46CuP/ncmIbSsxTFay1PMd+gTtWtd+D0XE1pq4OHJpr+V44LApOrLl/wUEP3bYApVzrhxpDjQX5e+QFPkte/uLrLjnW2aRRoRBLF4XJhCQFuK/IRwb3LkiQdYyacBw2xHVqxcEe28ZnAC809xawhM9okRxN9rn6KLwIRbrfe5trZOR6Csdu4ydT+lqUCTirLYav4z410BIYJ3vuBG/Ix7XogCODIls0I1acb2bIEc1oj8YvuzdBBe5jprGg4Ctuf5BQPjW9x/sx+qjdufGXG4tpXFJ4WbXRN8obdxZ/ZIPpCpudsdotN3T9tjkUXRJWtVlJv9wuvDSxJzzBsbNGHFuoINFrkgsUAUNkiQczXqVo1FpuSSMLfwJKpKg8PFdo9hEJRcsEjlC9rOOsw8dkXR5GxyXONsqsxFVlWDxzgwKRaAiGqNv94tON+IlZ44+nP4QMt2JdN5Rlj5tMliuNT+abFs9dq8hbiEUa6Ey9w== priyansh dere@DESKTOP-I6977KJ"
 
     print(f">> Connecting to {server} as {user}...")

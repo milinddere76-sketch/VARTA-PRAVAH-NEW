@@ -10,12 +10,19 @@ packages=(
     "groq>=0.11.2"
     "edge-tts>=7.2.8"
     "pillow>=12.2.0"
+    "requests>=2.32.0"
+    "httpx>=0.27.0"
+    "python-dotenv>=1.0.1"
+    "python-multipart"
 )
 
-for pkg in "${packages[@]}"; do
-    echo "📦 Installing $pkg..."
-    pip install --no-cache-dir --prefer-binary \
-        -i https://pypi.org/simple \
-        --extra-index-url https://mirrors.pypi.io/simple \
-        --default-timeout=1000 --retries 20 "$pkg"
-done
+# 🚀 OFFLINE INSTALLATION (AIR-GAPPED)
+echo "📦 Installing from local wheels folder..."
+if [ -d "./wheels" ] && [ "$(ls -A ./wheels)" ]; then
+    pip install --no-index --find-links=./wheels "${packages[@]}"
+    echo "✅ Offline installation successful!"
+    exit 0
+else
+    echo "⚠️ Local wheels not found. Falling back to internet (might fail on this server)..."
+    pip install "${packages[@]}"
+fi

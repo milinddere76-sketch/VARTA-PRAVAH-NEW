@@ -260,7 +260,7 @@ export default function DashboardPage() {
       const resKey = await fetch(`${API_URL}/channels/${channel.id}/stream-key`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ stream_key: settingsData.youtube_stream_key }),
+        body: JSON.stringify({ youtube_stream_key: settingsData.youtube_stream_key }),
       });
 
       if (resEnv.ok && resKey.ok) { 
@@ -384,8 +384,19 @@ export default function DashboardPage() {
               )}
 
               <div className="relative grid grid-cols-2 gap-4 mb-8">
-                <div className="bg-[#080b14] rounded-2xl border border-[#1c2035] p-4">
-                  <p className="text-gray-500 text-xs uppercase tracking-wider mb-1">Stream Key</p>
+                <div className="bg-[#080b14] rounded-2xl border border-[#1c2035] p-4 group relative">
+                  <div className="flex items-center justify-between mb-1">
+                    <p className="text-gray-500 text-xs uppercase tracking-wider">Stream Key</p>
+                    <button 
+                      onClick={() => {
+                        setSettingsData(prev => ({ ...prev, youtube_stream_key: channel.youtube_stream_key || '' }));
+                        setShowSettingsModal(true);
+                      }}
+                      className="text-[10px] text-blue-400 hover:text-blue-300 transition font-bold"
+                    >
+                      EDIT
+                    </button>
+                  </div>
                   <p className="font-mono text-sm truncate text-gray-300">
                     {channel.youtube_stream_key ? `${channel.youtube_stream_key.slice(0, 8)}••••••` : '⚠️ Not configured'}
                   </p>

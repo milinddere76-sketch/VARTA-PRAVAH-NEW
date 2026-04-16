@@ -4,7 +4,7 @@ import os
 def final_fix():
     server = "157.180.24.243"
     user = "root"
-    passw = "bjPTVWtCx3j9"
+    passw = "PJgWuwTpXjV7"
     coolify_key = "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIFb70ZAv2b6EjB1SvFVWSqfQlocgXLnWJVpAfVZCc6c9"
 
     print(f"Connecting to {server}...")
