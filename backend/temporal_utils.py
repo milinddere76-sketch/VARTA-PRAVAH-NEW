@@ -33,20 +33,24 @@ async def get_temporal_client(retries: int = 40, delay: int = 15) -> Client:
     This is necessary because temporalio/auto-setup takes several minutes
     to initialize the database schema before accepting gRPC connections.
     """
-    temporal_address = os.getenv("TEMPORAL_ADDRESS", "temporal:7233")
+    # Robust Discovery Array
+    search_paths = [
+        os.getenv("TEMPORAL_ADDRESS", "temporal:7233"),
+        "temporal:7233",
+        "localhost:7233",
+        "127.0.0.1:7233"
+    ]
 
     for attempt in range(retries):
-        try:
-            print(f"Connecting to Temporal ({temporal_address})... Attempt {attempt+1}/{retries}")
-            client = await asyncio.wait_for(Client.connect(temporal_address), timeout=5.0)
-            print(f"✅ Connected to Temporal successfully via {temporal_address}")
-            return client
+        for addr in search_paths:
+            try:
+                print(f"Connecting to Temporal ({addr})... Attempt {attempt+1}/{retries}")
+                client = await asyncio.wait_for(Client.connect(addr), timeout=2.0)
+                print(f"✅ Connected to Temporal successfully via {addr}")
+                return client
+            except: continue
+            
+        print(f"⏳ No Brain found yet. Retrying in {delay}s...")
+        await asyncio.sleep(delay)
 
-        except Exception as e:
-            last_error = e
-            print(f"❌ Temporal connection failed: {e}")
-            if attempt < retries - 1:
-                print(f"⏳ Retrying in {delay}s...")
-                await asyncio.sleep(delay)
-
-    raise RuntimeError(f"Unable to connect to Temporal after {retries} attempts: {last_error}")
+    raise RuntimeError(f"Unable to connect to Temporal after {retries} attempts")

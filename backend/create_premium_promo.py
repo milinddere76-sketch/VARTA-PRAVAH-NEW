@@ -168,7 +168,7 @@ def create_premium_promo(output_path: str = None) -> bool:
     if not clips:
         # Emergency mode uses filter for input 0
         inputs = [
-            "-f", "lavfi", "-i", "cellauto=s=1280x720:rule=30,format=yuv420p,hue=h=180:s=0.5",
+            "-f", "lavfi", "-i", "color=c=black:s=1280x720:d=60",
             "-i", ff_p(ui_png),
             "-i", ff_p(ticker_png),
             "-i", ff_p(logo_path)
