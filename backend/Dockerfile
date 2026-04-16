@@ -19,8 +19,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 WORKDIR /app
 
 # Copy requirements and install dependencies
-COPY requirements.txt .
-RUN pip install --no-cache-dir --prefer-binary --index-url https://pypi.org/simple --default-timeout=1000 --retries 20 -r requirements.txt
+COPY setup_pip.sh .
+RUN chmod +x setup_pip.sh && ./setup_pip.sh
 
 # Copy the rest of the backend code
 COPY . .
