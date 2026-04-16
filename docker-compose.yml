@@ -5,12 +5,12 @@ services:
     restart: unless-stopped
     environment:
       POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: postgres
+      POSTGRES_PASSWORD: varta_pravah_secure_99
       POSTGRES_DB: temporal
     ports:
       - "5432:5432"
     volumes:
-      - postgres_data_v8:/var/lib/postgresql/data
+      - postgres_data_v10:/var/lib/postgresql/data
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U postgres -d postgres"]
       interval: 10s
@@ -27,7 +27,8 @@ services:
       - DB=postgres12
       - DB_PORT=5432
       - POSTGRES_USER=postgres
-      - POSTGRES_PWD=postgres
+      - POSTGRES_PWD=varta_pravah_secure_99
+      - POSTGRES_PASSWORD=varta_pravah_secure_99
       - POSTGRES_SEEDS=postgres
     ports:
       - "7233:7233"
@@ -66,7 +67,7 @@ services:
       retries: 10
       start_period: 60s
     environment:
-      - DATABASE_URL=postgresql+psycopg://postgres:postgres@postgres:5432/temporal
+      - DATABASE_URL=postgresql+psycopg://postgres:varta_pravah_secure_99@postgres:5432/temporal
       - TEMPORAL_ADDRESS=temporal:7233
       - PYTHONUNBUFFERED=1
       - PYTHONPATH=/app
@@ -87,7 +88,7 @@ services:
     restart: unless-stopped
     command: python -m streaming_engine.worker
     environment:
-      - DATABASE_URL=postgresql+psycopg://postgres:postgres@postgres:5432/temporal
+      - DATABASE_URL=postgresql+psycopg://postgres:varta_pravah_secure_99@postgres:5432/temporal
       - TEMPORAL_ADDRESS=temporal:7233
       - AUTO_START_CHANNEL_ID=1
       - DEFAULT_LANGUAGE=Marathi
@@ -123,5 +124,5 @@ networks:
     driver: bridge
 
 volumes:
-  postgres_data_v8:
+  postgres_data_v10:
   backend_videos:

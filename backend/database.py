@@ -50,9 +50,9 @@ def get_engine():
         return engine
 
     possible_urls = [
-        "postgresql+psycopg://postgres:postgres@postgres:5432/temporal", # Priority 1: Orchestrated network
+        "postgresql+psycopg://postgres:varta_pravah_secure_99@postgres:5432/temporal", # Priority 1: Orchestrated network
         os.getenv("DATABASE_URL"),                                     # Priority 2: Env override
-        "postgresql+psycopg://postgres:postgres@localhost:5432/temporal",# Priority 3: Local dev
+        "postgresql+psycopg://postgres:varta_pravah_secure_99@localhost:5432/temporal",# Priority 3: Local dev
     ]
 
     for url in filter(None, possible_urls):
