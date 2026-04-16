@@ -264,7 +264,7 @@ async def trigger_news_generation(
             NewsProductionWorkflow.run,
             args=[channel_id, channel.youtube_stream_key, channel.language],
             id=workflow_id,
-            task_queue="news-task-queue-v2"
+            task_queue="news-task-queue-v3"
         )
         return {"status": "processing", "workflow_id": handle.id}
     except Exception as e:
@@ -289,7 +289,7 @@ async def stop_news_generation(
         StopStreamWorkflow.run,
         args=[channel_id],
         id=f"stop-channel-{channel_id}-{int(time.time())}",
-        task_queue="news-task-queue-v2"
+        task_queue="news-task-queue-v3"
     )
     
     try:

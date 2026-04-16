@@ -75,7 +75,7 @@ async def launch_production(client, channel_id, stream_key, language):
             NewsProductionWorkflow.run,
             args=[channel_id, stream_key, language],
             id="news-production-auto",
-            task_queue="news-task-queue-v2"
+            task_queue="news-task-queue-v3"
         )
         print("✅ [AUTO-START] News Production Workflow ACTIVE.")
     except Exception as e:
@@ -88,7 +88,7 @@ async def launch_monitor(client):
         await client.start_workflow(
             CheckBreakingNewsWorkflow.run,
             id="breaking-news-monitor",
-            task_queue="news-task-queue-v2"
+            task_queue="news-task-queue-v3"
         )
         print("✅ [AUTO-START] Breaking News Monitor ACTIVE.")
     except Exception as e:
@@ -132,7 +132,7 @@ async def main():
     # 4. Start Worker
     worker = Worker(
         client,
-        task_queue="news-task-queue-v2",
+        task_queue="news-task-queue-v3",
         workflows=[NewsProductionWorkflow, StopStreamWorkflow, CheckBreakingNewsWorkflow],
         activities=[
             fetch_news_activity,
@@ -157,7 +157,7 @@ async def main():
         workflow_runner=UnsandboxedWorkflowRunner()
     )
     
-    print("✨ [SYSTEM] Worker fully operational on news-task-queue-v2")
+    print("✨ [SYSTEM] Worker fully operational on news-task-queue-v3")
     await worker.run()
 
 if __name__ == "__main__":
