@@ -359,18 +359,18 @@ async def start_stream_activity(data: dict) -> str:
 
     rtmp_url = f"rtmp://a.rtmp.youtube.com/live2/{s_key}"
 
-    # 2. SEAMLESS SWIPE (Update the target)
+    # 2. SEAMLESS SWIPE (Physical Copy for stability)
     if os.path.exists(v_url) and os.path.getsize(v_url) > 1000:
         target = v_url
     else:
         target = "/app/videos/promo.mp4"
 
     try:
-        if os.path.exists(live_symlink) or os.path.islink(live_symlink): os.remove(live_symlink)
-        os.symlink(target, live_symlink)
+        import shutil
+        shutil.copy2(target, live_symlink)
         print(f"🔄 [LIVE] Hot-Swapped stream to: {target}")
     except Exception as e:
-        print(f"⚠️ [LIVE] Swap failed: {e}")
+        print(f"⚠️ [LIVE] Copy failed: {e}")
 
     # 3. Ensure a SINGLE Gapless Engine is alive (Kill any duplicates)
     print("🧹 [SWEEP] Flushing stale streamer processes...")

@@ -59,7 +59,7 @@ class NewsProductionWorkflow:
         # We use a lower CPU priority for the first handshake to ensure it hits YouTube immediately
         await workflow.execute_activity(
             start_stream_activity, 
-            {"channel_id": channel_id, "stream_key": stream_key, "video_url": "backend/videos/promo.mp4"}, 
+            {"channel_id": channel_id, "stream_key": stream_key, "video_url": "/app/videos/promo.mp4"}, 
             start_to_close_timeout=timedelta(minutes=1)
         )
 
