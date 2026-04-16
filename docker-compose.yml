@@ -30,8 +30,6 @@ services:
       - POSTGRES_PWD=varta_pravah_secure_99
       - POSTGRES_PASSWORD=varta_pravah_secure_99
       - POSTGRES_SEEDS=postgres
-      - BIND_ON_IP=0.0.0.0
-      - TEMPORAL_BROADCAST_ADDRESS=temporal
     ports:
       - "7233:7233"
     depends_on:
