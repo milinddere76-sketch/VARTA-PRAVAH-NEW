@@ -29,8 +29,10 @@ def run_gapless_stream(rtmp_url, initial_video):
     # --- THE INDESTRUCTIBLE COMMAND ---
     # We use -f lavfi 'color' as a secondary input if the first fails
     # Standardized to 720p (1280x720) for 1.0x speed on ARM
+    print(f"🎬 [GAPLESS] Ingesting: {live_symlink} -> {rtmp_url[:30]}...")
+    
     cmd = [
-        "ffmpeg", "-y",
+        "ffmpeg", "-y", "-loglevel", "info",
         "-re", "-stream_loop", "-1", "-fflags", "+genpts", "-i", live_symlink,
         "-f", "lavfi", "-i", "color=c=black:s=1280x720:r=25",
         "-f", "lavfi", "-i", "anullsrc=cl=stereo:r=44100",
@@ -44,29 +46,28 @@ def run_gapless_stream(rtmp_url, initial_video):
         "-b:v", "2000k", "-minrate", "2000k", "-maxrate", "2000k", "-bufsize", "4000k",
         "-x264-params", "nal-hrd=cbr:force-cfr=1",
         "-pix_fmt", "yuv420p", "-threads", "0",
-        "-metadata", 'title="GAPLESS_STREAMER"',
         "-c:a", "aac", "-b:a", "128k", "-ar", "44100",
-        "-f", "flv", "-rtmp_buffer", "10000", rtmp_url
+        "-f", "flv", rtmp_url
     ]
 
     try:
         while True:
             # 1. Verify target exists, if not, wait or use fallback
             if not os.path.exists(live_symlink):
-                print(f"⚠️ [GAPLESS] Missing {live_symlink}. Attempting to restore...")
+                print(f"⚠️ [GAPLESS] {time.ctime()} | Missing {live_symlink}. Attempting to restore...")
                 try: 
                     if os.path.exists(initial_video):
                         if os.path.islink(live_symlink): os.remove(live_symlink)
                         os.symlink(initial_video, live_symlink)
                     else:
-                        print("❌ [GAPLESS] ABSOLUTE SOURCE MISSING. Waiting for restoration...")
+                        print(f"❌ [GAPLESS] {time.ctime()} | ABSOLUTE SOURCE MISSING. Waiting for restoration...")
                         time.sleep(5)
                         continue
                 except: pass
             
-            print(f"🚀 [GAPLESS] Launching FFmpeg Ingest Engine...")
+            print(f"🚀 [GAPLESS] {time.ctime()} | Ingesting via FFmpeg...")
             subprocess.run(cmd)
-            print("🛑 [GAPLESS] FFmpeg exited. Restarting in 2s...")
+            print(f"🛑 [GAPLESS] {time.ctime()} | Engine exited. Recovery in 2s...")
             time.sleep(2)
     finally:
         # Cleanup lock on exit
