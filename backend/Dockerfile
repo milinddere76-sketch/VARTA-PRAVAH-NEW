@@ -11,6 +11,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     libjpeg-dev \
     libpng-dev \
     libz-dev \
+    libpq-dev \
     gcc \
     python3-dev \
     && rm -rf /var/lib/apt/lists/*
@@ -19,7 +20,7 @@ WORKDIR /app
 
 # Copy requirements and install dependencies
 COPY requirements.txt .
-RUN pip install --no-cache-dir --index-url https://pypi.org/simple --default-timeout=1000 --retries 20 -r requirements.txt
+RUN pip install --no-cache-dir --prefer-binary --index-url https://pypi.org/simple --default-timeout=1000 --retries 20 -r requirements.txt
 
 # Copy the rest of the backend code
 COPY . .
