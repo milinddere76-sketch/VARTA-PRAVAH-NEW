@@ -43,11 +43,14 @@ def run_gapless_stream(rtmp_url, initial_video):
         "-map", "[v_out]", "-map", "[a_out]",
         "-r", "25", "-g", "50",
         "-c:v", "libx264", "-preset", "ultrafast", "-tune", "zerolatency",
-        "-b:v", "2000k", "-minrate", "2000k", "-maxrate", "2000k", "-bufsize", "4000k",
+        "-b:v", "2500k", "-minrate", "2500k", "-maxrate", "2500k", "-bufsize", "5000k",
         "-x264-params", "nal-hrd=cbr:force-cfr=1",
         "-pix_fmt", "yuv420p", "-threads", "0",
         "-c:a", "aac", "-b:a", "128k", "-ar", "44100",
-        "-f", "flv", rtmp_url
+        "-f", "flv",
+        "-reconnect", "1", "-reconnect_at_eof", "1", "-reconnect_streamed", "1",
+        "-reconnect_delay_max", "2",
+        rtmp_url
     ]
 
     try:
