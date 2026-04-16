@@ -7,6 +7,7 @@ RUN --mount=type=cache,target=/var/lib/apt/lists \
     --mount=type=cache,target=/var/cache/apt \
     apt-get update && apt-get install -y --no-install-recommends \
     ffmpeg \
+    procps \
     libfreetype6-dev \
     libjpeg-dev \
     libpng-dev \
