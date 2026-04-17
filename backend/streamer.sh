@@ -18,14 +18,11 @@ while true; do
 
   echo "🎥 [INGEST] $(date) | Starting FFmpeg Ingest..."
   
-  # THE INDESTRUCTIBLE COMMAND
-  # -f concat: reads files from playlist.txt
-  # -stream_loop -1: loops the playlist forever
-  # -re: reads at real-time rate
+  # THE INDESTRUCTIBLE COMMAND (STRICT CBR)
   ffmpeg -y -re -f concat -safe 0 -stream_loop -1 -i "$PLAYLIST" \
     -c:v libx264 -preset ultrafast -tune zerolatency \
-    -b:v 2500k -maxrate 2500k -bufsize 5000k \
-    -pix_fmt yuv420p -g 50 \
+    -b:v 2500k -minrate 2500k -maxrate 2500k -bufsize 5000k \
+    -nal-hrd cbr -pix_fmt yuv420p -g 50 \
     -c:a aac -b:a 128k -ar 44100 \
     -f flv "$RTMP_URL"
 
