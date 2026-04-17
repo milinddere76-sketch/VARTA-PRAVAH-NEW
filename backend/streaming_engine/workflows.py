@@ -20,8 +20,7 @@ from .activities import (
     stop_stream_activity,
     check_scheduled_ads_activity,
     cleanup_old_videos_activity,
-    get_channel_anchor_activity,
-    get_anchor
+    get_channel_anchor_activity
 )
 
 @workflow.defn
