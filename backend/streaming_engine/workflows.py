@@ -99,7 +99,9 @@ class NewsProductionWorkflow:
                 elif "19:30" <= current_time < "22:30": bulletin_type = "Prime Time"
                 elif "22:30" <= current_time < "23:59" or "00:00" <= current_time < "05:00": bulletin_type = "Night Bulletin"
 
-                if bulletin_type != last_bulletin_type:
+                # Forced immediate production on first run or time change
+                if bulletin_type != last_bulletin_type or bulletin_index == 0:
+
                     print(f"🎬 [SCHEDULER] Producing {bulletin_type}")
                     is_female = (bulletin_index % 2 == 0)
                     bulletin_index += 1

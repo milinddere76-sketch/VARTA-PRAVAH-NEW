@@ -45,7 +45,9 @@ def _terminate_stream_process(channel_id: int):
 
 @activity.defn
 async def fetch_news_activity(language: str) -> list[dict]:
+    print(f"📡 [ACTIVITY] Fetching News for {language}...")
     load_dotenv(override=True)
+
     api_key = os.getenv("WORLD_NEWS_API_KEY")
     lang_code = LANGUAGE_CONFIG.get(language, {"code": "mr"})["code"]
     
