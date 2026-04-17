@@ -10,6 +10,19 @@ def create_video(data):
     """
     audio_path, ticker, anchor, is_breaking = data
     
+    # 0. Fetch External Data for Overlays
+    from weather import get_weather
+    from stocks import get_stocks
+    from pulse import get_cricket_score, get_election_updates
+    
+    weather_text  = get_weather()
+    market_text   = get_stocks()
+    cricket_text  = get_cricket_score()
+    election_text = get_election_updates()
+    
+    # Merge Stock Market into Ticker
+    ticker = f"{market_text} | {ticker}"
+
     # Apply Breaking News Style
     if is_breaking:
         ticker = "🔴 BREAKING: " + ticker
@@ -54,8 +67,38 @@ def create_video(data):
             "[tmp2][2:v]scale=80:80[logo];"
             "[tmp2][logo]overlay=W-100:20[tmp3];"
             "[tmp3]drawtext=fontfile=/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf:"
-            f"text='{ticker}':x=w-mod(t*150,w+tw):y=h-40:fontsize=20:fontcolor=yellow:box=1:boxcolor={box_color},fade=t=in:st=0:d=1[outv]"
-        )
+            f"text='{ticker}':x=w-mod(t*150,w+tw):y=h-40:fontsize=20:fontcolor=yellow:box=1:boxcolor={box_color},fade=t=in:st=0:d=1[tmp4];"
+            
+            # --- LIVE CLOCK, DATE, WEATHER, SPORTS & ELECTION ---
+            filter_complex += (
+                f";[tmp4]drawtext=fontfile=/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf:"
+                f"text='{weather_text}':x=20:y=20:fontsize=22:fontcolor=cyan:box=1:boxcolor=black@0.5,"
+                "drawtext=fontfile=/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf:"
+                "text='%{localtime\\:%H\\\\\\:%M}':x=W-160:y=20:fontsize=24:fontcolor=white:box=1:boxcolor=black@0.5,"
+                "drawtext=fontfile=/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf:"
+                "text='%{localtime\\:%d-%m-%Y}':x=W-160:y=50:fontsize=16:fontcolor=white,"
+                f"drawtext=fontfile=/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf:"
+                f"text='{cricket_text}':x=20:y=80:fontsize=18:fontcolor=white:box=1:boxcolor=red@0.5,"
+                f"drawtext=fontfile=/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf:"
+                f"text='{election_text}':x=20:y=120:fontsize=18:fontcolor=yellow:box=1:boxcolor=black@0.5[outv]"
+            )
+        else:
+            # Mode without music
+            filter_complex += (
+                f";[outv]drawtext=fontfile=/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf:"
+                f"text='{weather_text}':x=20:y=20:fontsize=22:fontcolor=cyan:box=1:boxcolor=black@0.5,"
+                "drawtext=fontfile=/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf:"
+                "text='%{localtime\\:%H\\\\\\:%M}':x=W-160:y=20:fontsize=24:fontcolor=white:box=1:boxcolor=black@0.5,"
+                "drawtext=fontfile=/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf:"
+                "text='%{localtime\\:%d-%m-%Y}':x=W-160:y=50:fontsize=16:fontcolor=white,"
+                f"drawtext=fontfile=/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf:"
+                f"text='{cricket_text}':x=20:y=80:fontsize=18:fontcolor=white:box=1:boxcolor=red@0.5,"
+                f"drawtext=fontfile=/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf:"
+                f"text='{election_text}':x=20:y=120:fontsize=18:fontcolor=yellow:box=1:boxcolor=black@0.5[final_v]"
+            )
+            # Adjust mapping if no music
+            map_audio = "1:a"
+            # Note: I'll simplify the mapping logic to be consistent
 
         if has_music:
             filter_complex += ";[3:a]volume=0.3[music];[1:a][music]amix=inputs=2:duration=first:dropout_transition=2[outa]"
