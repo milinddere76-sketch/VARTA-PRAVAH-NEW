@@ -99,12 +99,22 @@ async def main():
     s_key = os.getenv("YOUTUBE_STREAM_KEY")
     if s_key:
         from streaming_engine.activities import start_stream_activity
-        asyncio.create_task(start_stream_activity({
-            "channel_id": 1,
-            "stream_key": s_key,
-            "video_url": "/app/videos/promo.mp4"
-        }))
-        print("🚀 [INGEST] Instant Standby Triggered (Bypassing Brain Sync)...")
+        async def delayed_standby():
+            # Wait up to 30s for the file to appear (Zero-Gap stability)
+            for _ in range(6):
+                if os.path.exists("/app/videos/promo.mp4"):
+                    await start_stream_activity({
+                        "channel_id": 1,
+                        "stream_key": s_key,
+                        "video_url": "/app/videos/promo.mp4"
+                    })
+                    print("🚀 [INGEST] Instant Standby Triggered!")
+                    return
+                print("⏳ [INGEST] Waiting for promo.mp4 to appear...")
+                await asyncio.sleep(5)
+            print("⚠️ [INGEST] Instant Standby timed out - asset missing.")
+
+        asyncio.create_task(delayed_standby())
 
     # 1. Database & Asset Prep
     try:
