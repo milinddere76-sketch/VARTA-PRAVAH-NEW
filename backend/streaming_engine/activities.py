@@ -35,13 +35,13 @@ STREAMER_INSTANCES: dict[int, Streamer] = {}
 
 def _terminate_stream_process(channel_id: int):
     try:
-        # Standard FFmpeg cleanup to prevent overlaps
+        # Surgical cleanup: only kill ffmpeg and streamer, not the worker itself
         if sys.platform != "win32":
-            subprocess.run(["pkill", "-9", "-f", "ffmpeg"], capture_output=True)
-            subprocess.run(["pkill", "-9", "-f", "gapless_streamer.py"], capture_output=True)
-        print(f"Cleaned up all FFmpeg processes for channel {channel_id}")
-    except:
-        pass
+            subprocess.run("pkill -9 -f 'ffmpeg.*rtmp'", shell=True, capture_output=True)
+            subprocess.run("pkill -9 -f 'gapless_streamer.py'", shell=True, capture_output=True)
+        print(f"Surgically cleaned up processes for channel {channel_id}")
+    except Exception as e:
+        print(f"Cleanup error: {e}")
 
 @activity.defn
 async def fetch_news_activity(language: str) -> list[dict]:

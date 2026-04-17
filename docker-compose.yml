@@ -97,10 +97,8 @@ services:
     volumes:
       - ./backend/videos:/app/videos
     depends_on:
-      backend:
-        condition: service_healthy
-      temporal:
-        condition: service_started
+      - backend
+      - temporal
     networks:
       - vartapravah-net
 
