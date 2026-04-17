@@ -150,16 +150,19 @@ class NewsProductionWorkflow:
                             print(f"[WORKFLOW] Failed story item: {e}")
                             return None
 
-                    # 2. Sequential/Batched Production of Story Clips (To prevent CPU saturation)
-                    print(f"⚡ [SCHEDULER] Producing {len(items)} items in BATCHES of 5")
+                    # 2. Sequential Production (To ensure stability on resource-constrained server)
+                    print(f"⚡ [SCHEDULER] Producing {len(items)} items sequentially...")
                     results = []
-                    for i in range(0, len(items), 5):
-                        batch = items[i:i+5]
-                        batch_results = await asyncio.gather(*[produce_story(it) for it in batch])
-                        results.extend(batch_results)
-                        print(f"✅ [SCHEDULER] Batch complete: {len(results)}/{len(items)}")
+                    for it in items:
+                        try:
+                            res = await produce_story(it)
+                            if res:
+                                results.append(res)
+                                print(f"✅ [SCHEDULER] Item complete: {len(results)}/{len(items)}")
+                        except Exception as e:
+                            print(f"⚠️ [SCHEDULER] Item failed: {e}")
                     
-                    clips.extend([c for c in results if c])
+                    clips.extend(results)
 
                     # 3. Final Master Merge & Broadcast
                     final_v = await workflow.execute_activity(merge_videos_activity, {
