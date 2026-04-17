@@ -32,6 +32,8 @@ from .activities import (
     get_channel_anchor_activity,
     check_breaking_news_activity
 )
+from activities.anchor_activity import get_anchor_activity
+from activities.breaking_player import play_breaking_activity
 
 from database import get_session_local
 from models import Channel, User, Anchor
@@ -140,7 +142,7 @@ async def main():
     asyncio.create_task(launch_production(client, channel_id, s_key, language))
     asyncio.create_task(launch_monitor(client))
 
-    # 4. Start Worker
+    # 4. Start Worker (Indestructible Execution)
     worker = Worker(
         client,
         task_queue="news-task-queue-v4",
@@ -163,16 +165,23 @@ async def main():
             check_scheduled_ads_activity,
             cleanup_old_videos_activity,
             get_channel_anchor_activity,
-            check_breaking_news_activity
+            check_breaking_news_activity,
+            get_anchor_activity,
+            play_breaking_activity
         ],
         workflow_runner=UnsandboxedWorkflowRunner()
     )
     
-    print(f"✨ [SYSTEM] Worker fully operational on news-task-queue-v4")
-    await worker.run()
+    print("🚀 [SYSTEM] Worker running forever on news-task-queue-v4")
+    while True:
+        try:
+            await worker.run()
+        except Exception as e:
+            print(f"❌ [CRITICAL] Worker connection lost: {e}. Reconnecting in 5s...")
+            await asyncio.sleep(5)
 
 if __name__ == "__main__":
     import sys
-    # Force output flushing for Docker
+    # Force output flushing for Docker logging
     sys.stdout.reconfigure(line_buffering=True)
     asyncio.run(main())

@@ -13,6 +13,11 @@ import edge_tts
 import asyncio
 import datetime
 
+@activity.defn
+async def get_anchor_from_manager_activity() -> str:
+    """Wrapper activity for persistent anchor rotation."""
+    return get_next_anchor()
+
 # --- CONSTANTS ---
 BASE_DIR = "/app"
 VIDEOS_DIR = "/app/videos"
@@ -21,9 +26,11 @@ PROMO_PATH = "/app/videos/promo.mp4"
 from streamer import Streamer
 import database
 import models
+from anchor import get_next_anchor
 
 # Initialize AI Clients
-load_dotenv()
+if not os.getenv("GROQ_API_KEY"):
+    load_dotenv()
 
 LANGUAGE_CONFIG = {
     "Marathi": {"code": "mr", "region": "Maharashtra"},
@@ -46,7 +53,6 @@ def _terminate_stream_process(channel_id: int):
 @activity.defn
 async def fetch_news_activity(language: str) -> list[dict]:
     print(f"📡 [ACTIVITY] Fetching News for {language}...")
-    load_dotenv(override=True)
 
     api_key = os.getenv("WORLD_NEWS_API_KEY")
     lang_code = LANGUAGE_CONFIG.get(language, {"code": "mr"})["code"]
@@ -102,12 +108,11 @@ async def fetch_news_activity(language: str) -> list[dict]:
     return results[:25]
 
 @activity.defn
-async def generate_script_activity(input_data: dict) -> dict:
-    load_dotenv(override=True)
-    news_data = input_data["news_data"]
-    is_female = input_data.get("is_female", False)
+async def generate_script_activity(data: tuple) -> dict:
+    news_data, bulletin_type, is_breaking, anchor = data
+    is_female = (anchor == "female")
     anchor_name = "Priya Desai" if is_female else "Arjun Sharma"
-    show_greeting = input_data.get("show_greeting", True)
+    show_greeting = True
     
     # Time-aware greeting (IST)
     import datetime
@@ -134,28 +139,30 @@ async def generate_script_activity(input_data: dict) -> dict:
         greeting = f"पुढील महत्त्वाची बातमी समोर येत आहे..."
         focus = "Standard professional reporting."
 
-    system_prompt = f"""You are a Distinguished Marathi News Journalist for 'VARTA PRAVAH'. 
-    TONE: Professional, Authoritative, Shuddha Marathi.
-    SLOT FOCUS: {focus}
-    
-    STRICT STRUCTURE:
-    1. OPENING: Start with: '{greeting if show_greeting else 'पुढची बातमी...'}'
-    2. CONTENT: 6-8 comprehensive Marathi sentences. Use sophisticated vocabulary.
-    3. TAGLINE: Finish with: 'पाहत राहा, वार्ताप्रवाह. धन्यवाद.'
-    
-    GENDER RULES: Anchor is {anchor_name} | Use correct gendered grammar.
-    LINGUISTIC: Devanagari ONLY."""
-    
-    user_prompt = f"WRITE NEWS FOR: {news_data['headline']}\nDETAILS: {news_data['description']}"
+    # Use the persistent script writer for guaranteed grammatical purity
+    from script_writer import generate_script as generate_marathi_template
     
     try:
+        # 1. Generate Foundation Template
+        template = generate_marathi_template((news_data, bulletin_type, is_breaking, anchor))
+        
+        # 2. Enrich with AI (Optional enhancement of template)
         client = Groq(api_key=os.getenv("GROQ_API_KEY"))
-        completion = client.chat.completions.create(model="llama-3.1-8b-instant", messages=[{"role": "system", "content": system_prompt}, {"role": "user", "content": user_prompt}], temperature=0.3)
+        system_prompt = f"You are a professional Marathi News Anchor. Rewrite and enrich this news script while keeping its core structure and gender ({anchor}):\n{template}"
+        user_prompt = f"Topic: {news_data['headline']}\nDetails: {news_data['description']}"
+        
+        completion = client.chat.completions.create(
+            model="llama-3.1-8b-instant", 
+            messages=[{"role": "system", "content": system_prompt}, {"role": "user", "content": user_prompt}], 
+            temperature=0.3
+        )
         script = completion.choices[0].message.content
         return {"script": script, "is_female": is_female}
     except Exception as e:
-        print(f"Script Generation Failed: {e}")
-        return {"script": f"नमस्कार, वार्ताप्रवाहमध्ये आपले स्वागत. ताजी बातमी आहे - {news_data['headline']}. सविस्तर वृत्त लवकरच.", "is_female": is_female}
+        print(f"⚠️ Script Synthesis Fallback Active: {e}")
+        # Fallback to pure template on AI failure
+        fallback_script = generate_marathi_template((news_data, bulletin_type, is_breaking, anchor))
+        return {"script": fallback_script, "is_female": is_female}
         return {"script": f"Namaskar, Varta Pravah madhe aaple swagat aahe. Me {anchor_name}. Aajchya thak batmya. Dhanyavad.", "is_female": is_female}
 
 @activity.defn
@@ -205,9 +212,9 @@ async def generate_closing_activity(input_data: dict) -> dict:
     return {"script": script, "is_female": is_female}
 
 @activity.defn
-async def generate_audio_activity(input_data: dict) -> str:
-    script = input_data.get("script", "")
-    is_female = input_data.get("is_female", True)
+async def generate_audio_activity(data: tuple) -> str:
+    script, anchor = data
+    is_female = (anchor == "female")
     audio_path = os.path.join(VIDEOS_DIR, f"news_{uuid.uuid4().hex}.mp3")
     
     # Professional Marathi voices from Microsoft Edge TTS
@@ -223,13 +230,9 @@ async def generate_audio_activity(input_data: dict) -> str:
         return audio_path
 
 @activity.defn
-async def generate_news_video_activity(input_data: dict) -> str:
-    from PIL import Image, ImageDraw, ImageFont
-    title = input_data.get("title", "Breaking News")
-    audio_path = input_data.get("audio_url", "")
-    synced_v = input_data.get("synced_video_url", "")
-    
-    is_female = input_data.get("is_female", True)
+async def generate_news_video_activity(data: tuple) -> str:
+    audio_path, title, anchor = data
+    is_female = (anchor == "female")
     
     from database import SessionLocal
     from models import Channel, Anchor
@@ -242,8 +245,8 @@ async def generate_news_video_activity(input_data: dict) -> str:
     bg_p = os.path.join(assets_dir, "studio_bg.png")
     logo_p = os.path.join(assets_dir, "logo.png")
     
-    default_port = "female_anchor.png" if is_female else "male_anchor.png"
-    port_p = os.path.join(BASE_DIR, anchor.portrait_url) if anchor and anchor.portrait_url else os.path.join(assets_dir, default_port)
+    default_port = "female_anchor.jpg" if is_female else "male_anchor.jpg"
+    port_p = os.path.join(VIDEOS_DIR, default_port) if os.path.exists(os.path.join(VIDEOS_DIR, default_port)) else os.path.join(assets_dir, "female_anchor.png" if is_female else "male_anchor.png")
 
     try:
         studio = Image.open(bg_p).convert("RGBA").resize((1280, 720)) if os.path.exists(bg_p) else Image.new("RGBA", (1280, 720), (15, 25, 45, 255))
@@ -292,11 +295,11 @@ async def generate_news_video_activity(input_data: dict) -> str:
         draw.text((30, 660), badge_text, font=font_b, fill=badge_txt_color)
         draw.text((310, 660), title[:70], font=font_t, fill=(255, 255, 255))
         
-        frame_p = os.path.join(VIDEOS_DIR, "studio_base.png")
+        # Use unique filename for frame image as well to support parallel generation
+        file_id = uuid.uuid4().hex[:8]
+        frame_p = os.path.join(VIDEOS_DIR, f"frame_{file_id}.png")
         studio.save(frame_p)
         
-        # Use unique filename to prevent overwriting files while streamer is reading them
-        file_id = uuid.uuid4().hex[:8]
         out_p = os.path.join(BASE_DIR, "videos", f"news_{file_id}.mp4")
         
         if synced_v:
@@ -361,24 +364,29 @@ async def start_stream_activity(data: dict) -> str:
 
     rtmp_url = f"rtmps://a.rtmp.youtube.com:443/live2/{s_key}"
 
-    # 2. SEAMLESS SWIPE (Physical Copy for stability)
-    if os.path.exists(v_url) and os.path.getsize(v_url) > 1000:
-        target = v_url
-    else:
-        target = "/app/videos/promo.mp4"
+    # 2. ATOMIC SEAMLESS SWIPE (Prevents FFmpeg read-lock/crash)
+    # We copy to a new file and then RENAME it to current_live.mp4
+    # On Linux, os.rename is atomic and doesn't break open file handles.
+    temp_swipe = f"/app/videos/swipe_{uuid.uuid4().hex[:8]}.mp4"
+    
+    source = v_url if (os.path.exists(v_url) and os.path.getsize(v_url) > 1000) else "/app/videos/promo.mp4"
 
     try:
         import shutil
-        shutil.copy2(target, live_symlink)
-        print(f"🔄 [LIVE] Hot-Swapped stream to: {target}")
+        shutil.copy2(source, temp_swipe)
+        os.rename(temp_swipe, live_symlink)
+        print(f"🔄 [LIVE] Atomic Swap Success: {source} -> {live_symlink}")
     except Exception as e:
-        print(f"⚠️ [LIVE] Copy failed: {e}")
+        print(f"⚠️ [LIVE] Atomic Swap failed: {e}")
 
-    # 3. Ensure a SINGLE Gapless Engine is alive (Kill any duplicates)
-    print("🧹 [SWEEP] Flushing stale streamer processes...")
-    subprocess.run(["pkill", "-9", "-f", "gapless_streamer.py"], capture_output=True)
-    subprocess.run(["pkill", "-9", "-f", "GAPLESS_STREAMER"], capture_output=True)
-    time.sleep(1) # Wait for port/socket release
+    # 3. Intelligent Ingest (Check if already running)
+    print("🔍 [CHECK] Verifying Ingest Status...")
+    # Use pgrep to check for existing gapless_streamer.py
+    is_running = subprocess.run(["pgrep", "-f", "gapless_streamer.py"], capture_output=True).returncode == 0
+    
+    if is_running:
+        print("✅ [INGEST] Engine already active. Hot-swap complete.")
+        return "hot_swap_complete"
     
     print(f"📡 [INGEST] Launching Fresh Permanent 24/7 Engine for Ch {c_id}")
     log_f = open("/app/videos/streamer_output.log", "a")

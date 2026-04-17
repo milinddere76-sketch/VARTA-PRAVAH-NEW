@@ -20,7 +20,8 @@ from .activities import (
     stop_stream_activity,
     check_scheduled_ads_activity,
     cleanup_old_videos_activity,
-    get_channel_anchor_activity
+    get_channel_anchor_activity,
+    get_anchor
 )
 
 @workflow.defn
@@ -68,11 +69,36 @@ class NewsProductionWorkflow:
                 # 0. CHECK BREAKING NEWS QUEUE (Immediate Priority)
                 if self._breaking_news_queue:
                     news = self._breaking_news_queue.pop(0)
-                    is_female = (bulletin_index % 2 == 0)
-                    print(f"🔥 [BREAKING] Generating Flash for: {news['headline']}")
+
+                    # 🚨 TRIGGER FULL-SCREEN BUMPER
+                    if is_breaking_news(news["headline"]):
+                        print("🚨 [WORKFLOW] High-Priority News Detected! Playing Bumper...")
+                        await workflow.execute_activity(
+                            "play_breaking",
+                            start_to_close_timeout=timedelta(minutes=1)
+                        )
+                        # Let the bumper play for 10 seconds before the news starts
+                        await workflow.sleep(timedelta(seconds=10))
+
+                    anchor = await workflow.execute_activity(
+                        "get_anchor",
+                        start_to_close_timeout=timedelta(seconds=5)
+                    )
+                    is_female = (anchor == "female")
+                    anchor_label = "FEMALE (Priya)" if is_female else "MALE (Arjun)"
+                    print(f"🔥 [BREAKING] Generating Flash with {anchor_label} anchor for: {news['headline']}")
+                    bulletin_index += 1 
                     
-                    b_s = await workflow.execute_activity(generate_script_activity, {"news_data": news, "is_female": is_female, "bulletin_type": "Breaking News"}, start_to_close_timeout=timedelta(minutes=3))
-                    b_a = await workflow.execute_activity(generate_audio_activity, {"script": b_s["script"], "is_female": is_female}, start_to_close_timeout=timedelta(minutes=3))
+                    b_s = await workflow.execute_activity(
+                        generate_script_activity, 
+                        (news, "Breaking News", True, anchor), 
+                        start_to_close_timeout=timedelta(minutes=3)
+                    )
+                    b_a = await workflow.execute_activity(
+                        generate_audio_activity, 
+                        (b_s["script"], anchor), 
+                        start_to_close_timeout=timedelta(minutes=3)
+                    )
                     
                     b_job = await workflow.execute_activity(synclabs_lip_sync_activity, {"audio_url": b_a, "is_female": is_female}, start_to_close_timeout=timedelta(minutes=3))
                     b_v = ""
@@ -85,7 +111,11 @@ class NewsProductionWorkflow:
                             await workflow.sleep(timedelta(seconds=10))
 
                     if not b_v:
-                        b_v = await workflow.execute_activity(generate_news_video_activity, {"title": "BREAKING NEWS", "audio_url": b_a, "is_female": is_female}, start_to_close_timeout=timedelta(minutes=3))
+                        b_v = await workflow.execute_activity(
+                            generate_news_video_activity, 
+                            (b_a, "BREAKING NEWS", anchor, True), 
+                            start_to_close_timeout=timedelta(minutes=3)
+                        )
                     
                     await workflow.execute_activity(start_stream_activity, {"channel_id": channel_id, "stream_key": stream_key, "video_url": b_v}, start_to_close_timeout=timedelta(minutes=1))
                     await workflow.sleep(timedelta(minutes=1)) # Show for a bit
@@ -102,16 +132,30 @@ class NewsProductionWorkflow:
                 # Forced immediate production on first run or time change
                 if bulletin_type != last_bulletin_type or bulletin_index == 0:
 
-                    print(f"🎬 [SCHEDULER] Producing {bulletin_type}")
-                    is_female = (bulletin_index % 2 == 0)
+                    # Persistent Toggle via Manager Activity
+                    anchor = await workflow.execute_activity(
+                        "get_anchor",
+                        start_to_close_timeout=timedelta(seconds=5)
+                    )
+                    is_female = (anchor == "female")
+                    anchor_label = "FEMALE (Priya)" if is_female else "MALE (Arjun)"
+                    print(f"🎬 [SCHEDULER] Producing {bulletin_type} with {anchor_label} anchor")
                     bulletin_index += 1
 
                     news_items = await workflow.execute_activity(fetch_news_activity, language, start_to_close_timeout=timedelta(minutes=2))
                     items = (news_items if isinstance(news_items, list) else [news_items])[:25]
 
                     # Headlines (Sequential anchor intro)
-                    h_res = await workflow.execute_activity(generate_headlines_activity, {"news_items": items, "is_female": is_female, "bulletin_type": bulletin_type}, start_to_close_timeout=timedelta(minutes=5))
-                    h_a = await workflow.execute_activity(generate_audio_activity, {"script": h_res["script"], "is_female": is_female}, start_to_close_timeout=timedelta(minutes=5))
+                    h_res = await workflow.execute_activity(
+                        generate_script_activity, 
+                        (items[0] if items else {}, bulletin_type, False, anchor), 
+                        start_to_close_timeout=timedelta(minutes=5)
+                    )
+                    h_a = await workflow.execute_activity(
+                        generate_audio_activity, 
+                        (h_res["script"], anchor), 
+                        start_to_close_timeout=timedelta(minutes=5)
+                    )
                     
                     h_job = await workflow.execute_activity(synclabs_lip_sync_activity, {"audio_url": h_a, "is_female": is_female}, start_to_close_timeout=timedelta(minutes=5))
                     h_v = ""
@@ -124,15 +168,27 @@ class NewsProductionWorkflow:
                             await workflow.sleep(timedelta(seconds=10))
 
                     if not h_v:
-                        h_v = await workflow.execute_activity(generate_news_video_activity, {"title": "HEADLINES", "audio_url": h_a, "is_female": is_female}, start_to_close_timeout=timedelta(minutes=5))
+                        h_v = await workflow.execute_activity(
+                            generate_news_video_activity, 
+                            (h_a, "HEADLINES", anchor, False), 
+                            start_to_close_timeout=timedelta(minutes=5)
+                        )
 
                     clips = [h_v] if h_v else []
                     
                     # Helper to produce a single story
                     async def produce_story(s):
                         try:
-                            s_s = await workflow.execute_activity(generate_script_activity, {"news_data": s, "is_female": is_female, "bulletin_type": bulletin_type}, start_to_close_timeout=timedelta(minutes=5))
-                            s_a = await workflow.execute_activity(generate_audio_activity, {"script": s_s["script"], "is_female": is_female}, start_to_close_timeout=timedelta(minutes=5))
+                            s_s = await workflow.execute_activity(
+                                generate_script_activity, 
+                                (s, bulletin_type, False, anchor), 
+                                start_to_close_timeout=timedelta(minutes=5)
+                            )
+                            s_a = await workflow.execute_activity(
+                                generate_audio_activity, 
+                                (s_s["script"], anchor), 
+                                start_to_close_timeout=timedelta(minutes=5)
+                            )
                             s_job = await workflow.execute_activity(synclabs_lip_sync_activity, {"audio_url": s_a, "is_female": is_female}, start_to_close_timeout=timedelta(minutes=5))
                             
                             synced_v = ""
