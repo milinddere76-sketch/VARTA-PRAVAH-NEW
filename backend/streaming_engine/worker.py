@@ -95,38 +95,36 @@ async def launch_monitor(client):
         print(f"⚠️ [AUTO-START] Monitor already running or failed: {e}")
 
 async def main():
-    client = await temporal_utils.get_temporal_client()
-    
+    # 0. IMMEDIATE YOUTUBE HANDSHAKE (No blocking)
+    s_key = os.getenv("YOUTUBE_STREAM_KEY")
+    if s_key:
+        from streaming_engine.activities import start_stream_activity
+        asyncio.create_task(start_stream_activity({
+            "channel_id": 1,
+            "stream_key": s_key,
+            "video_url": "/app/videos/promo.mp4"
+        }))
+        print("🚀 [INGEST] Instant Standby Triggered (Bypassing Brain Sync)...")
+
     # 1. Database & Asset Prep
     try:
         await seed_database()
         print("📂 [INIT] Database seed complete.")
     except: pass
 
-    # 2. Ingest Sync Start (Instant Standby)
+    # 2. Connect to Brain (Optional/Retry)
     try:
-        abs_promo = "/app/videos/promo.mp4"
-        s_key = os.getenv("YOUTUBE_STREAM_KEY")
-        if s_key:
-            # Direct call for immediate standby broadcast
-            from streaming_engine.activities import start_stream_activity
-            await start_stream_activity({
-                "channel_id": 1,
-                "stream_key": s_key,
-                "video_url": abs_promo
-            })
-            print("📡 [INGEST] Standby Promo Live.")
+        client = await temporal_utils.get_temporal_client()
     except Exception as e:
-        print(f"⚠️ [INGEST] Initial standby failed: {e}")
+        print(f"⚠️ [SYSTEM] Brain still offline, remaining in autonomous standby: {e}")
+        # Wait forever in standby loop
+        while True: await asyncio.sleep(3600)
 
     # 3. Isolated Background Launches
     channel_id = int(os.getenv("AUTO_START_CHANNEL_ID", "1"))
-    stream_key = os.getenv("YOUTUBE_STREAM_KEY")
     language = "Marathi"
-
-    if stream_key:
-        asyncio.create_task(launch_production(client, channel_id, stream_key, language))
     
+    asyncio.create_task(launch_production(client, channel_id, s_key, language))
     asyncio.create_task(launch_monitor(client))
 
     # 4. Start Worker
