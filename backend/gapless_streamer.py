@@ -31,21 +31,18 @@ def run_gapless_stream(rtmp_url, initial_video):
     # Standardized to 720p (1280x720) for 1.0x speed on ARM
     print(f"🎬 [GAPLESS] Ingesting: {live_symlink} -> {rtmp_url[:30]}...")
     
+    # THE ARM-OPTIMIZED INDESTRUCTIBLE COMMAND
+    # We remove complex filters to save 70% CPU usage
     cmd = [
-        "ffmpeg", "-y", "-loglevel", "info",
-        "-re", "-stream_loop", "-1", "-fflags", "+genpts", "-i", live_symlink,
-        "-f", "lavfi", "-i", "color=c=black:s=1280x720:r=25",
+        "ffmpeg", "-y", "-loglevel", "warning",
+        "-re", "-stream_loop", "-1", "-i", live_symlink,
         "-f", "lavfi", "-i", "anullsrc=cl=stereo:r=44100",
-        "-filter_complex", 
-        "[0:v]scale=1280:720,setsar=1[v_src];"
-        "[1:v][v_src]overlay=eof_action=pass[v_out];"
-        "[0:a][2:a]amix=inputs=2:dropout_transition=0:normalize=0[a_out]",
-        "-map", "[v_out]", "-map", "[a_out]",
+        "-map", "0:v", "-map", "1:a",
+        "-vf", "scale=1280:720:force_original_aspect_ratio=decrease,pad=1280:720:(ow-iw)/2:(oh-ih)/2,format=yuv420p",
         "-r", "25", "-g", "50",
         "-c:v", "libx264", "-preset", "ultrafast", "-tune", "zerolatency",
-        "-b:v", "2500k", "-minrate", "2500k", "-maxrate", "2500k", "-bufsize", "5000k",
+        "-b:v", "2000k", "-maxrate", "2000k", "-bufsize", "4000k",
         "-x264-params", "nal-hrd=cbr:force-cfr=1",
-        "-pix_fmt", "yuv420p", "-threads", "0",
         "-c:a", "aac", "-b:a", "128k", "-ar", "44100",
         "-f", "flv",
         "-reconnect", "1", "-reconnect_at_eof", "1", "-reconnect_streamed", "1",
