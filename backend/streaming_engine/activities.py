@@ -118,8 +118,8 @@ async def generate_script_activity(data: tuple) -> dict:
     import datetime
     from zoneinfo import ZoneInfo
     now_ist = datetime.datetime.now(ZoneInfo("Asia/Kolkata"))
-    bulletin_type = input_data.get("bulletin_type", "Standard")
-    anchor_name   = "Priya Desai" if is_female else "Arjun Sharma"
+    # anchor_name mapping for AI personality
+    anchor_name   = "Priya Desai" if anchor == "female" else "Arjun Sharma"
 
     import datetime
     from zoneinfo import ZoneInfo
@@ -231,22 +231,10 @@ async def generate_audio_activity(data: tuple) -> str:
 
 @activity.defn
 async def generate_news_video_activity(data: tuple) -> str:
-    audio_path, title, anchor = data
-    is_female = (anchor == "female")
-    
-    from database import SessionLocal
-    from models import Channel, Anchor
-    db = SessionLocal()
-    # Find a matching anchor by gender
-    anchor = db.query(Anchor).filter(Anchor.gender == ("female" if is_female else "male")).first()
-    db.close()
-
-    assets_dir = os.path.join(BASE_DIR, "assets")
-    bg_p = os.path.join(assets_dir, "studio_bg.png")
-    logo_p = os.path.join(assets_dir, "logo.png")
-    
-    default_port = "female_anchor.jpg" if is_female else "male_anchor.jpg"
-    port_p = os.path.join(VIDEOS_DIR, default_port) if os.path.exists(os.path.join(VIDEOS_DIR, default_port)) else os.path.join(assets_dir, "female_anchor.png" if is_female else "male_anchor.png")
+    """Renders the final video with ticker and studio overlays using the hardened renderer."""
+    from video_renderer import create_video
+    # data is (audio_path, ticker, anchor, is_breaking)
+    return create_video(data)
 
     try:
         studio = Image.open(bg_p).convert("RGBA").resize((1280, 720)) if os.path.exists(bg_p) else Image.new("RGBA", (1280, 720), (15, 25, 45, 255))

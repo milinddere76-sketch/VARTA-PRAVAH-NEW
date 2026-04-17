@@ -14,10 +14,15 @@ def run_background(cmd):
     subprocess.Popen(cmd, shell=True, start_new_session=True)
 
 def is_alive(name_pattern):
-    """Checks if a process matching the pattern is running."""
-    # Using pgrep -f for robust pattern matching
-    # We exclude the current 'monitor.py' process itself
-    return subprocess.run(f"pgrep -f '{name_pattern}'", shell=True, capture_output=True).returncode == 0
+    """Checks if a process matching the pattern is running, excluding the current process."""
+    # Use pgrep -f and ensure we don't match the current process ID
+    my_pid = os.getpid()
+    try:
+        output = subprocess.check_output(["pgrep", "-f", name_pattern]).decode().split()
+        pids = [int(p) for p in output if int(p) != my_pid]
+        return len(pids) > 0
+    except subprocess.CalledProcessError:
+        return False
 
 def cleanup_storage():
     """Keeps disk usage in check."""
@@ -33,14 +38,31 @@ def cleanup_storage():
         print(f"⚠️ [MONITOR] Cleanup error: {e}", flush=True)
 
 def monitor_loop():
-    print("🛡️ [MONITOR] Auto-Heal & Storage Watch active.", flush=True)
+    print(f"🛡️ [MONITOR] PID {os.getpid()} - Auto-Heal active.", flush=True)
+    
+    # Bootstrap: Launch everything once at start
+    print("🚀 [MONITOR] Initializing Broadcast Stack...", flush=True)
+    
+    print("👉 Starting Worker...", flush=True)
+    run_background(f"{sys.executable} -m streaming_engine.worker")
+    time.sleep(2)
+    
+    print("👉 Starting Switcher...", flush=True)
+    run_background(f"{sys.executable} switcher.py")
+    time.sleep(2)
+    
+    print("👉 Starting Streamer...", flush=True)
+    run_background("bash streamer.sh")
+    time.sleep(2)
+    
+    print("✅ Bootstrap Complete. Entering Monitor Loop.", flush=True)
     
     while True:
         try:
-            # 1. Check Worker (Core)
+            # 1. Check Worker
             if not is_alive("streaming_engine.worker"):
                 print("⚠️ [HEAL] Worker is DOWN!", flush=True)
-                run_background("python3 -m streaming_engine.worker")
+                run_background(f"{sys.executable} -m streaming_engine.worker")
 
             # 2. Check Switcher (Playlist Manager)
             if not is_alive("switcher.py"):
