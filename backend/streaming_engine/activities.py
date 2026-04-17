@@ -357,7 +357,7 @@ async def start_stream_activity(data: dict) -> str:
         print("❌ No stream key available")
         return "failed"
 
-    rtmp_url = f"rtmp://a.rtmp.youtube.com/live2/{s_key}"
+    rtmp_url = f"rtmps://a.rtmp.youtube.com:443/live2/{s_key}"
 
     # 2. SEAMLESS SWIPE (Physical Copy for stability)
     if os.path.exists(v_url) and os.path.getsize(v_url) > 1000:

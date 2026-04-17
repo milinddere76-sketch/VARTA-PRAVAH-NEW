@@ -16,7 +16,7 @@ def run_gapless_stream(rtmp_url, initial_video):
     
     with open(lock_file, "w") as f: f.write(str(os.getpid()))
 
-    print(f"📡 [GAPLESS] Starting Single Ingest to {rtmp_url[:20]}...")
+    print(f"📡 [GAPLESS] Starting Secure RTMPS Ingest to {rtmp_url[:30]}...")
     
     # Absolute paths are required for stable Docker symlinks
     base_dir = "/app"

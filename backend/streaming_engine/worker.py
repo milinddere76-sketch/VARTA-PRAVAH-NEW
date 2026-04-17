@@ -131,6 +131,9 @@ async def main():
         while True: await asyncio.sleep(3600)
 
     # 3. Isolated Background Launches
+    print("⏳ [BOOT] Staggering production start (15s) for RAM stability...")
+    await asyncio.sleep(15)
+    
     channel_id = int(os.getenv("AUTO_START_CHANNEL_ID", "1"))
     language = "Marathi"
     
@@ -140,7 +143,7 @@ async def main():
     # 4. Start Worker
     worker = Worker(
         client,
-        task_queue="news-task-queue-v3",
+        task_queue="news-task-queue-v4",
         workflows=[NewsProductionWorkflow, StopStreamWorkflow, CheckBreakingNewsWorkflow],
         activities=[
             fetch_news_activity,
