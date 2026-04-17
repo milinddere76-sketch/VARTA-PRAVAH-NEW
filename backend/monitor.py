@@ -5,7 +5,7 @@ import glob
 import sys
 
 # --- CONFIGURATION ---
-MAX_FILES = 20
+MAX_FILES = 5
 VIDEOS_DIR = "/app/videos"
 
 def run_background(cmd):
