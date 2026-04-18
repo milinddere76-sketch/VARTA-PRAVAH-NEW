@@ -182,11 +182,12 @@ def create_premium_promo(output_path: str = None) -> bool:
             "-i", ff_p(ticker_png),
             "-i", ff_p(logo_path)
         ]
-        # v1: black + ui, v2: v1 + ticker, v3: v2 + logo
+        # v1: black + ui, v2: v1 + ticker, v3: v2 + logo (scaled)
         filter_complex = (
             "[0:v][1:v]overlay=0:0[v1];"
             f"[v1][2:v]overlay=x='w-mod(250*t,w+{t_width})':y=H-75[v2];"
-            "[v2][3:v]overlay=1050:30[outv]"
+            "[3:v]scale=180:-1[logo_small];"
+            "[v2][logo_small]overlay=1080:20[outv]"
         )
     else:
         inputs = [
