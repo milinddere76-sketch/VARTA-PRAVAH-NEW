@@ -39,7 +39,7 @@ services:
       postgres:
         condition: service_healthy
     environment:
-      DB: postgres
+      DB: postgres12
       DB_ADDR: postgres
       DB_PORT: 5432
       POSTGRES_USER: ${POSTGRES_USER}
