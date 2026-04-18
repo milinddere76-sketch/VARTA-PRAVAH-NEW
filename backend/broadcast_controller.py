@@ -50,9 +50,11 @@ class BroadcastController:
                     time.sleep(30)
                 else:
                     # 🕒 REPLAY LAST NEWS (Zero-Silence Logic)
-                    print(f"🕒 [MCR] Queue empty. Replaying: {last_news}")
-                    streamer.update_playlist(last_news)
-                    time.sleep(10)
+                    # Only restart if nothing is playing
+                    if not streamer.pumper_process or streamer.pumper_process.poll() is not None:
+                        print(f"🕒 [MCR] Queue empty. Reviving: {last_news}")
+                        streamer.update_playlist(last_news)
+                    time.sleep(5)
 
 @app.post("/add-video")
 async def add_video(data: dict):

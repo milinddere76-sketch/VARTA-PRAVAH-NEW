@@ -65,7 +65,8 @@ class Streamer:
             cmd.insert(3, "-stream_loop")
             cmd.insert(4, "-1")
 
-        self.pumper_process = subprocess.Popen(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        print(f"🎬 [PUMPER] Executing: {' '.join(cmd)}")
+        self.pumper_process = subprocess.Popen(cmd) # Allow logs to flow to docker log for debugging
 
     def update_ticker(self, headlines: list):
         """Dynamically updates the scrolling news ticker."""
