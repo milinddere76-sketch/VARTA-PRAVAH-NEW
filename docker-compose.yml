@@ -42,6 +42,7 @@ services:
       DB: postgres12
       POSTGRES_USER: ${POSTGRES_USER}
       POSTGRES_PWD: ${POSTGRES_PASSWORD}
+      DB_ADDR: postgres
       POSTGRES_SEEDS: postgres
     networks: [app-net]
     deploy:
