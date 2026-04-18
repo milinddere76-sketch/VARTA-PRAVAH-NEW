@@ -25,11 +25,37 @@ async def generate_closing_activity(input_data: list) -> str:
 
 @activity.defn
 async def generate_news_video_activity(data: tuple) -> str:
-    output_path = create_video(data)
+    bulletin_type, start_anchor = data
+    
+    # 1. Fetch actual news items (Simulated here)
+    stories = [
+        f"{bulletin_type}: पहिली मोठी बातमी...",
+        "दुसरी महत्त्वाची बातमी...",
+        "आणि तिसरी बातमी क्रीडा विश्वातून..."
+    ]
+    
+    is_female = (start_anchor == "female")
+    clips = []
+    
+    for story in stories:
+        anchor_name = "female" if is_female else "male"
+        # Render individual story block
+        # (Assuming create_video handles single items for now)
+        clip = create_video(("/fake/audio/path", story, anchor_name))
+        clips.append(clip)
+        
+        # 🔄 Toggle for next block
+        is_female = not is_female
+        
+    # 2. Merge all blocks into final bulletin
+    # (Simplified for now - just returning the first clip for demo)
+    output_path = clips[0] 
+    
     try:
         import requests
         requests.post("http://localhost:8001/add-video", json={"video": output_path}, timeout=5)
-        print(f"🚀 [WORKER] Handed off to MCR: {output_path}")
+        print(f"🚀 [WORKER] Handed off Multi-Anchor Bulletin to MCR: {output_path}")
     except Exception as e:
         print(f"⚠️ [WORKER] MCR hand-off failed: {e}")
+        
     return output_path
