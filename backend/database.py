@@ -49,11 +49,11 @@ def get_engine():
         engine = create_engine(_CACHED_ENGINE_URL, pool_pre_ping=True)
         return engine
 
+    # 2. PRIORITY: Env Var > Container DNS > Localhost
     possible_urls = [
-        "postgresql+psycopg://root:password@postgres:5432/temporal", # New Standard
-        "postgresql+psycopg://postgres:varta_pravah_secure_99@postgres:5432/temporal", # Legacy
         os.getenv("DATABASE_URL"),
-        "postgresql+psycopg://root:password@localhost:5432/temporal",
+        "postgresql://postgres:postgres@postgres:5432/temporal",
+        "postgresql://postgres:postgres@localhost:5432/temporal",
     ]
 
     for i in range(1, 11):
