@@ -52,8 +52,6 @@ services:
       - temporal
     environment:
       TEMPORAL_ADDRESS: temporal:7233
-    ports:
-      - "8088:8080"
     networks:
       - app-net
     restart: unless-stopped
@@ -74,8 +72,6 @@ services:
     environment:
       DATABASE_URL: postgresql+psycopg://root:password@postgres:5432/temporal
       TEMPORAL_ADDRESS: temporal:7233
-    ports:
-      - "8000:8000"
     networks:
       - app-net
     restart: unless-stopped
@@ -129,8 +125,6 @@ services:
     depends_on:
       backend:
         condition: service_healthy
-    ports:
-      - "3000:3000"
     networks:
       - app-net
     restart: unless-stopped
