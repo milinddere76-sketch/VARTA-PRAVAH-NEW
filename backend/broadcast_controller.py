@@ -32,7 +32,7 @@ class BroadcastController:
                 streamer.is_promo = False
                 streamer.update_playlist(video)
                 
-                while streamer.process and streamer.process.poll() is None:
+                while streamer.main_process and streamer.main_process.poll() is None:
                     time.sleep(5)
             else:
                 # 📢 Continuity Mode

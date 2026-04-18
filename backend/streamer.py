@@ -5,10 +5,17 @@ import threading
 import signal
 
 class Streamer:
-    def __init__(self, youtube_key: str, channel_id: int):
-        self.youtube_key = youtube_key
+    def __init__(self, youtube_key: str = None, channel_id: int = 1):
+        # Auto-detect from environment if not provided (Industrial Standard)
+        self.youtube_key = youtube_key or os.getenv("YOUTUBE_STREAM_KEY")
         self.channel_id = channel_id
-        self.rtmp_url = f"rtmp://a.rtmp.youtube.com/live2/{youtube_key}"
+        
+        if not self.youtube_key:
+            print("⚠️ [STREAMER] No YouTube Key found! Entering Standby Mode.")
+            self.rtmp_url = "/dev/null"
+        else:
+            self.rtmp_url = f"rtmp://a.rtmp.youtube.com/live2/{self.youtube_key}"
+            
         self.current_video = None
         
         self.main_process = None
