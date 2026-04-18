@@ -147,7 +147,15 @@ def create_premium_promo(output_path: str = None) -> bool:
     print("📽️ Composing core broadcast file...")
     def ff_p(p): return p.replace("\\", "/")
     
-    logo_path = os.path.join(stems_dir, "neon_logo.png")
+    # Priority Logo
+    master_logo = os.path.join(here, "assets", "varta_logo.png")
+    if os.path.exists(master_logo):
+        logo_path = master_logo
+        print(f"💎 Using Master Logo -> {logo_path}")
+    else:
+        logo_path = os.path.join(stems_dir, "neon_logo.png")
+        print(f"🛡️ Using Fallback Logo -> {logo_path}")
+    
     music_path = os.path.join(stems_dir, "news_music.mp3")
 
     filter_complex = (
