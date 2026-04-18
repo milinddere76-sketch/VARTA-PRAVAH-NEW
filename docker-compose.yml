@@ -9,8 +9,8 @@ services:
     image: postgres:15
     restart: unless-stopped
     environment:
-      POSTGRES_USER: ${POSTGRES_USER:-postgres}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+      POSTGRES_USER: ${POSTGRES_USER:-root}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-password}
     volumes:
       - postgres_data_v12:/var/lib/postgresql/data
     networks: [app-net]
@@ -36,8 +36,8 @@ services:
       DB: postgres12
       DB_ADDR: postgres
       DB_PORT: 5432
-      POSTGRES_USER: ${POSTGRES_USER:-postgres}
-      POSTGRES_PWD: ${POSTGRES_PASSWORD:-postgres}
+      POSTGRES_USER: ${POSTGRES_USER:-root}
+      POSTGRES_PWD: ${POSTGRES_PASSWORD:-password}
       POSTGRES_SEEDS: postgres
     networks: [app-net]
     deploy:
@@ -83,7 +83,7 @@ services:
       temporal:
         condition: service_started
     environment:
-      DATABASE_URL: ${DATABASE_URL:-postgresql://postgres:postgres@postgres:5432/temporal}
+      DATABASE_URL: ${DATABASE_URL:-postgresql://root:password@postgres:5432/temporal}
       TEMPORAL_ADDRESS: ${TEMPORAL_ADDRESS:-temporal:7233}
     networks: [app-net]
     deploy:
@@ -118,7 +118,7 @@ services:
       temporal:
         condition: service_started
     environment:
-      DATABASE_URL: ${DATABASE_URL:-postgresql://postgres:postgres@postgres:5432/temporal}
+      DATABASE_URL: ${DATABASE_URL:-postgresql://root:password@postgres:5432/temporal}
       TEMPORAL_ADDRESS: ${TEMPORAL_ADDRESS:-temporal:7233}
       YOUTUBE_STREAM_KEY: ${YOUTUBE_STREAM_KEY}
     networks: [app-net]

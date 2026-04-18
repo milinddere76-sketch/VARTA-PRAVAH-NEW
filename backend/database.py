@@ -52,8 +52,8 @@ def get_engine():
     # 2. PRIORITY: Env Var > Container DNS > Localhost
     possible_urls = [
         os.getenv("DATABASE_URL"),
-        "postgresql://postgres:postgres@postgres:5432/temporal",
-        "postgresql://postgres:postgres@localhost:5432/temporal",
+        "postgresql://root:password@postgres:5432/temporal",
+        "postgresql://root:password@localhost:5432/temporal",
     ]
 
     for i in range(1, 11):
