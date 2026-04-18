@@ -10,6 +10,8 @@ RUN --mount=type=cache,target=/var/lib/apt/lists \
     curl \
     procps \
     fonts-noto-hinted \
+    fonts-noto-extra \
+    fontconfig \
     fonts-dejavu-core \
     libfreetype6-dev \
     libjpeg-dev \
@@ -18,6 +20,7 @@ RUN --mount=type=cache,target=/var/lib/apt/lists \
     libpq-dev \
     gcc \
     python3-dev \
+    && fc-cache -f -v \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app

@@ -73,6 +73,8 @@ def create_premium_promo(output_path: str = None) -> bool:
         font_marathi = find_font([
             "/usr/share/fonts/truetype/noto/NotoSansDevanagari-Bold.ttf",
             "/usr/share/fonts/truetype/noto/NotoSansDevanagari-Regular.ttf",
+            "/usr/share/fonts/truetype/noto/NotoDevanagari-Bold.ttf",
+            "/usr/share/fonts/truetype/noto/NotoDevanagari-Regular.ttf",
             "/usr/share/fonts/truetype/freefont/FreeSans.ttf"
         ])
         font_english = find_font(["/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf", "/usr/share/fonts/truetype/liberation/LiberationSans-Regular.ttf"])
