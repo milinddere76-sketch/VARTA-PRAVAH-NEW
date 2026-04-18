@@ -61,3 +61,19 @@ async def generate_news_video_activity(data: tuple) -> str:
         print(f"⚠️ [WORKER] MCR hand-off failed: {e}")
         
     return output_path
+
+@activity.defn
+async def synclabs_lip_sync_activity(data: dict) -> str:
+    """
+    Connects the high-fidelity Marathi audio with the AI Portrait.
+    Uses the local lip_sync.py bridge for production stability.
+    """
+    audio_path = data.get("audio_url") # Path within container
+    anchor_name = data.get("is_female", "female")
+    
+    from lip_sync import generate_lipsync
+    print(f"🧬 [ACTIVITY] Fusing Audio with {anchor_name} portrait...")
+    
+    # This triggers our high-fidelity synthesis engine
+    synced_video = generate_lipsync(audio_path, anchor_name)
+    return synced_video
