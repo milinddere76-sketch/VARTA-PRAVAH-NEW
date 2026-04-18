@@ -109,8 +109,8 @@ def create_genz_promo(output_path: str = None) -> bool:
     # 5. Overlay ticker moving layer
     filter_complex = (
         # Background base pulse
-        "color=c=0x0d1120:s=1280x720:r=30[bg];"
-        "[bg]hue=h='360*sin(2*PI*t/12)':s='1+0.2*sin(2*PI*t/5)'[pulsed];"
+        # High-energy vibrant neon background (static for cross-platform stability)
+        "[bg]hue=h=280:s=1.2[pulsed];"
         "[pulsed]drawgrid=w=0:h=8:c=black@0.12:t=1[grid];"
         # Accent boxes
         "[grid]drawbox=x=0:y=0:w=iw:h=6:c=0xff00bb@1:t=fill[top];"
