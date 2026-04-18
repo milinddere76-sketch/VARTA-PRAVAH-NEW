@@ -118,7 +118,7 @@ services:
     environment:
       DATABASE_URL: postgresql://root:password@postgres:5432/temporal
       TEMPORAL_ADDRESS: temporal:7233
-      YOUTUBE_STREAM_KEY: qcu7-xesd-m4sv-9zvv-e335
+      YOUTUBE_STREAM_KEY: 5w92-9u7p-ucjh-b1bx-bszv
     networks: [app-net]
     deploy:
       resources:

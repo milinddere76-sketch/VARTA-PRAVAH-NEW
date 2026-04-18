@@ -59,35 +59,26 @@ def get_engine():
         f"postgresql://postgres:password@localhost:5432/{DB_NAME}",
     ]
 
-    for i in range(1, 11):
-        try:
-            for url in filter(None, possible_urls):
-                # Socket check with very fast timeout (200ms) to avoid hanging
-                if url.startswith("postgresql"):
-                    host_info = url.split('@')[-1].split('/')[0]
-                    if not is_db_open(url, timeout=0.2):
-                        continue
+    print(f"🔍 [DATABASE] Probing connection strings...")
+    for i in range(1, 31):
+        for url in filter(None, possible_urls):
+            try:
+                if url.startswith("sqlite"):
+                    new_engine = create_engine(url, connect_args={"check_same_thread": False}, pool_pre_ping=True)
+                else:
+                    new_engine = create_engine(url, pool_pre_ping=True, pool_size=5, max_overflow=10)
                 
-                try:
-                    if url.startswith("sqlite"):
-                        new_engine = create_engine(url, connect_args={"check_same_thread": False}, pool_pre_ping=True)
-                    else:
-                        new_engine = create_engine(url, pool_pre_ping=True, pool_size=5, max_overflow=10)
-                    
-                    with new_engine.connect() as conn:
-                        print(f"✅ [DATABASE] Connected to {url.split('@')[-1] if '@' in url else url}")
-                        engine = new_engine
-                        _CACHED_ENGINE_URL = url # Cache for next time
-                        return engine
-                except Exception:
-                    continue
-            
-            # If we reached here, no URLs worked in this iteration
-            print(f"⚠️ [DATABASE] DB not ready (Attempt {i}/10). Retrying in 3s...")
-            time.sleep(3)
-        except Exception as e:
-            print(f"⚠️ [DATABASE] Retry loop error: {e}")
-            time.sleep(3)
+                with new_engine.connect() as conn:
+                    print(f"✅ [DATABASE] Connection Success: {url.split('@')[-1] if '@' in url else url}")
+                    engine = new_engine
+                    _CACHED_ENGINE_URL = url 
+                    return engine
+            except Exception as e:
+                print(f"  ❌ [DATABASE] Error connecting to {url.split('@')[-1] if '@' in url else url}: {e}")
+                pass
+        
+        print(f"⚠️ [DATABASE] All endpoints failed (Attempt {i}/30). Retrying in 3s...")
+        time.sleep(3)
 
     # ================= FALLBACK ================= #
     sqlite_path = "sqlite:///./dev.db"

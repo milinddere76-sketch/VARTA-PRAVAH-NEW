@@ -5,6 +5,7 @@ packages=(
     "uvicorn[standard]>=0.30.0"
     "pydantic>=2.10.0"
     "sqlalchemy>=2.0.49"
+    "psycopg2-binary"
     "psycopg>=3.3.3"
     "temporalio>=1.26.0"
     "groq>=0.11.2"

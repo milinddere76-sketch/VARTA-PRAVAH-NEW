@@ -350,7 +350,7 @@ async def force_start_news_bulletin(channel_id: int = 1, db: Session = Depends(d
         # We start an activity-based production run or the main scheduler
         handle = await temporal_client.start_workflow(
             NewsSchedulerWorkflow.run,
-            args=[channel_id],
+            args=[channel_id, True], # True = immediate
             id=unique_run_id,
             task_queue="news-task-queue-v4"
         )

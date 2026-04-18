@@ -58,57 +58,40 @@ def create_video(data):
         if has_music:
             inputs.extend(["-i", music_path])
 
-        filter_complex = (
-            "[0:v]scale=854:480[bg];"
-            "[1:v]scale=270:405[anchor];"
-            "[bg][anchor]overlay=30:65[tmp1];"
+        # Base Filters: Scale BG, Scale Anchor, Overlay Anchor on BG
+        fc = (
+            "[0:v]scale=1280:720[bg];"
+            "[1:v]scale=360:540[anchor];"
+            "[bg][anchor]overlay=60:120[tmp1];"
             "[tmp1]drawtext=fontfile=/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf:"
-            f"text='{lower_text}':x=15:y=h-100:fontsize=22:fontcolor=white:box=1:boxcolor=black@0.7[tmp2];"
-            "[tmp2][2:v]scale=80:80[logo];"
-            "[tmp2][logo]overlay=W-100:20[tmp3];"
+            f"text='{lower_text}':x=40:y=h-140:fontsize=32:fontcolor=white:box=1:boxcolor=black@0.7[tmp2];"
+            "[tmp2][2:v]scale=120:120[logo];"
+            "[tmp2][logo]overlay=W-160:40[tmp3];"
             "[tmp3]drawtext=fontfile=/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf:"
-            f"text='{ticker}':x=w-mod(t*150,w+tw):y=h-40:fontsize=20:fontcolor=yellow:box=1:boxcolor={box_color},fade=t=in:st=0:d=1[tmp4];"
+            f"text='{ticker}':x=w-mod(t*150,w+tw):y=h-60:fontsize=28:fontcolor=yellow:box=1:boxcolor={box_color},fade=t=in:st=0:d=1[tmp4];"
             
-            # --- LIVE CLOCK, DATE, WEATHER, SPORTS & ELECTION ---
-            filter_complex += (
-                f";[tmp4]drawtext=fontfile=/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf:"
-                f"text='{weather_text}':x=20:y=20:fontsize=22:fontcolor=cyan:box=1:boxcolor=black@0.5,"
-                "drawtext=fontfile=/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf:"
-                "text='%{localtime\\:%H\\\\\\:%M}':x=W-160:y=20:fontsize=24:fontcolor=white:box=1:boxcolor=black@0.5,"
-                "drawtext=fontfile=/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf:"
-                "text='%{localtime\\:%d-%m-%Y}':x=W-160:y=50:fontsize=16:fontcolor=white,"
-                f"drawtext=fontfile=/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf:"
-                f"text='{cricket_text}':x=20:y=80:fontsize=18:fontcolor=white:box=1:boxcolor=red@0.5,"
-                f"drawtext=fontfile=/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf:"
-                f"text='{election_text}':x=20:y=120:fontsize=18:fontcolor=yellow:box=1:boxcolor=black@0.5[outv]"
-            )
-        else:
-            # Mode without music
-            filter_complex += (
-                f";[outv]drawtext=fontfile=/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf:"
-                f"text='{weather_text}':x=20:y=20:fontsize=22:fontcolor=cyan:box=1:boxcolor=black@0.5,"
-                "drawtext=fontfile=/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf:"
-                "text='%{localtime\\:%H\\\\\\:%M}':x=W-160:y=20:fontsize=24:fontcolor=white:box=1:boxcolor=black@0.5,"
-                "drawtext=fontfile=/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf:"
-                "text='%{localtime\\:%d-%m-%Y}':x=W-160:y=50:fontsize=16:fontcolor=white,"
-                f"drawtext=fontfile=/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf:"
-                f"text='{cricket_text}':x=20:y=80:fontsize=18:fontcolor=white:box=1:boxcolor=red@0.5,"
-                f"drawtext=fontfile=/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf:"
-                f"text='{election_text}':x=20:y=120:fontsize=18:fontcolor=yellow:box=1:boxcolor=black@0.5[final_v]"
-            )
-            # Adjust mapping if no music
-            map_audio = "1:a"
-            # Note: I'll simplify the mapping logic to be consistent
+            # --- OVERLAYS: CLOCK, WEATHER, SPORTS ---
+            f"[tmp4]drawtext=fontfile=/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf:"
+            f"text='{weather_text}':x=40:y=40:fontsize=28:fontcolor=cyan:box=1:boxcolor=black@0.5,"
+            "drawtext=fontfile=/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf:"
+            "text='%{localtime\\:%H\\\\\\:%M}':x=W-240:y=40:fontsize=36:fontcolor=white:box=1:boxcolor=black@0.5,"
+            "drawtext=fontfile=/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf:"
+            f"text='{cricket_text}':x=40:y=120:fontsize=24:fontcolor=white:box=1:boxcolor=red@0.5,"
+            f"drawtext=fontfile=/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf:"
+            f"text='{election_text}':x=40:y=180:fontsize=24:fontcolor=yellow:box=1:boxcolor=black@0.5[outv]"
+        )
 
         if has_music:
-            filter_complex += ";[3:a]volume=0.3[music];[1:a][music]amix=inputs=2:duration=first:dropout_transition=2[outa]"
-            map_audio = "[outa]"
+            fc += ";[3:a]volume=0.2[music];[1:a][music]amix=inputs=2:duration=first:dropout_transition=2[outa]"
+            map_v = "[outv]"
+            map_a = "[outa]"
         else:
-            map_audio = "1:a"
+            map_v = "[outv]"
+            map_a = "1:a"
 
         cmd = ["ffmpeg", "-y"] + inputs + [
-            "-filter_complex", filter_complex,
-            "-map", "[outv]", "-map", map_audio,
+            "-filter_complex", fc,
+            "-map", map_v, "-map", map_a,
             "-c:v", "libx264", "-preset", "ultrafast", "-c:a", "aac", "-b:a", "128k", "-shortest",
             output
         ]
