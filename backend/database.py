@@ -53,7 +53,9 @@ def get_engine():
     possible_urls = [
         os.getenv("DATABASE_URL"),
         "postgresql://root:password@postgres:5432/temporal",
+        "postgresql://postgres:password@postgres:5432/temporal",
         "postgresql://root:password@localhost:5432/temporal",
+        "postgresql://postgres:password@localhost:5432/temporal",
     ]
 
     for i in range(1, 11):
