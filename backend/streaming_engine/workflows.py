@@ -120,17 +120,27 @@ class NewsProductionWorkflow:
                     await workflow.sleep(timedelta(minutes=1)) # Show for a bit
 
                 # 1. SCHEDULED PRODUCTION CHECK
-                current_time = datetime.now(ist).strftime("%H:%M")
-                bulletin_type = "Standard Headlines"
-                if "06:00" <= current_time < "11:00": bulletin_type = "Morning Bulletin"
-                elif "11:00" <= current_time < "16:00": bulletin_type = "Afternoon Bulletin"
-                elif "16:00" <= current_time < "19:30": bulletin_type = "Evening Bulletin"
-                elif "19:30" <= current_time < "22:30": bulletin_type = "Prime Time"
-                elif "22:30" <= current_time < "23:59" or "00:00" <= current_time < "05:00": bulletin_type = "Night Bulletin"
-
-                # Forced immediate production on first run or time change
-                if bulletin_type != last_bulletin_type or bulletin_index == 0:
-
+                # 1. MASTER SCHEDULE COMPLIANCE
+                target_slots = ["05:00", "12:00", "17:00", "20:00", "23:00"]
+                now = datetime.now(ist)
+                current_time_str = now.strftime("%H:%M")
+                
+                active_slot = None
+                for slot in target_slots:
+                    slot_dt = datetime.strptime(slot, "%H:%M").replace(
+                        year=now.year, month=now.month, day=now.day, tzinfo=ist
+                    )
+                    # Prepare 15 mins before
+                    prep_window_start = slot_dt - timedelta(minutes=15)
+                    
+                    if prep_window_start <= now < slot_dt:
+                        active_slot = slot
+                        break
+                
+                # Check if we need to produce for the upcoming/current slot
+                if active_slot and active_slot != last_bulletin_type:
+                    bulletin_type = f"{active_slot} Bulletin"
+                    
                     # Persistent Toggle via Manager Activity
                     anchor = await workflow.execute_activity(
                         "get_anchor",
@@ -138,103 +148,47 @@ class NewsProductionWorkflow:
                     )
                     is_female = (anchor == "female")
                     anchor_label = "FEMALE (Priya)" if is_female else "MALE (Arjun)"
-                    print(f"🎬 [SCHEDULER] Producing {bulletin_type} with {anchor_label} anchor")
+                    print(f"🎬 [MASTER SCHEDULE] 15-Min Prep started for {bulletin_type} with {anchor_label}")
                     bulletin_index += 1
 
                     news_items = await workflow.execute_activity(fetch_news_activity, language, start_to_close_timeout=timedelta(minutes=2))
-                    items = (news_items if isinstance(news_items, list) else [news_items])[:25]
+                    items = (news_items if isinstance(news_items, list) else [news_items])[:15] # 15 items for stability
 
-                    # Headlines (Sequential anchor intro)
-                    h_res = await workflow.execute_activity(
-                        generate_script_activity, 
-                        (items[0] if items else {}, bulletin_type, False, anchor), 
-                        start_to_close_timeout=timedelta(minutes=5)
-                    )
-                    h_a = await workflow.execute_activity(
-                        generate_audio_activity, 
-                        (h_res["script"], anchor), 
-                        start_to_close_timeout=timedelta(minutes=5)
-                    )
-                    
-                    h_job = await workflow.execute_activity(synclabs_lip_sync_activity, {"audio_url": h_a, "is_female": is_female}, start_to_close_timeout=timedelta(minutes=5))
-                    h_v = ""
-                    if h_job not in ["no_api_key", "failed"]:
-                        for _ in range(20):
-                            h_poll = await workflow.execute_activity(check_sync_labs_status_activity, h_job, start_to_close_timeout=timedelta(minutes=1))
-                            if h_poll["status"] == "completed":
-                                h_v = h_poll["video_url"]
-                                break
-                            await workflow.sleep(timedelta(seconds=10))
-
-                    if not h_v:
-                        h_v = await workflow.execute_activity(
-                            generate_news_video_activity, 
-                            (h_a, "HEADLINES", anchor, False), 
-                            start_to_close_timeout=timedelta(minutes=5)
-                        )
-
-                    clips = [h_v] if h_v else []
-                    
-                    # Helper to produce a single story
-                    async def produce_story(s):
-                        try:
-                            s_s = await workflow.execute_activity(
-                                generate_script_activity, 
-                                (s, bulletin_type, False, anchor), 
-                                start_to_close_timeout=timedelta(minutes=5)
-                            )
-                            s_a = await workflow.execute_activity(
-                                generate_audio_activity, 
-                                (s_s["script"], anchor), 
-                                start_to_close_timeout=timedelta(minutes=5)
-                            )
-                            s_job = await workflow.execute_activity(synclabs_lip_sync_activity, {"audio_url": s_a, "is_female": is_female}, start_to_close_timeout=timedelta(minutes=5))
-                            
-                            synced_v = ""
-                            if s_job not in ["no_api_key", "failed"]:
-                                for _ in range(30):
-                                    poll = await workflow.execute_activity(check_sync_labs_status_activity, s_job, start_to_close_timeout=timedelta(minutes=2))
-                                    if poll["status"] == "completed":
-                                        synced_v = poll["video_url"]
-                                        break
-                                    await workflow.sleep(timedelta(seconds=10))
-
-                            if synced_v:
-                                return synced_v
-                            
-                            return await workflow.execute_activity(generate_news_video_activity, {"title": s.get("headline"), "audio_url": s_a, "is_female": is_female}, start_to_close_timeout=timedelta(minutes=5))
-                        except Exception as e:
-                            print(f"[WORKFLOW] Failed story item: {e}")
-                            return None
-
-                    # 2. Sequential Production (To ensure stability on resource-constrained server)
-                    print(f"⚡ [SCHEDULER] Producing {len(items)} items sequentially...")
+                    # Sequential Production (To ensure stability on resource-constrained server)
                     results = []
                     for it in items:
                         try:
-                            res = await produce_story(it)
+                            res = await self.produce_story(it, bulletin_type, anchor, is_female)
                             if res:
                                 results.append(res)
                                 print(f"✅ [SCHEDULER] Item complete: {len(results)}/{len(items)}")
                         except Exception as e:
                             print(f"⚠️ [SCHEDULER] Item failed: {e}")
                     
-                    clips.extend(results)
-
                     # 3. Final Master Merge & Broadcast
                     final_v = await workflow.execute_activity(merge_videos_activity, {
-                        "video_paths": clips,
+                        "video_paths": results,
                         "bulletin_type": bulletin_type,
                         "is_female": is_female
                     }, start_to_close_timeout=timedelta(minutes=10))
                     
+                    # WAIT UNTIL EXACT SLOT TIME TO GO LIVE
+                    now_check = datetime.now(ist)
+                    target_dt = datetime.strptime(active_slot, "%H:%M").replace(
+                        year=now_check.year, month=now_check.month, day=now_check.day, tzinfo=ist
+                    )
+                    if now_check < target_dt:
+                        wait_seconds = (target_dt - now_check).total_seconds()
+                        print(f"⌛ [MASTER SCHEDULE] Render complete. Waiting {wait_seconds}s for air-time...")
+                        await workflow.sleep(timedelta(seconds=wait_seconds))
+
                     await workflow.execute_activity(start_stream_activity, {
                         "channel_id": channel_id,
                         "stream_key": stream_key,
                         "video_url": final_v
                     }, start_to_close_timeout=timedelta(minutes=5))
                     
-                    last_bulletin_type = bulletin_type
+                    last_bulletin_type = active_slot
 
                 print(f"📡 [AIR] Current Mode: {bulletin_type}. Standing by for Breaking News or Next Cycle...")
                 
