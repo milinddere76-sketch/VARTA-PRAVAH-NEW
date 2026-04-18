@@ -48,8 +48,8 @@ def monitor_loop():
     print("👉 Starting Worker...", flush=True)
     run_background(f"{sys.executable} -m streaming_engine.worker")
     
-    print("👉 Starting Streamer Engine...", flush=True)
-    run_background(f"{sys.executable} streamer.py")
+    print("👉 Starting Broadcast Controller (MCR)...", flush=True)
+    run_background(f"{sys.executable} broadcast_controller.py")
     
     print("✅ Bootstrap Complete. entering Supervisor loop.", flush=True)
     
@@ -60,10 +60,10 @@ def monitor_loop():
                 print("⚠️ [HEAL] Worker is DOWN!", flush=True)
                 run_background(f"{sys.executable} -m streaming_engine.worker")
 
-            # 2. Check Streamer Engine
-            if not is_alive("streamer.py"):
-                print("⚠️ [HEAL] Streamer Engine is DOWN!", flush=True)
-                run_background(f"{sys.executable} streamer.py")
+            # 2. Check Broadcast Controller
+            if not is_alive("broadcast_controller.py"):
+                print("⚠️ [HEAL] Controller (MCR) is DOWN!", flush=True)
+                run_background(f"{sys.executable} broadcast_controller.py")
 
             # 3. Storage Maintenance
             cleanup_storage()

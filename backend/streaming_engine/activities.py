@@ -25,4 +25,11 @@ async def generate_closing_activity(input_data: list) -> str:
 
 @activity.defn
 async def generate_news_video_activity(data: tuple) -> str:
-    return create_video(data)
+    output_path = create_video(data)
+    try:
+        import requests
+        requests.post("http://localhost:8001/add-video", json={"video": output_path}, timeout=5)
+        print(f"🚀 [WORKER] Handed off to MCR: {output_path}")
+    except Exception as e:
+        print(f"⚠️ [WORKER] MCR hand-off failed: {e}")
+    return output_path
