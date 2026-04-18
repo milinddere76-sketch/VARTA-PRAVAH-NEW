@@ -86,17 +86,19 @@ class Streamer:
 
         # Main persistent engine with scrolling ticker filter
         cmd = [
-            "ffmpeg", "-y", "-loglevel", "warning",
+            "ffmpeg", "-y", "-loglevel", "info",
             "-i", self.pipe_path,
             "-vf", "drawtext=textfile=/app/ticker.txt:reload=1:x=w-mod(max(t\,0)*(w+tw)/20\,(w+tw)):y=h-50:fontsize=28:fontcolor=white:box=1:boxcolor=black@0.6",
             "-c:v", "libx264", "-preset", "veryfast", "-tune", "zerolatency",
             "-b:v", "2500k", "-maxrate", "2500k", "-bufsize", "5000k",
             "-pix_fmt", "yuv420p", "-g", "60",
             "-c:a", "aac", "-b:a", "128k", "-ar", "44100",
-            "-f", "flv", self.rtmp_url
+            "-f", "flv", "-flvflags", "no_duration_filesize", self.rtmp_url
         ]
 
-        self.main_process = subprocess.Popen(cmd)
+        print(f"🚀 [STREAMER] Igniting Persistent YouTube Connection...")
+        print(f"🎬 [MAIN-STREAM] Executing: {' '.join(cmd)}")
+        self.main_process = subprocess.Popen(cmd) # Enable logs to flow to docker log for debugging
         
         # Ensure we are pumping something immediately
         if not self.current_video:
