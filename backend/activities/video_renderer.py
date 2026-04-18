@@ -44,28 +44,23 @@ def create_video(data):
 
     try:
         # 2. Generate Lip-Synced Footage
+        # This is already a 1280x720 video with anchor and background
         lipsync_v = generate_lipsync(audio_path, anchor)
 
-        # 3. FFmpeg Composite with High-End TV Branding & Audio Mix
+        # 3. FFmpeg Composite (Logo + Ticker + Overlays)
         inputs = [
-            "-i", "/app/videos/studio.mp4",
             "-i", lipsync_v,
             "-i", logo_path
         ]
         
-        # Add music if it exists
-        has_music = os.path.exists(music_path)
-        if has_music:
-            inputs.extend(["-i", music_path])
-
-        # Base Filters: Scale BG, Scale Anchor, Overlay Anchor on BG
+        # Build Filter Complex
+        # [0:v] is the lip-sync video
+        # [1:v] is the logo
         fc = (
-            "[0:v]scale=1280:720[bg];"
-            "[1:v]scale=360:540[anchor];"
-            "[bg][anchor]overlay=60:120[tmp1];"
-            "[tmp1]drawtext=fontfile=/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf:"
+            "[0:v]copy[tmpv];"
+            "[tmpv]drawtext=fontfile=/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf:"
             f"text='{lower_text}':x=40:y=h-140:fontsize=32:fontcolor=white:box=1:boxcolor=black@0.7[tmp2];"
-            "[tmp2][2:v]scale=120:120[logo];"
+            "[tmp2][1:v]scale=120:120[logo];"
             "[tmp2][logo]overlay=W-160:40[tmp3];"
             "[tmp3]drawtext=fontfile=/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf:"
             f"text='{ticker}':x=w-mod(t*150,w+tw):y=h-60:fontsize=28:fontcolor=yellow:box=1:boxcolor={box_color},fade=t=in:st=0:d=1[tmp4];"
@@ -81,23 +76,15 @@ def create_video(data):
             f"text='{election_text}':x=40:y=180:fontsize=24:fontcolor=yellow:box=1:boxcolor=black@0.5[outv]"
         )
 
-        if has_music:
-            fc += ";[3:a]volume=0.2[music];[1:a][music]amix=inputs=2:duration=first:dropout_transition=2[outa]"
-            map_v = "[outv]"
-            map_a = "[outa]"
-        else:
-            map_v = "[outv]"
-            map_a = "1:a"
-
         cmd = ["ffmpeg", "-y"] + inputs + [
             "-filter_complex", fc,
-            "-map", map_v, "-map", map_a,
+            "-map", "[outv]", "-map", "0:a",
             "-c:v", "libx264", "-preset", "ultrafast", "-c:a", "aac", "-b:a", "128k", "-shortest",
             output
         ]
 
         subprocess.run(cmd, check=True)
-        print(f"✅ [RENDERER] Video with Scrolling Ticker ready: {output}")
+        print(f"✅ [RENDERER] Final Bulletin Ready: {output}")
 
         # Optional: Cleanup temporary file
         if os.path.exists(lipsync_v) and "lipsync_" in lipsync_v:
