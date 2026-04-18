@@ -24,10 +24,10 @@ class NewsSchedulerWorkflow:
             if now.minute == 45: 
                 slot_type = self.get_slot_name(now.hour)
                 if slot_type:
-                    anchor_type = "female" if self._is_female else "male"
-                    print(f"🎬 [SCHEDULER] Triggering {slot_type} Bulletin with {anchor_type.upper()} anchor.")
+                    anchor_name = "Kritika" if self._is_female else "Priyansh"
+                    print(f"🎬 [SCHEDULER] Triggering {slot_type} Bulletin with {anchor_name}.")
                     
-                    await self.generate(slot_type, anchor_type)
+                    await self.generate(slot_type, "female" if self._is_female else "male")
                     
                     # Flip for next slot
                     self._is_female = not self._is_female
