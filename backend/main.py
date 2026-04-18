@@ -339,6 +339,25 @@ async def upload_ad_video(file: UploadFile = File(...)):
         f.write(content)
     return {"video_url": file_path, "filename": file.filename, "size_mb": round(len(content)/(1024*1024), 1)}
 
+@app.post("/production/force-start")
+async def force_start_news_bulletin(channel_id: int = 1, db: Session = Depends(database.get_db), temporal_client: Client = Depends(get_temporal_client)):
+    """Triggers an immediate, non-scheduled news production run."""
+    channel = db.query(models.Channel).filter(models.Channel.id == channel_id).first()
+    if not channel: raise HTTPException(status_code=404, detail="Channel not found")
+    
+    unique_run_id = f"news-force-{int(time.time())}"
+    try:
+        # We start an activity-based production run or the main scheduler
+        handle = await temporal_client.start_workflow(
+            NewsSchedulerWorkflow.run,
+            args=[channel_id],
+            id=unique_run_id,
+            task_queue="news-task-queue-v4"
+        )
+        return {"status": "🚀 Manual news production STARTED", "id": unique_run_id}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
 if __name__ == "__main__":
     import uvicorn
     import sys
