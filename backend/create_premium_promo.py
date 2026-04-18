@@ -152,8 +152,8 @@ def create_premium_promo(output_path: str = None) -> bool:
 
     filter_complex = (
         "[0:v]scale=1280:720,setsar=1[vbg];"
-        # Pulsing neon logo in top-right
-        "[3:v]scale=150:-1,format=rgba,colorchannelmixer=aa='0.7+0.3*sin(2*PI*t/3)'[pulse_logo];"
+        # Professional static logo in top-right
+        "[3:v]scale=150:-1,format=rgba,colorchannelmixer=aa=0.85[pulse_logo];"
         "[vbg][pulse_logo]overlay=W-w-50:50[v1];"
         # Add UI Layer
         "[v1][1:v]overlay=0:0[v2];"
