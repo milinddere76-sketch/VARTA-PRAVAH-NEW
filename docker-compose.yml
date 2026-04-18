@@ -1,126 +1,145 @@
+version: "3.9"
+
 services:
+
+  # =========================
+  # 🗄️ POSTGRES
+  # =========================
   postgres:
     image: postgres:15
     container_name: postgres
-    restart: always
+    restart: unless-stopped
     environment:
-      POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: varta_pravah_secure_99
+      POSTGRES_USER: root
+      POSTGRES_PASSWORD: password
       POSTGRES_DB: temporal
-    ports:
-      - "5432:5432"
     volumes:
-      - postgres_data_v11:/var/lib/postgresql/data
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U postgres -d postgres"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
+      - postgres_data_v12:/var/lib/postgresql/data
     networks:
-      - vartapravah-net
+      - app-net
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U root -d temporal"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
 
+  # =========================
+  # ⏱️ TEMPORAL
+  # =========================
   temporal:
-    container_name: temporal
     image: temporalio/auto-setup:1.24.2
-    restart: always
-    environment:
-      - DB=postgres12
-      - DB_PORT=5432
-      - POSTGRES_USER=postgres
-      - POSTGRES_PWD=varta_pravah_secure_99
-      - POSTGRES_PASSWORD=varta_pravah_secure_99
-      - POSTGRES_SEEDS=postgres
-    ports:
-      - "7233:7233"
+    container_name: temporal
     depends_on:
       postgres:
         condition: service_healthy
-    networks:
-      - vartapravah-net
-
-  temporal-ui:
-    container_name: temporal-ui
-    image: temporalio/ui:latest
-    restart: always
     environment:
-      - TEMPORAL_ADDRESS=temporal:7233
-      - TEMPORAL_UI_PORT=8080
-    ports:
-      - "8088:8080"
+      DB: postgres12
+      DB_PORT: 5432
+      POSTGRES_USER: root
+      POSTGRES_PWD: password
+      POSTGRES_SEEDS: postgres
+    networks:
+      - app-net
+    restart: unless-stopped
+
+  # =========================
+  # 🌐 TEMPORAL UI
+  # =========================
+  temporal-ui:
+    image: temporalio/ui:latest
+    container_name: temporal-ui
     depends_on:
       - temporal
-    networks:
-      - vartapravah-net
-
-  backend:
-    container_name: vartapravah_backend
-    build: ./backend
-    working_dir: /app
-    restart: always
-    command: uvicorn main:app --host 0.0.0.0 --port 8000
-    ports:
-      - "8000:8000"
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-      start_period: 300s
     environment:
-      - DATABASE_URL=postgresql+psycopg://postgres:varta_pravah_secure_99@postgres:5432/temporal
-      - TEMPORAL_ADDRESS=temporal:7233
-      - PYTHONUNBUFFERED=1
-      - PYTHONPATH=/app
-    volumes:
-      - ./backend/videos:/app/videos
+      TEMPORAL_ADDRESS: temporal:7233
+    ports:
+      - "8080:8080"
+    networks:
+      - app-net
+    restart: unless-stopped
+
+  # =========================
+  # 🚀 BACKEND (FASTAPI)
+  # =========================
+  backend:
+    build: 
+      context: .
+      dockerfile: ./backend/Dockerfile
+    container_name: backend
     depends_on:
       postgres:
         condition: service_healthy
       temporal:
         condition: service_started
-    networks:
-      - vartapravah-net
-
-  backend-worker:
-    container_name: vartapravah_worker
-    build: ./backend
-    working_dir: /app
-    restart: always
-    command: python monitor.py
     environment:
-      - DATABASE_URL=postgresql+psycopg://postgres:varta_pravah_secure_99@postgres:5432/temporal
-      - TEMPORAL_ADDRESS=temporal:7233
-      - AUTO_START_CHANNEL_ID=1
-      - DEFAULT_LANGUAGE=Marathi
-      - YOUTUBE_STREAM_KEY=${YOUTUBE_STREAM_KEY}
-      - PYTHONPATH=/app
-    volumes:
-      - ./backend/videos:/app/videos
-    depends_on:
-      - backend
-      - temporal
-    networks:
-      - vartapravah-net
-
-  frontend:
-    container_name: vartapravah_frontend
-    build: ./frontend
-    restart: always
+      DATABASE_URL: postgresql+psycopg://root:password@postgres:5432/temporal
+      TEMPORAL_ADDRESS: temporal:7233
     ports:
-      - "3000:3000"
+      - "8000:8000"
+    networks:
+      - app-net
+    restart: unless-stopped
+
+    command: >
+      sh -c "
+      echo '⏳ Waiting for DB...' &&
+      sleep 5 &&
+      uvicorn main:app --host 0.0.0.0 --port 8000
+      "
+
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # =========================
+  # ⚙️ WORKER (TEMPORAL)
+  # =========================
+  backend-worker:
+    build: 
+      context: .
+      dockerfile: ./backend/Dockerfile
+    container_name: backend-worker
+    depends_on:
+      temporal:
+        condition: service_started
     environment:
-      - BACKEND_URL=http://backend:8000
-      - NEXT_SERVER_ACTIONS_ENCRYPTION_KEY=W3mUwLYSQC9bPN68YyAr6l7FBw9KHAcrnReU/tiSjBg=
+      DATABASE_URL: postgresql+psycopg://root:password@postgres:5432/temporal
+      TEMPORAL_ADDRESS: temporal:7233
+      PYTHONPATH: /app
+      YOUTUBE_STREAM_KEY: ${YOUTUBE_STREAM_KEY}
+    networks:
+      - app-net
+    restart: unless-stopped
+
+    command: >
+      sh -c "
+      echo '⏳ Waiting for Temporal...' &&
+      sleep 5 &&
+      python3 monitor.py
+      "
+
+  # =========================
+  # 🎨 FRONTEND (OPTIONAL)
+  # =========================
+  frontend:
+    build: ./frontend
+    container_name: frontend
     depends_on:
       backend:
         condition: service_healthy
+    ports:
+      - "3000:3000"
     networks:
-      - vartapravah-net
+      - app-net
+    restart: unless-stopped
 
+# =========================
+# NETWORK + VOLUME
+# =========================
 networks:
-  vartapravah-net:
-    driver: bridge
+  app-net:
 
 volumes:
-  postgres_data_v11:
-  backend_videos:
+  postgres_data_v12:
