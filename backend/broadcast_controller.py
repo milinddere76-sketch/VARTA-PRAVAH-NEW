@@ -17,6 +17,10 @@ class BroadcastController:
 
     def run_loop(self):
         print("🎬 [MCR] Master Broadcast Control active.")
+        
+        # 🚀 IMMEDIATE POWER-ON: Ignite the YouTube signal at boot
+        streamer.start_stream()
+        
         last_news = "/app/videos/promo.mp4" # Initial fallback
         
         while True:
