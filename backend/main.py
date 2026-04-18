@@ -12,7 +12,7 @@ from pydantic import BaseModel
 from dotenv import set_key
 
 import database, models, schemas, temporal_utils
-from streaming_engine.workflows import NewsProductionWorkflow, StopStreamWorkflow
+from streaming_engine.workflows import NewsSchedulerWorkflow, StopStreamWorkflow
 from streamer import Streamer
 
 @asynccontextmanager
@@ -259,14 +259,14 @@ async def trigger_news_generation(
     channel = db.query(models.Channel).filter(models.Channel.id == channel_id).first()
     if not channel: raise HTTPException(status_code=404, detail="Channel not found")
     
-    workflow_id = f"news-production-{channel_id}"
+    workflow_id = f"news-scheduler-{channel_id}"
     channel.is_streaming = True
     db.commit()
 
     try:
         handle = await temporal_client.start_workflow(
-            NewsProductionWorkflow.run,
-            args=[channel_id, channel.youtube_stream_key, channel.language],
+            NewsSchedulerWorkflow.run,
+            args=[channel_id],
             id=workflow_id,
             task_queue="news-task-queue-v4"
         )

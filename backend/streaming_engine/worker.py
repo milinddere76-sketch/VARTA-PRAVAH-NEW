@@ -11,7 +11,7 @@ import time
 import subprocess
 from temporalio.client import Client
 from temporalio.worker import Worker, UnsandboxedWorkflowRunner
-from .workflows import NewsProductionWorkflow, StopStreamWorkflow, CheckBreakingNewsWorkflow
+from .workflows import NewsSchedulerWorkflow, StopStreamWorkflow, CheckBreakingNewsWorkflow
 from .activities import (
     fetch_news_activity,
     generate_script_activity,
@@ -69,14 +69,14 @@ async def seed_database():
 
 # ================= AUTOSTART ================= #
 
-async def launch_production(client, channel_id, stream_key, language):
+async def launch_production(client, channel_id):
     """Isolated production launcher to prevent cross-failure."""
-    print(f"🎬 [AUTO-START] Attempting to launch Production Workflow for Channel {channel_id}...")
+    print(f"🎬 [AUTO-START] Handing off to 24/7 Scheduler...")
     try:
         await client.start_workflow(
-            NewsProductionWorkflow.run,
-            args=[channel_id, stream_key, language],
-            id="news-production-auto",
+            NewsSchedulerWorkflow.run,
+            args=[channel_id],
+            id="news-scheduler-auto",
             task_queue="news-task-queue-v4"
         )
         print("✅ [AUTO-START] News Production Workflow ACTIVE.")
@@ -139,14 +139,14 @@ async def main():
     channel_id = int(os.getenv("AUTO_START_CHANNEL_ID", "1"))
     language = "Marathi"
     
-    asyncio.create_task(launch_production(client, channel_id, s_key, language))
+    asyncio.create_task(launch_production(client, channel_id))
     asyncio.create_task(launch_monitor(client))
 
     # 4. Start Worker (Indestructible Execution)
     worker = Worker(
         client,
         task_queue="news-task-queue-v4",
-        workflows=[NewsProductionWorkflow, StopStreamWorkflow, CheckBreakingNewsWorkflow],
+        workflows=[NewsSchedulerWorkflow, StopStreamWorkflow, CheckBreakingNewsWorkflow],
         activities=[
             fetch_news_activity,
             generate_script_activity,
