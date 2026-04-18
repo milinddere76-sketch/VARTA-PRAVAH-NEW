@@ -89,7 +89,7 @@ class Streamer:
         cmd = [
             "ffmpeg", "-y", "-loglevel", "info",
             "-i", self.pipe_path,
-            "-vf", "drawtext=fontfile=/usr/share/fonts/truetype/noto/NotoSansDevanagari-Bold.ttf:textfile=/app/ticker.txt:reload=1:x=w-mod(max(t\,0)*(w+tw)/20\,(w+tw)):y=h-50:fontsize=28:fontcolor=white:box=1:boxcolor=black@0.6",
+            "-vf", "drawtext=fontfile=/usr/share/fonts/truetype/noto/NotoSansDevanagari-Bold.ttf:textfile=/app/ticker.txt:reload=1:x=w-mod(max(t\,0)*(w+tw)/20\,(w+tw)):y=h-50:fontsize=28:fontcolor=white:box=1:boxcolor=black@0.6:text_shaping=1",
             "-c:v", "libx264", "-preset", "veryfast", "-tune", "zerolatency",
             "-b:v", "2500k", "-minrate", "2500k", "-maxrate", "2500k", "-bufsize", "2500k",
             "-nal-hrd", "cbr",

@@ -182,6 +182,12 @@ def create_premium_promo(output_path: str = None) -> bool:
             "-i", ff_p(ticker_png),
             "-i", ff_p(logo_path)
         ]
+        # v1: black + ui, v2: v1 + ticker, v3: v2 + logo
+        filter_complex = (
+            "[0:v][1:v]overlay=0:0[v1];"
+            f"[v1][2:v]overlay=x='w-mod(250*t,w+{t_width})':y=H-75[v2];"
+            "[v2][3:v]overlay=1050:30[outv]"
+        )
     else:
         inputs = [
             "-f", "concat", "-safe", "0", "-i", ff_p(concat_txt_path),
@@ -198,11 +204,11 @@ def create_premium_promo(output_path: str = None) -> bool:
         
     if os.path.exists(music_path) and os.path.getsize(music_path) > 0:
         inputs.extend(["-stream_loop", "-1", "-i", ff_p(music_path)])
-        audio_map = "[4:a]volume=1.0[outa]"
+        audio_map = f"[{len(inputs)-1}:a]volume=1.0[outa]"
     else:
         # Generate a "News Drone" (40Hz + 80Hz hum) to satisfy YouTube Audio bitrate
         inputs.extend(["-f", "lavfi", "-i", "sine=f=40:d=60,aecho=0.8:0.8:1000:0.3,volume=0.2"])
-        audio_map = "[4:a]volume=1.0[outa]"
+        audio_map = f"[{len(inputs)-1}:a]volume=1.0[outa]"
 
     cmd = [
         "ffmpeg", "-y", "-loglevel", "warning"
