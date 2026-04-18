@@ -42,38 +42,46 @@ def create_video(data):
 
     print(f"🎬 [RENDERER] Composite + Audio Mix | Breaking={is_breaking}")
 
+    def escape_ffmpeg_text(text):
+        if not text: return ""
+        return text.replace("'", "'\\\\\\''").replace(":", "\\\\:")
+
+    # Escape all dynamic text for FFmpeg
+    ticker_esc   = escape_ffmpeg_text(ticker)
+    lower_esc    = escape_ffmpeg_text(lower_text)
+    weather_esc  = escape_ffmpeg_text(weather_text)
+    cricket_esc  = escape_ffmpeg_text(cricket_text)
+    election_esc = escape_ffmpeg_text(election_text)
+
     try:
         # 2. Generate Lip-Synced Footage
-        # This is already a 1280x720 video with anchor and background
         lipsync_v = generate_lipsync(audio_path, anchor)
 
-        # 3. FFmpeg Composite (Logo + Ticker + Overlays)
+        # 3. FFmpeg Composite
         inputs = [
             "-i", lipsync_v,
             "-i", logo_path
         ]
         
-        # Build Filter Complex
-        # [0:v] is the lip-sync video
-        # [1:v] is the logo
+        # Build a robust, single-chain filter complex
+        # We start with [0:v] (the lipsync video)
         fc = (
-            "[0:v]copy[tmpv];"
-            "[tmpv]drawtext=fontfile=/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf:"
-            f"text='{lower_text}':x=40:y=h-140:fontsize=32:fontcolor=white:box=1:boxcolor=black@0.7[tmp2];"
-            "[tmp2][1:v]scale=120:120[logo];"
-            "[tmp2][logo]overlay=W-160:40[tmp3];"
-            "[tmp3]drawtext=fontfile=/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf:"
-            f"text='{ticker}':x=w-mod(t*150,w+tw):y=h-60:fontsize=28:fontcolor=yellow:box=1:boxcolor={box_color},fade=t=in:st=0:d=1[tmp4];"
-            
-            # --- OVERLAYS: CLOCK, WEATHER, SPORTS ---
-            f"[tmp4]drawtext=fontfile=/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf:"
-            f"text='{weather_text}':x=40:y=40:fontsize=28:fontcolor=cyan:box=1:boxcolor=black@0.5,"
+            f"[0:v]drawtext=fontfile=/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf:"
+            f"text='{lower_esc}':x=40:y=h-140:fontsize=32:fontcolor=white:box=1:boxcolor=black@0.7,"
+            f"drawtext=fontfile=/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf:"
+            f"text='{ticker_esc}':x=w-mod(t*150,w+tw):y=h-60:fontsize=28:fontcolor=yellow:box=1:boxcolor={box_color},"
+            f"drawtext=fontfile=/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf:"
+            f"text='{weather_esc}':x=40:y=40:fontsize=28:fontcolor=cyan:box=1:boxcolor=black@0.5,"
             "drawtext=fontfile=/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf:"
             "text='%{localtime\\:%H\\\\\\:%M}':x=W-240:y=40:fontsize=36:fontcolor=white:box=1:boxcolor=black@0.5,"
-            "drawtext=fontfile=/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf:"
-            f"text='{cricket_text}':x=40:y=120:fontsize=24:fontcolor=white:box=1:boxcolor=red@0.5,"
             f"drawtext=fontfile=/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf:"
-            f"text='{election_text}':x=40:y=180:fontsize=24:fontcolor=yellow:box=1:boxcolor=black@0.5[outv]"
+            f"text='{cricket_esc}':x=40:y=120:fontsize=24:fontcolor=white:box=1:boxcolor=red@0.5,"
+            f"drawtext=fontfile=/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf:"
+            f"text='{election_esc}':x=40:y=180:fontsize=24:fontcolor=yellow:box=1:boxcolor=black@0.5[v_txt];"
+            
+            # Overlay Logo
+            "[1:v]scale=120:120[logo];"
+            "[v_txt][logo]overlay=W-160:40[outv]"
         )
 
         cmd = ["ffmpeg", "-y"] + inputs + [
