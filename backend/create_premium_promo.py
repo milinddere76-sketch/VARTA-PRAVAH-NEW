@@ -182,7 +182,7 @@ def create_premium_promo(output_path: str = None) -> bool:
         ]
     
     audio_map = ""
-    if os.path.exists(music_path):
+    if os.path.exists(music_path) and os.path.getsize(music_path) > 0:
         inputs.extend(["-stream_loop", "-1", "-i", ff_p(music_path)])
         audio_map = "[4:a]volume=1.0[outa]"
     else:
