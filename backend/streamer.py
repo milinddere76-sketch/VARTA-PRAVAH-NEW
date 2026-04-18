@@ -62,8 +62,8 @@ class Streamer:
         
         # If it's a promo, loop it infinitely
         if "promo.mp4" in self.current_video or self.is_promo:
-            cmd.insert(4, "-stream_loop")
-            cmd.insert(5, "-1")
+            cmd.insert(3, "-stream_loop")
+            cmd.insert(4, "-1")
 
         self.pumper_process = subprocess.Popen(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
 

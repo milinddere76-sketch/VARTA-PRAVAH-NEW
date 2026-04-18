@@ -36,8 +36,9 @@ class BroadcastController:
                 streamer.is_promo = False
                 streamer.update_playlist(video)
                 
-                while streamer.main_process and streamer.main_process.poll() is None:
-                    time.sleep(5)
+                # Wait for the specific video (pumper) to finish, NOT the persistent stream
+                while streamer.pumper_process and streamer.pumper_process.poll() is None:
+                    time.sleep(2)
             else:
                 # 📢 Continuity Mode
                 current_time = time.time()
