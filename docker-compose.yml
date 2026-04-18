@@ -7,7 +7,6 @@ services:
   # =========================
   postgres:
     image: postgres:15
-    container_name: postgres
     restart: unless-stopped
     environment:
       POSTGRES_USER: root
@@ -15,8 +14,7 @@ services:
       POSTGRES_DB: temporal
     volumes:
       - postgres_data_v12:/var/lib/postgresql/data
-    networks:
-      - app-net
+    networks: [app-net]
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U root -d temporal"]
       interval: 5s
@@ -28,33 +26,28 @@ services:
   # =========================
   temporal:
     image: temporalio/auto-setup:1.24.2
-    container_name: temporal
+    restart: unless-stopped
     depends_on:
       postgres:
         condition: service_healthy
     environment:
       DB: postgres12
-      DB_PORT: 5432
       POSTGRES_USER: root
       POSTGRES_PWD: password
       POSTGRES_SEEDS: postgres
-    networks:
-      - app-net
-    restart: unless-stopped
+    networks: [app-net]
 
   # =========================
   # 🌐 TEMPORAL UI
   # =========================
   temporal-ui:
     image: temporalio/ui:latest
-    container_name: temporal-ui
+    restart: unless-stopped
     depends_on:
       - temporal
     environment:
       TEMPORAL_ADDRESS: temporal:7233
-    networks:
-      - app-net
-    restart: unless-stopped
+    networks: [app-net]
 
   # =========================
   # 🚀 BACKEND (FASTAPI)
@@ -63,7 +56,7 @@ services:
     build: 
       context: ./backend
       dockerfile: Dockerfile
-    container_name: backend
+    restart: unless-stopped
     depends_on:
       postgres:
         condition: service_healthy
@@ -72,9 +65,7 @@ services:
     environment:
       DATABASE_URL: postgresql+psycopg://root:password@postgres:5432/temporal
       TEMPORAL_ADDRESS: temporal:7233
-    networks:
-      - app-net
-    restart: unless-stopped
+    networks: [app-net]
 
     command: >
       sh -c "
@@ -84,30 +75,27 @@ services:
       "
 
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:8000/health"]
       interval: 10s
       timeout: 5s
       retries: 5
 
   # =========================
-  # ⚙️ WORKER (TEMPORAL)
+  # ⚙️ WORKER (MONITOR)
   # =========================
   backend-worker:
     build: 
       context: ./backend
       dockerfile: Dockerfile
-    container_name: backend-worker
+    restart: unless-stopped
     depends_on:
       temporal:
         condition: service_started
     environment:
       DATABASE_URL: postgresql+psycopg://root:password@postgres:5432/temporal
       TEMPORAL_ADDRESS: temporal:7233
-      PYTHONPATH: /app
       YOUTUBE_STREAM_KEY: ${YOUTUBE_STREAM_KEY}
-    networks:
-      - app-net
-    restart: unless-stopped
+    networks: [app-net]
 
     command: >
       sh -c "
@@ -117,21 +105,15 @@ services:
       "
 
   # =========================
-  # 🎨 FRONTEND (OPTIONAL)
+  # 🎨 FRONTEND
   # =========================
   frontend:
     build: ./frontend
-    container_name: frontend
-    depends_on:
-      backend:
-        condition: service_healthy
-    networks:
-      - app-net
     restart: unless-stopped
+    depends_on:
+      - backend
+    networks: [app-net]
 
-# =========================
-# NETWORK + VOLUME
-# =========================
 networks:
   app-net:
 
