@@ -120,7 +120,7 @@ services:
     environment:
       DATABASE_URL: ${DATABASE_URL:-postgresql://root:password@postgres:5432/temporal}
       TEMPORAL_ADDRESS: ${TEMPORAL_ADDRESS:-temporal:7233}
-      YOUTUBE_STREAM_KEY: ${YOUTUBE_STREAM_KEY}
+      YOUTUBE_STREAM_KEY: qcu7-xesd-m4sv-9zvv-e335
     networks: [app-net]
     deploy:
       resources:
