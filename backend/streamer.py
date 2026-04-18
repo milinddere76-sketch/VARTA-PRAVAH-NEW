@@ -94,7 +94,7 @@ class Streamer:
             "-b:v", "2500k", "-minrate", "2500k", "-maxrate", "2500k", "-bufsize", "2500k",
             "-nal-hrd", "cbr",
             "-pix_fmt", "yuv420p", "-g", "50",
-            "-c:a", "aac", "-b:a", "128k", "-ar", "44100",
+            "-c:a", "aac", "-b:a", "128k", "-ar", "44100", "-ac", "2",
             "-f", "flv", "-flvflags", "no_duration_filesize", self.rtmp_url
         ]
 
