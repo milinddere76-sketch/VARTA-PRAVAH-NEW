@@ -51,6 +51,9 @@ def monitor_loop():
     print("👉 Starting Broadcast Controller (MCR)...", flush=True)
     run_background(f"{sys.executable} broadcast_controller.py")
     
+    print("👉 Starting Breaking News Monitor...", flush=True)
+    run_background(f"{sys.executable} breaking_news_monitor.py")
+    
     print("✅ Bootstrap Complete. entering Supervisor loop.", flush=True)
     
     while True:
@@ -64,6 +67,11 @@ def monitor_loop():
             if not is_alive("broadcast_controller.py"):
                 print("⚠️ [HEAL] Controller (MCR) is DOWN!", flush=True)
                 run_background(f"{sys.executable} broadcast_controller.py")
+
+            # 3. Check Breaking News Monitor
+            if not is_alive("breaking_news_monitor.py"):
+                print("⚠️ [HEAL] Breaking News Monitor is DOWN!", flush=True)
+                run_background(f"{sys.executable} breaking_news_monitor.py")
 
             # 3. Storage Maintenance
             cleanup_storage()
