@@ -61,10 +61,11 @@ services:
     ports:
       - "8000:8000"
     healthcheck:
-      test: ["CMD-SHELL", "curl -f http://127.0.0.1:8000/docs || exit 1"]
-      interval: 30s
-      timeout: 10s
-      start_period: 120s
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 300s
     environment:
       - DATABASE_URL=postgresql+psycopg://postgres:varta_pravah_secure_99@postgres:5432/temporal
       - TEMPORAL_ADDRESS=temporal:7233
