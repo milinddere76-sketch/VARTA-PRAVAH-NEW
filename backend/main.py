@@ -31,15 +31,18 @@ async def lifespan(app: FastAPI):
         db.commit()
     db.close()
 
-    # Force rejuvenate branding in background to prevent startup timeouts (Fixes 500 error)
+    # Force rejuvenate branding in background to prevent startup timeouts
     def refresh_assets():
-        promo_path = "/app/videos/promo.mp4"
-        print("🎬 [BACKGROUND] Refreshing Promo Branding assets...")
+        promo_final = "/app/videos/promo.mp4"
+        promo_temp = "/app/videos/promo_temp.mp4"
+        print("🎬 [BACKGROUND] Refreshing Promo Branding (Atomic)...")
         try:
             from create_premium_promo import create_premium_promo
             os.makedirs("/app/videos", exist_ok=True)
-            create_premium_promo(promo_path)
-            print("✅ [BACKGROUND] Promo Branding update COMPLETE.")
+            # Render to temp file first to prevent FFmpeg crashes
+            create_premium_promo(promo_temp)
+            os.replace(promo_temp, promo_final)
+            print("✅ [BACKGROUND] Promo Branding update COMPLETE (Atomic).")
         except Exception as e:
             print(f"⚠️ [BACKGROUND] Branding update failed: {e}")
 

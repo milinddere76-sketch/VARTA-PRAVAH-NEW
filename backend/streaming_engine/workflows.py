@@ -16,11 +16,13 @@ class NewsSchedulerWorkflow:
 
     @workflow.run
     async def run(self, channel_id: int):
+        last_trigger_minute = -1
         while True:
             # Trigger every 15 minutes (00, 15, 30, 45)
             now = workflow.now().replace(tzinfo=ZoneInfo("Asia/Kolkata"))
             
-            if now.minute in [0, 15, 30, 45]:
+            if now.minute in [0, 15, 30, 45] and now.minute != last_trigger_minute:
+                last_trigger_minute = now.minute
                 slot_type = self.get_slot_name(now.hour)
                 anchor_type = "female" if self._is_female else "male"
                 print(f"🎬 [SCHEDULER] Triggering News Bulletin: {slot_type} with {anchor_type}.")
