@@ -98,15 +98,11 @@ services:
       - video_data:/app/videos
     command: >
       sh -c "
-      echo '⏳ Waiting for DB...' &&
-      sleep 30 &&
-      uvicorn main:app --host 0.0.0.0 --port 8000
+      echo '⏳ Waiting for Database...' &&
+      until nc -z postgres 5432; do sleep 2; done &&
+      echo '✅ DB Online. Starting API...' &&
+      python3 main.py
       "
-    healthcheck:
-      test: ["CMD", "wget", "--spider", "-q", "http://localhost:8000/health"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
 
   # =========================
   # ⚙️ WORKER (MONITOR)
@@ -117,8 +113,8 @@ services:
       dockerfile: Dockerfile
     restart: unless-stopped
     depends_on:
-      temporal:
-        condition: service_started
+      - postgres
+      - temporal
     environment:
       DATABASE_URL: postgresql://root:password@postgres:5432/temporal
       TEMPORAL_ADDRESS: temporal:7233
@@ -127,17 +123,19 @@ services:
     deploy:
       resources:
         limits:
-          memory: 768M # Higher for FFmpeg/Rendering
+          memory: 1024M # Increased for rendering stability
     logging:
       options:
         max-size: "10m"
         max-file: "3"
     volumes:
       - video_data:/app/videos
+      - ./backend/assets:/app/assets
     command: >
       sh -c "
-      echo '⏳ Waiting for Temporal...' &&
-      sleep 35 &&
+      echo '⏳ Waiting for Brain (Temporal)...' &&
+      until nc -z temporal 7233; do sleep 2; done &&
+      echo '✅ Brain Online. Starting Worker...' &&
       python3 monitor.py
       "
 
