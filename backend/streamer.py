@@ -60,15 +60,27 @@ class Streamer:
 
         self.pumper_process = subprocess.Popen(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
 
+    def update_ticker(self, headlines: list):
+        """Dynamically updates the scrolling news ticker."""
+        ticker_path = "/app/ticker.txt"
+        text = "  |  ".join(headlines) if headlines else "वार्ताप्रवाह - ताज्या घडामोडी"
+        with open(ticker_path, "w", encoding="utf-8") as f:
+            f.write(f" *** {text} *** ")
+        print(f"📰 [STREAMER] Ticker Updated: {text[:50]}...")
+
     def start_stream(self):
         """AIR IGNITION: Starts the ONE AND ONLY stream to YouTube."""
         print(f"🚀 [STREAMER] Igniting Persistent YouTube Connection...")
         
-        # Main persistent engine
-        # It reads from the pipe and encodes for YouTube
+        # Ensure ticker file exists
+        if not os.path.exists("/app/ticker.txt"):
+            self.update_ticker(["वार्ताप्रवाह - आपले स्वागत आहे"])
+
+        # Main persistent engine with scrolling ticker filter
         cmd = [
             "ffmpeg", "-y", "-loglevel", "warning",
             "-i", self.pipe_path,
+            "-vf", "drawtext=textfile=/app/ticker.txt:reload=1:x=w-mod(max(t\,0)*(w+tw)/20\,(w+tw)):y=h-50:fontsize=28:fontcolor=white:box=1:boxcolor=black@0.6",
             "-c:v", "libx264", "-preset", "veryfast", "-tune", "zerolatency",
             "-b:v", "2500k", "-maxrate", "2500k", "-bufsize", "5000k",
             "-pix_fmt", "yuv420p", "-g", "60",
