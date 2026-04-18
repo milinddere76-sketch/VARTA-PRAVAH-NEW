@@ -51,11 +51,10 @@ def create_premium_promo(output_path: str = None) -> bool:
         print("⚠️ No promo_stems directory found. Creating recovery placeholder...")
         stems_dir = os.path.join(temp_dir, "recovery_stems")
         os.makedirs(stems_dir, exist_ok=True)
-        # Create a dummy music file if missing
-        open(os.path.join(stems_dir, "news_music.mp3"), 'a').close()
-        # Create a blank neon logo
-        logo = Image.new("RGBA", (200, 200), (0, 255, 255, 100))
-        logo.save(os.path.join(stems_dir, "neon_logo.png"))
+        # Create a blank neon logo if master is missing
+        if not os.path.exists(os.path.join(here, "assets", "varta_logo.png")):
+            logo = Image.new("RGBA", (200, 200), (0, 255, 255, 100))
+            logo.save(os.path.join(stems_dir, "neon_logo.png"))
         
     print(f"🚀 Using stems from -> {stems_dir}")
 
@@ -74,7 +73,7 @@ def create_premium_promo(output_path: str = None) -> bool:
         font_marathi = find_font([
             "/usr/share/fonts/truetype/noto/NotoSansDevanagari-Bold.ttf",
             "/usr/share/fonts/truetype/noto/NotoSansDevanagari-Regular.ttf",
-            "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf"
+            "/usr/share/fonts/truetype/freefont/FreeSans.ttf"
         ])
         font_english = find_font(["/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf", "/usr/share/fonts/truetype/liberation/LiberationSans-Regular.ttf"])
         font_bold    = find_font(["/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf", "/usr/share/fonts/truetype/liberation/LiberationSans-Bold.ttf"])
@@ -190,12 +189,18 @@ def create_premium_promo(output_path: str = None) -> bool:
         ]
     
     audio_map = ""
+    # Check for music in stems or assets
+    assets_music = os.path.join(here, "assets", "news_music.mp3")
+    if os.path.exists(assets_music) and os.path.getsize(assets_music) > 0:
+        music_path = assets_music
+        
     if os.path.exists(music_path) and os.path.getsize(music_path) > 0:
         inputs.extend(["-stream_loop", "-1", "-i", ff_p(music_path)])
         audio_map = "[4:a]volume=1.0[outa]"
     else:
-        inputs.extend(["-f", "lavfi", "-i", "anullsrc=cl=stereo:r=44100"])
-        audio_map = "[4:a]volume=0[outa]"
+        # Generate a "News Drone" (40Hz + 80Hz hum) to satisfy YouTube Audio bitrate
+        inputs.extend(["-f", "lavfi", "-i", "sine=f=40:d=60,aecho=0.8:0.8:1000:0.3,volume=0.2"])
+        audio_map = "[4:a]volume=1.0[outa]"
 
     cmd = [
         "ffmpeg", "-y", "-loglevel", "warning"
