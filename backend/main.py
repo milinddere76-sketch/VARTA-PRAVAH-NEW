@@ -67,6 +67,10 @@ class SettingsUpdate(BaseModel):
 def read_root():
     return {"status": "VartaPravah API Engine Online - Pillow-Overlay", "version": "1.2.1"}
 
+@app.get("/health")
+def health():
+    return {"status": "ok"}
+
 #  Diagnostics 
 @app.get("/debug/health")
 async def server_health_check(db: Session = Depends(database.get_db)):
