@@ -64,16 +64,57 @@ async def generate_news_video_activity(data: tuple) -> str:
 
 @activity.defn
 async def synclabs_lip_sync_activity(data: dict) -> str:
-    """
-    Connects the high-fidelity Marathi audio with the AI Portrait.
-    Uses the local lip_sync.py bridge for production stability.
-    """
-    audio_path = data.get("audio_url") # Path within container
-    anchor_name = data.get("is_female", "female")
-    
     from lip_sync import generate_lipsync
-    print(f"🧬 [ACTIVITY] Fusing Audio with {anchor_name} portrait...")
-    
-    # This triggers our high-fidelity synthesis engine
-    synced_video = generate_lipsync(audio_path, anchor_name)
-    return synced_video
+    audio_path = data.get("audio_url")
+    anchor = "Kritika" if data.get("is_female") else "Priyansh"
+    print(f"🧬 [ACTIVITY] Handing off high-fidelity lip-sync for {anchor}...")
+    return generate_lipsync(audio_path, anchor)
+
+@activity.defn
+async def check_sync_labs_status_activity(job_id: str) -> str:
+    return "COMPLETED"
+
+@activity.defn
+async def upload_to_s3_activity(file_path: str) -> str:
+    return file_path
+
+@activity.defn
+async def start_stream_activity(data: dict) -> bool:
+    try:
+        import requests
+        requests.post("http://localhost:8001/add-video", json={"video": data["video_url"]}, timeout=5)
+        return True
+    except:
+        return False
+
+@activity.defn
+async def merge_videos_activity(clips: list) -> str:
+    return clips[0]
+
+@activity.defn
+async def ensure_promo_video_activity() -> bool:
+    return True
+
+@activity.defn
+async def ensure_premium_promo_activity() -> bool:
+    return True
+
+@activity.defn
+async def stop_stream_activity(channel_id: int) -> bool:
+    return True
+
+@activity.defn
+async def check_scheduled_ads_activity(channel_id: int) -> list:
+    return []
+
+@activity.defn
+async def cleanup_old_videos_activity() -> bool:
+    return True
+
+@activity.defn
+async def get_channel_anchor_activity(channel_id: int) -> dict:
+    return {"name": "Kritika", "gender": "female"}
+
+@activity.defn
+async def check_breaking_news_activity() -> list:
+    return []
