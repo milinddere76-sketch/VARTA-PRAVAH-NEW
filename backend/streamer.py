@@ -69,9 +69,17 @@ class Streamer:
         self.pumper_process = subprocess.Popen(cmd) # Allow logs to flow to docker log for debugging
 
     def update_ticker(self, headlines: list):
-        """Dynamically updates the scrolling news ticker."""
+        """Dynamically updates the scrolling news ticker with character sanitization."""
         ticker_path = "/app/ticker.txt"
-        text = "  |  ".join(headlines) if headlines else "वार्ताप्रवाह - ताज्या घडामोडी"
+        
+        # Aggressive cleaning of each headline to remove control chars/newlines
+        clean_headlines = []
+        for h in headlines:
+            # Filter to keep only Marathi group, Alphanumeric, Space, and punctuation
+            clean = "".join(c for c in h if c.isalnum() or c.isspace() or '\u0900' <= c <= '\u097F' or c in ".-*|!?,")
+            clean_headlines.append(clean.strip())
+            
+        text = " | ".join(clean_headlines) if clean_headlines else "वार्ताप्रवाह - ताज्या घडामोडी"
         with open(ticker_path, "w", encoding="utf-8") as f:
             f.write(f" *** {text} *** ")
         print(f"📰 [STREAMER] Ticker Updated: {text[:50]}...")
