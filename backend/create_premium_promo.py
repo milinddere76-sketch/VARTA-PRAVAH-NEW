@@ -204,11 +204,13 @@ def create_premium_promo(output_path: str = None) -> bool:
         
     if os.path.exists(music_path) and os.path.getsize(music_path) > 0:
         inputs.extend(["-stream_loop", "-1", "-i", ff_p(music_path)])
-        audio_map = f"[{len(inputs)-1}:a]volume=1.0[outa]"
+        # Current input 0-3 are video, 4 is music
+        audio_map = "[4:a]volume=1.0[outa]"
     else:
         # Generate a "News Drone" (40Hz + 80Hz hum) to satisfy YouTube Audio bitrate
         inputs.extend(["-f", "lavfi", "-i", "sine=f=40:d=60,aecho=0.8:0.8:1000:0.3,volume=0.2"])
-        audio_map = f"[{len(inputs)-1}:a]volume=1.0[outa]"
+        # Current input 0-3 are video, 4 is sine
+        audio_map = "[4:a]volume=1.0[outa]"
 
     cmd = [
         "ffmpeg", "-y", "-loglevel", "warning"
