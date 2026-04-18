@@ -31,16 +31,20 @@ async def lifespan(app: FastAPI):
         db.commit()
     db.close()
 
-    # Ensure promo video is refreshed at startup to apply latest visual/audio polish
-    promo_path = "/app/videos/promo.mp4"
-    print("🎬 [STARTUP] Refreshing Promo Branding...")
-    try:
-        from create_premium_promo import create_premium_promo
-        os.makedirs("/app/videos", exist_ok=True)
-        create_premium_promo(promo_path)
-        print("✅ [STARTUP] Promo refreshed!")
-    except Exception as e:
-        print(f"⚠️ [STARTUP] Promo generation failed: {e}")
+    # Force rejuvenate branding in background to prevent startup timeouts (Fixes 500 error)
+    def refresh_assets():
+        promo_path = "/app/videos/promo.mp4"
+        print("🎬 [BACKGROUND] Refreshing Promo Branding assets...")
+        try:
+            from create_premium_promo import create_premium_promo
+            os.makedirs("/app/videos", exist_ok=True)
+            create_premium_promo(promo_path)
+            print("✅ [BACKGROUND] Promo Branding update COMPLETE.")
+        except Exception as e:
+            print(f"⚠️ [BACKGROUND] Branding update failed: {e}")
+
+    import threading
+    threading.Thread(target=refresh_assets, daemon=True).start()
 
     yield
 
