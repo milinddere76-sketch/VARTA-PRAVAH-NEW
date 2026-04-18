@@ -31,19 +31,16 @@ async def lifespan(app: FastAPI):
         db.commit()
     db.close()
 
-    # Ensure promo video exists at startup so the streamer always has content
+    # Ensure promo video is refreshed at startup to apply latest visual/audio polish
     promo_path = "/app/videos/promo.mp4"
-    if not os.path.exists(promo_path) or os.path.getsize(promo_path) < 100000:
-        print("🎬 [STARTUP] Promo missing — generating now...")
-        try:
-            from create_premium_promo import create_premium_promo
-            os.makedirs("/app/videos", exist_ok=True)
-            create_premium_promo(promo_path)
-            print("✅ [STARTUP] Promo ready!")
-        except Exception as e:
-            print(f"⚠️ [STARTUP] Promo generation failed: {e}")
-    else:
-        print("✅ [STARTUP] Promo already exists, skipping generation.")
+    print("🎬 [STARTUP] Refreshing Promo Branding...")
+    try:
+        from create_premium_promo import create_premium_promo
+        os.makedirs("/app/videos", exist_ok=True)
+        create_premium_promo(promo_path)
+        print("✅ [STARTUP] Promo refreshed!")
+    except Exception as e:
+        print(f"⚠️ [STARTUP] Promo generation failed: {e}")
 
     yield
 
