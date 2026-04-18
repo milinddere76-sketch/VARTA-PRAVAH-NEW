@@ -11,7 +11,6 @@ services:
     environment:
       POSTGRES_USER: ${POSTGRES_USER}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
-      POSTGRES_DB: temporal
     volumes:
       - postgres_data_v12:/var/lib/postgresql/data
     networks: [app-net]
@@ -102,7 +101,7 @@ services:
     command: >
       sh -c "
       echo '⏳ Waiting for DB...' &&
-      sleep 10 &&
+      sleep 20 &&
       uvicorn main:app --host 0.0.0.0 --port 8000
       "
     healthcheck:
@@ -138,7 +137,7 @@ services:
     command: >
       sh -c "
       echo '⏳ Waiting for Temporal...' &&
-      sleep 5 &&
+      sleep 25 &&
       python3 monitor.py
       "
 
