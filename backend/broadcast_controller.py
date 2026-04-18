@@ -17,19 +17,21 @@ class BroadcastController:
 
     def run_loop(self):
         print("🎬 [MCR] Master Broadcast Control active.")
-        # Bootstrap with promo
-        streamer.update_playlist("/app/videos/promo.mp4")
+        last_news = "/app/videos/promo.mp4" # Initial fallback
         
         while True:
             if not queue.empty():
                 item = queue.get()
                 video = item["video"]
                 print(f"📺 [MCR] Now Playing Bulletin: {video}")
+                
+                # Update memory
+                if "news_" in video:
+                    last_news = video
+                
                 streamer.is_promo = False
                 streamer.update_playlist(video)
                 
-                # Wait for video to finish (or approx time)
-                # We monitor the process until it exits
                 while streamer.process and streamer.process.poll() is None:
                     time.sleep(5)
             else:
@@ -42,8 +44,9 @@ class BroadcastController:
                     self.last_promo_time = current_time
                     time.sleep(30)
                 else:
-                    # Keep the heartbeat alive with a lighter loop if needed
-                    # But streamer.sh -stream_loop -1 handles this!
+                    # 🕒 REPLAY LAST NEWS (Zero-Silence Logic)
+                    print(f"🕒 [MCR] Queue empty. Replaying: {last_news}")
+                    streamer.update_playlist(last_news)
                     time.sleep(10)
 
 @app.post("/add-video")
