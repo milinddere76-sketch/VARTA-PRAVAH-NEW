@@ -39,10 +39,11 @@ services:
       postgres:
         condition: service_healthy
     environment:
-      DB: postgres12
+      DB: postgres
+      DB_ADDR: postgres
+      DB_PORT: 5432
       POSTGRES_USER: ${POSTGRES_USER}
       POSTGRES_PWD: ${POSTGRES_PASSWORD}
-      DB_ADDR: postgres
       POSTGRES_SEEDS: postgres
     networks: [app-net]
     deploy:
