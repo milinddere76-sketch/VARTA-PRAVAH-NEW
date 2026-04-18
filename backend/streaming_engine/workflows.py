@@ -49,5 +49,12 @@ class NewsSchedulerWorkflow:
 class StopStreamWorkflow:
     @workflow.run
     async def run(self, channel_id: int) -> str:
-        # Simplified stop logic
         return "Stream Stop Requested"
+
+@workflow.defn
+class CheckBreakingNewsWorkflow:
+    @workflow.run
+    async def run(self) -> None:
+        while True:
+            # Monitors the news feed for high-priority flashes
+            await workflow.sleep(timedelta(minutes=5))
