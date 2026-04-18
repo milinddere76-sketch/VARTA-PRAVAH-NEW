@@ -94,6 +94,8 @@ services:
       options:
         max-size: "10m"
         max-file: "3"
+    volumes:
+      - video_data:/app/videos
     command: >
       sh -c "
       echo '⏳ Waiting for DB...' &&
@@ -130,6 +132,8 @@ services:
       options:
         max-size: "10m"
         max-file: "3"
+    volumes:
+      - video_data:/app/videos
     command: >
       sh -c "
       echo '⏳ Waiting for Temporal...' &&
@@ -160,3 +164,4 @@ networks:
 
 volumes:
   postgres_data_v12:
+  video_data:
