@@ -97,26 +97,8 @@ async def launch_monitor(client):
         print(f"⚠️ [AUTO-START] Monitor already running or failed: {e}")
 
 async def main():
-    # 0. IMMEDIATE YOUTUBE HANDSHAKE (No blocking)
-    s_key = os.getenv("YOUTUBE_STREAM_KEY")
-    if s_key:
-        from streaming_engine.activities import start_stream_activity
-        async def delayed_standby():
-            # Wait up to 30s for the file to appear (Zero-Gap stability)
-            for _ in range(6):
-                if os.path.exists("/app/videos/promo.mp4"):
-                    await start_stream_activity({
-                        "channel_id": 1,
-                        "stream_key": s_key,
-                        "video_url": "/app/videos/promo.mp4"
-                    })
-                    print("🚀 [INGEST] Instant Standby Triggered!")
-                    return
-                print("⏳ [INGEST] Waiting for promo.mp4 to appear...")
-                await asyncio.sleep(5)
-            print("⚠️ [INGEST] Instant Standby timed out - asset missing.")
-
-        asyncio.create_task(delayed_standby())
+    # Handled by MCR Broadcast Controller
+    pass
 
     # 1. Database & Asset Prep
     try:
