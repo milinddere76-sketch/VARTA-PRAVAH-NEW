@@ -38,6 +38,46 @@ def is_db_open(url, timeout=0.5):
 
 _CACHED_ENGINE_URL = None
 
+def _postgres_db_name(url: str) -> str | None:
+    if not url or url.startswith("sqlite"):
+        return None
+    if "/" not in url:
+        return None
+    return url.rsplit("/", 1)[-1].split("?")[0]
+
+
+def _postgres_admin_url(url: str) -> str:
+    if not url or url.startswith("sqlite"):
+        return url
+    return url.rsplit("/", 1)[0] + "/postgres"
+
+
+def _ensure_postgres_database_exists(url: str):
+    from sqlalchemy import text
+
+    db_name = _postgres_db_name(url)
+    if not db_name or db_name.lower() in {"postgres", "template1"}:
+        return
+
+    admin_url = _postgres_admin_url(url)
+    admin_engine = create_engine(
+        admin_url,
+        pool_pre_ping=True,
+        pool_size=1,
+        max_overflow=0,
+        isolation_level="AUTOCOMMIT"
+    )
+    try:
+        with admin_engine.connect() as admin_conn:
+            result = admin_conn.execute(text("SELECT 1 FROM pg_database WHERE datname = :db_name"), {"db_name": db_name})
+            if not result.fetchone():
+                print(f"📂 [DATABASE] Creating database '{db_name}'...")
+                admin_conn.execute(text(f'CREATE DATABASE "{db_name}"'))
+                print(f"✅ [DATABASE] Database '{db_name}' created.")
+    finally:
+        admin_engine.dispose()
+
+
 def get_engine():
     global engine, _CACHED_ENGINE_URL
     
@@ -70,30 +110,23 @@ def get_engine():
                 
                 with new_engine.connect() as conn:
                     print(f"✅ [DATABASE] Connection Success: {url.split('@')[-1] if '@' in url else url}")
-                    
-                    # Auto-create database if it doesn't exist (for postgresql only)
-                    if not url.startswith("sqlite") and "vartapravah" in url:
-                        try:
-                            from sqlalchemy import text
-                            # Extract database name from URL
-                            db_name = url.split('/')[-1]
-                            # Connect to postgres db first to check/create target db
-                            postgres_url = url.rsplit('/', 1)[0] + '/postgres'
-                            temp_engine = create_engine(postgres_url, pool_pre_ping=True, pool_size=1, max_overflow=0, isolation_level="AUTOCOMMIT")
-                            with temp_engine.connect() as temp_conn:
-                                result = temp_conn.execute(text(f"SELECT 1 FROM pg_database WHERE datname = '{db_name}'"))
-                                if not result.fetchone():
-                                    print(f"📂 [DATABASE] Creating database '{db_name}'...")
-                                    temp_conn.execute(text(f"CREATE DATABASE {db_name}"))
-                                    print(f"✅ [DATABASE] Database '{db_name}' created.")
-                            temp_engine.dispose()
-                        except Exception as e:
-                            print(f"⚠️ [DATABASE] Could not auto-create database: {e}")
-                    
                     engine = new_engine
                     _CACHED_ENGINE_URL = url 
                     return engine
             except Exception as e:
+                if not url.startswith("sqlite") and "postgresql" in url:
+                    try:
+                        _ensure_postgres_database_exists(url)
+                        # Retry the original connection after creating the database.
+                        new_engine = create_engine(url, pool_pre_ping=True, pool_size=5, max_overflow=10)
+                        with new_engine.connect() as conn:
+                            print(f"✅ [DATABASE] Connection Success: {url.split('@')[-1] if '@' in url else url}")
+                            engine = new_engine
+                            _CACHED_ENGINE_URL = url
+                            return engine
+                    except Exception as create_error:
+                        print(f"⚠️ [DATABASE] Could not auto-create database for {url}: {create_error}")
+
                 print(f"  ❌ [DATABASE] Error connecting to {url.split('@')[-1] if '@' in url else url}: {e}")
                 pass
         

@@ -138,6 +138,7 @@ class Streamer:
             "-pix_fmt", "yuv420p", "-g", "50", "-keyint_min", "50",
             "-r", "25",
             "-c:a", "aac", "-b:a", "128k", "-ar", "44100", "-ac", "2",
+            "-af", "aresample=async=1",
             "-mpegts_flags", "+resend_headers",
             "-flush_packets", "1",
             "-f", "mpegts", self.pipe_path
@@ -213,17 +214,24 @@ class Streamer:
         
         cmd = [
             "ffmpeg", "-y", "-loglevel", "warning",
-            "-fflags", "+discardcorrupt+genpts",
+            "-fflags", "+discardcorrupt+genpts+igndts",
+            "-reset_timestamps", "1",
             "-avoid_negative_ts", "make_zero",
             "-thread_queue_size", "512",
-            "-use_wallclock_as_timestamps", "1",
             "-f", "mpegts", "-i", self.pipe_path,
-            "-vf", v_filter,
+        ]
+
+        if v_filter != "copy":
+            cmd += ["-vf", v_filter]
+
+        cmd += [
+            "-vsync", "1",
             "-c:v", "libx264", "-preset", "veryfast", "-tune", "zerolatency",
             "-b:v", "2500k", "-minrate", "2500k", "-maxrate", "2500k", "-bufsize", "2500k",
             "-nal-hrd", "cbr",
             "-pix_fmt", "yuv420p", "-g", "50", "-r", "25",
             "-c:a", "aac", "-b:a", "128k", "-ar", "44100", "-ac", "2",
+            "-af", "aresample=async=1",
             "-f", "flv", "-flvflags", "no_duration_filesize", self.rtmp_url
         ]
 
