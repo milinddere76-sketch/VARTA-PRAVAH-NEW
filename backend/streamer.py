@@ -96,10 +96,10 @@ class Streamer:
         
         # Promos/Loops need the dynamic ticker overlay
         return (
-            "drawtext=fontfile=/usr/share/fonts/truetype/noto/NotoSansDevanagari-Bold.ttf:"
-            "textfile=/app/ticker.txt:reload=1:"
-            "x=w-mod(max(t\,0)*(w+tw)/20\,(w+tw)):y=h-50:"
-            "fontsize=28:fontcolor=white:box=1:boxcolor=black@0.6:text_shaping=1"
+            r"drawtext=fontfile=/usr/share/fonts/truetype/noto/NotoSansDevanagari-Bold.ttf:"
+            r"textfile=/app/ticker.txt:reload=1:"
+            r"x=w-mod(max(t\,0)*(w+tw)/20\,(w+tw)):y=h-50:"
+            r"fontsize=28:fontcolor=white:box=1:boxcolor=black@0.6:text_shaping=1"
         )
 
     def start_stream(self):

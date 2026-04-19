@@ -1,0 +1,6 @@
+services:
+  vartapravah:
+    image: vartapravah
+    build:
+      context: .
+      dockerfile: ./Dockerfile

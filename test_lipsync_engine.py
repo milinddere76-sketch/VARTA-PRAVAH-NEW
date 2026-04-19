@@ -52,7 +52,7 @@ def poll_and_download(job_id):
         status = data.get("status")
         print(f"   [{i+1}] Status: {status}")
         
-        if status == "completed":
+        if status == "completed" or status == "COMPLETED":
             video_url = data["videoUrl"]
             print("Done! Downloading final video...")
             v_res = requests.get(video_url)

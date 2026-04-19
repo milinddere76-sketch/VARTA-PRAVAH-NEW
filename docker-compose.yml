@@ -5,7 +5,7 @@ services:
   # 🗄️ POSTGRES
   # =========================
   postgres:
-    image: postgres:15
+    image: postgres:12
     restart: unless-stopped
     environment:
       POSTGRES_USER: root
@@ -85,6 +85,9 @@ services:
     environment:
       DATABASE_URL: postgresql://root:password@postgres:5432/temporal
       TEMPORAL_ADDRESS: temporal:7233
+      GROQ_API_KEY: ${GROQ_API_KEY}
+      WORLD_NEWS_API_KEY: ${WORLD_NEWS_API_KEY}
+      SYNCLABS_API_KEY: ${SYNCLABS_API_KEY}
     networks: [app-net]
     deploy:
       resources:
@@ -118,7 +121,10 @@ services:
     environment:
       DATABASE_URL: postgresql://root:password@postgres:5432/temporal
       TEMPORAL_ADDRESS: temporal:7233
-      YOUTUBE_STREAM_KEY: 5w92-9u7p-ucjh-b1bx-bszv
+      YOUTUBE_STREAM_KEY: ${YOUTUBE_STREAM_KEY:-5w92-9u7p-ucjh-b1bx-bszv}  # Use env var or default placeholder
+      GROQ_API_KEY: ${GROQ_API_KEY}
+      WORLD_NEWS_API_KEY: ${WORLD_NEWS_API_KEY}
+      SYNCLABS_API_KEY: ${SYNCLABS_API_KEY}
     networks: [app-net]
     deploy:
       resources:

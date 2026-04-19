@@ -18,24 +18,22 @@ class NewsSchedulerWorkflow:
     async def run(self, channel_id: int, immediate: bool = False):
         last_trigger_minute = -1
         
-        # 🚀 IMMEDIATE TRIGGER (for Force Start or Reboot)
+        # 🚀 Support for Dashboard "Go Live Now"
         if immediate:
-            print("🚀 [SCHEDULER] Immediate Production Triggered.")
-            now = workflow.now().astimezone(ZoneInfo("Asia/Kolkata"))
+            print("🚀 [SCHEDULER] Immediate Production Triggered from Dashboard.")
+            now = workflow.now().replace(tzinfo=ZoneInfo("Asia/Kolkata"))
             slot_type = self.get_slot_name(now.hour)
             anchor_type = "female" if self._is_female else "male"
-            
             await workflow.execute_activity(
                 generate_news_video_activity,
                 (slot_type, anchor_type),
                 start_to_close_timeout=timedelta(minutes=15)
             )
-            self._is_female = not self._is_female
             last_trigger_minute = now.minute
 
         while True:
             # Trigger every 15 minutes (00, 15, 30, 45)
-            now = workflow.now().astimezone(ZoneInfo("Asia/Kolkata"))
+            now = workflow.now().replace(tzinfo=ZoneInfo("Asia/Kolkata"))
             
             if now.minute in [0, 15, 30, 45] and now.minute != last_trigger_minute:
                 last_trigger_minute = now.minute
@@ -56,11 +54,8 @@ class NewsSchedulerWorkflow:
             await workflow.sleep(timedelta(minutes=1))
 
     def get_slot_name(self, hour):
-        if 4 <= hour < 11: return "morning"
-        if 11 <= hour < 16: return "afternoon"
-        if 16 <= hour < 19: return "evening"
-        if 19 <= hour < 22: return "prime"
-        return "night"
+        slots = {4: "morning", 11: "afternoon", 16: "evening", 19: "prime", 22: "night"}
+        return slots.get(hour)
 
 @workflow.defn
 class StopStreamWorkflow:

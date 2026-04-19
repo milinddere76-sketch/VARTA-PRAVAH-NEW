@@ -18,43 +18,40 @@ class BroadcastController:
     def run_loop(self):
         print("🎬 [MCR] Master Broadcast Control active.")
         
-        # 🚀 IMMEDIATE POWER-ON: Ignite the YouTube signal at boot
+        # 🚀 Start the persistent YouTube signal
         streamer.start_stream()
         
-        last_news = "/app/videos/promo.mp4" # Initial fallback
+        last_news = "/app/videos/promo.mp4"
         
         while True:
+            # 1. Check for NEW content arriving from the worker
             if not queue.empty():
                 item = queue.get()
                 video = item["video"]
-                print(f"📺 [MCR] Now Playing Bulletin: {video}")
+                print(f"📺 [MCR] Incoming Content: {video}")
                 
                 # Update memory
                 if "news_" in video:
                     last_news = video
                 
-                streamer.is_promo = False
+                # Switch the stream pumper to the new video
+                # Note: update_playlist() handles killing the old pumper
+                streamer.is_promo = ("news_" not in video)
                 streamer.update_playlist(video)
                 
-                # Wait for the specific video (pumper) to finish, NOT the persistent stream
-                while streamer.pumper_process and streamer.pumper_process.poll() is None:
-                    time.sleep(2)
+                # We don't block here anymore. We let the loop continue 
+                # to monitor for even newer breaking news.
+                time.sleep(2)
+            
             else:
-                # 📢 Continuity Mode
-                current_time = time.time()
-                if current_time - self.last_promo_time > 300: # 5 min rule
-                    print("📢 [MCR] Injecting scheduled promo.")
-                    streamer.is_promo = True
-                    streamer.update_playlist("/app/videos/promo.mp4")
-                    self.last_promo_time = current_time
-                    time.sleep(30)
-                else:
-                    # 🕒 REPLAY LAST NEWS (Zero-Silence Logic)
-                    # Only restart if nothing is playing
-                    if not streamer.pumper_process or streamer.pumper_process.poll() is not None:
-                        print(f"🕒 [MCR] Queue empty. Reviving: {last_news}")
-                        streamer.update_playlist(last_news)
-                    time.sleep(5)
+                # 2. Continuity: If nothing is in queue, ensure SOMETHING is playing
+                # If the pumper died (e.g. news finished), loop back to last known good news or promo
+                if not streamer.pumper_process or streamer.pumper_process.poll() is not None:
+                    print(f"🕒 [MCR] Content ended. Bridging with: {last_news}")
+                    streamer.is_promo = ("news_" not in last_news)
+                    streamer.update_playlist(last_news)
+            
+            time.sleep(5)
 
 @app.post("/add-video")
 async def add_video(data: dict):

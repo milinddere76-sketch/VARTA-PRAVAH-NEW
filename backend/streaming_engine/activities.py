@@ -1,6 +1,6 @@
 import os, subprocess, asyncio, requests
 from temporalio import activity
-from activities.video_renderer import create_video
+from video_renderer import create_video
 
 @activity.defn
 async def fetch_news_activity(channel_id: int) -> list:
@@ -42,8 +42,8 @@ async def generate_news_video_activity(data: tuple) -> str:
     for story in stories:
         anchor_name = "female" if is_female else "male"
         # Render individual story block
-        # Providing (audio, ticker, anchor, is_breaking)
-        clip = create_video(("/fake/audio/path", story, anchor_name, False))
+        # (Assuming create_video handles single items for now)
+        clip = create_video(("/fake/audio/path", story, anchor_name))
         clips.append(clip)
         
         # 🔄 Toggle for next block
