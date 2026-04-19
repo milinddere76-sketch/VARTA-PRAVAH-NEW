@@ -181,10 +181,24 @@ async def regenerate_promo_manually():
         from create_premium_promo import create_premium_promo
         os.makedirs("/app/videos", exist_ok=True)
         success = create_premium_promo(promo_path)
-        if success:
-            return {"status": "success", "message": "Premium promo regenerated.", "path": promo_path}
-        else:
+        if not success:
             raise HTTPException(status_code=500, detail="Promo generation script failed.")
+
+        # Notify the broadcast controller so the running stream reloads the new promo file.
+        worker_host = os.getenv("BACKEND_WORKER_HOST", "backend-worker")
+        worker_port = os.getenv("BACKEND_WORKER_PORT", "8001")
+        worker_url = os.getenv("BACKEND_WORKER_URL", f"http://{worker_host}:{worker_port}/add-video")
+        try:
+            import requests
+            response = requests.post(worker_url, json={"video": promo_path}, timeout=5)
+            if response.ok:
+                print("✅ [PROMO] Broadcast controller notified of new promo.")
+            else:
+                print(f"⚠️ [PROMO] Failed to notify broadcast controller: {response.status_code} {response.text}")
+        except Exception as e:
+            print(f"⚠️ [PROMO] Could not reach broadcast controller at {worker_url}: {e}")
+
+        return {"status": "success", "message": "Premium promo regenerated.", "path": promo_path}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 

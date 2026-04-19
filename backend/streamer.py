@@ -177,12 +177,12 @@ class Streamer:
         if not self.current_video:
             self.current_video = "/app/videos/promo.mp4"
         self._restart_pumper()
-        return True
 
         # Supervision
         self.stop_event.clear()
         self.monitor_thread = threading.Thread(target=self._monitor, daemon=True)
         self.monitor_thread.start()
+        return True
 
     def _monitor(self):
         """Watchdog to ensure the main connection never dies."""
