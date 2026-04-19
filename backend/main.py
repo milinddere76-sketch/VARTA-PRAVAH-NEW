@@ -32,6 +32,27 @@ async def lifespan(app: FastAPI):
     db.close()
 
     # Force rejuvenate branding in background to prevent startup timeouts
+    def create_fallback_promo(output_path: str):
+        """Create a minimal fallback promo if premium generation fails."""
+        print(f"🔴 [FALLBACK] Creating minimal promo at {output_path}...")
+        try:
+            cmd = [
+                "ffmpeg", "-y", "-f", "lavfi", "-i", "color=c=black:s=1280x720:d=60",
+                "-vf", "drawtext=text='VARTA PRAVAH':fontfile=/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf:fontsize=80:fontcolor=white:x=(w-text_w)/2:y=(h-text_h)/2",
+                "-c:v", "libx264", "-preset", "ultrafast", "-crf", "28",
+                "-pix_fmt", "yuv420p", "-an", output_path
+            ]
+            result = subprocess.run(cmd, capture_output=True, text=True, timeout=30)
+            if result.returncode == 0:
+                print(f"✓ Fallback promo created successfully")
+                return True
+            else:
+                print(f"✗ Fallback creation failed: {result.stderr}")
+                return False
+        except Exception as e:
+            print(f"✗ Fallback error: {e}")
+            return False
+
     def refresh_assets():
         promo_final = "/app/videos/promo.mp4"
         promo_temp = "/app/videos/promo_temp.mp4"
@@ -39,12 +60,33 @@ async def lifespan(app: FastAPI):
         try:
             from create_premium_promo import create_premium_promo
             os.makedirs("/app/videos", exist_ok=True)
+            
             # Render to temp file first to prevent FFmpeg crashes
-            create_premium_promo(promo_temp)
-            os.replace(promo_temp, promo_final)
-            print("✅ [BACKGROUND] Promo Branding update COMPLETE (Atomic).")
+            success = create_premium_promo(promo_temp)
+            
+            if success and os.path.exists(promo_temp) and os.path.getsize(promo_temp) > 0:
+                os.replace(promo_temp, promo_final)
+                print("✅ [BACKGROUND] Premium Promo update COMPLETE (Atomic).")
+            else:
+                print(f"⚠️ [BACKGROUND] Premium promo generation failed or returned empty. Creating fallback...")
+                if os.path.exists(promo_temp):
+                    try: os.remove(promo_temp)
+                    except: pass
+                # Use fallback
+                if create_fallback_promo(promo_final):
+                    print("✅ [BACKGROUND] Fallback promo ready.")
+                else:
+                    print("❌ [BACKGROUND] Both premium and fallback promo creation failed!")
         except Exception as e:
-            print(f"⚠️ [BACKGROUND] Branding update failed: {e}")
+            print(f"❌ [BACKGROUND] Unhandled error in refresh_assets: {e}")
+            import traceback
+            traceback.print_exc()
+            # Try fallback as last resort
+            try:
+                if not os.path.exists(promo_final):
+                    create_fallback_promo(promo_final)
+            except:
+                pass
 
     import threading
     threading.Thread(target=refresh_assets, daemon=True).start()
@@ -180,9 +222,27 @@ async def regenerate_promo_manually():
     try:
         from create_premium_promo import create_premium_promo
         os.makedirs("/app/videos", exist_ok=True)
+        
+        # Try premium promo first
         success = create_premium_promo(promo_path)
+        
+        # If premium fails, create minimal fallback
         if not success:
-            raise HTTPException(status_code=500, detail="Promo generation script failed.")
+            print("⚠️ Premium promo failed. Attempting fallback...")
+            # Fallback: create minimal promo
+            cmd = [
+                "ffmpeg", "-y", "-f", "lavfi", "-i", "color=c=black:s=1280x720:d=60",
+                "-vf", "drawtext=text='VARTA PRAVAH':fontfile=/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf:fontsize=80:fontcolor=white:x=(w-text_w)/2:y=(h-text_h)/2",
+                "-c:v", "libx264", "-preset", "ultrafast", "-crf", "28",
+                "-pix_fmt", "yuv420p", "-an", promo_path
+            ]
+            result = subprocess.run(cmd, capture_output=True, text=True, timeout=30)
+            if result.returncode != 0:
+                raise HTTPException(status_code=500, detail=f"Promo generation failed. Fallback also failed: {result.stderr}")
+            print("✅ Fallback promo created.")
+
+        if not os.path.exists(promo_path) or os.path.getsize(promo_path) == 0:
+            raise HTTPException(status_code=500, detail="Promo file was not created or is empty.")
 
         # Notify the broadcast controller so the running stream reloads the new promo file.
         worker_host = os.getenv("BACKEND_WORKER_HOST", "backend-worker")
@@ -199,7 +259,12 @@ async def regenerate_promo_manually():
             print(f"⚠️ [PROMO] Could not reach broadcast controller at {worker_url}: {e}")
 
         return {"status": "success", "message": "Premium promo regenerated.", "path": promo_path}
+    except HTTPException:
+        raise
     except Exception as e:
+        print(f"❌ Regenerate promo error: {e}")
+        import traceback
+        traceback.print_exc()
         raise HTTPException(status_code=500, detail=str(e))
 
 #  Settings 

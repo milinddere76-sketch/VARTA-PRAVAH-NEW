@@ -99,6 +99,25 @@ class Streamer:
 
     def _restart_pumper(self):
         """Kills the current content pump and starts a new one into the persistent pipe."""
+        # Validate video file exists
+        if not self.current_video or not os.path.exists(self.current_video):
+            print(f"❌ [PUMPER] ERROR: Video file not found: {self.current_video}")
+            print(f"📂 [PUMPER] Available files in /app/videos:")
+            try:
+                import os as os_module
+                if os_module.path.exists("/app/videos"):
+                    files = os_module.listdir("/app/videos")
+                    for f in files:
+                        fpath = os_module.path.join("/app/videos", f)
+                        size = os_module.path.getsize(fpath) / (1024*1024)
+                        print(f"  - {f} ({size:.1f}MB)")
+                else:
+                    print("  /app/videos directory does not exist!")
+            except Exception as e:
+                print(f"  Could not list directory: {e}")
+            print(f"⏳ [PUMPER] Waiting for video to appear...")
+            return  # Don't start pumper if file doesn't exist
+
         if self.pumper_process:
             try:
                 self.pumper_process.terminate()
