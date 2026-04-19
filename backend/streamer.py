@@ -60,10 +60,27 @@ class Streamer:
         self._setup_pipe()
 
     def _setup_pipe(self):
-        """Creates the FIFO bridge."""
+        """Creates the FIFO bridge, ensuring clean state."""
+        # Only remove pipe if it exists and no processes are using it
         if os.path.exists(self.pipe_path):
-            os.remove(self.pipe_path)
-        os.mkfifo(self.pipe_path)
+            # Check if any process has the pipe open
+            try:
+                # Try to open in non-blocking mode to see if it's available
+                test_fd = os.open(self.pipe_path, os.O_WRONLY | os.O_NONBLOCK)
+                os.close(test_fd)
+                # If we got here, pipe is available, safe to remove
+                os.remove(self.pipe_path)
+            except (OSError, BlockingIOError):
+                # Pipe is in use, don't touch it
+                return
+        
+        try:
+            os.mkfifo(self.pipe_path)
+        except FileExistsError:
+            # Pipe already exists, that's OK
+            pass
+        except Exception as e:
+            print(f"⚠️ [STREAMER] Error creating pipe {self.pipe_path}: {e}")
 
     def _read_stream(self, stream, prefix: str):
         for line in iter(stream.readline, b""):
@@ -215,7 +232,6 @@ class Streamer:
         cmd = [
             "ffmpeg", "-y", "-loglevel", "warning",
             "-fflags", "+discardcorrupt+genpts+igndts",
-            "-reset_timestamps", "1",
             "-avoid_negative_ts", "make_zero",
             "-thread_queue_size", "512",
             "-f", "mpegts", "-i", self.pipe_path,

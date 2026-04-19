@@ -22,7 +22,12 @@ class BroadcastController:
         while not streamer.stream_ready():
             print("⚠️ [MCR] No valid YouTube stream key found. Waiting 30s before retrying...")
             time.sleep(30)
+            old_streamer = streamer
             streamer = Streamer()  # Refresh the stream key from environment or DB
+            try:
+                old_streamer.stop_stream()  # Clean up old processes and pipe
+            except Exception as e:
+                print(f"⚠️ [MCR] Error cleaning up old streamer: {e}")
 
         # 🚀 Start the persistent YouTube signal
         if not streamer.start_stream():
