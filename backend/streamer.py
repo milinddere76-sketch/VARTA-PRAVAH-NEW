@@ -203,7 +203,7 @@ class Streamer:
         v_filter = self._get_filter_complex()
         
         cmd = [
-            "ffmpeg", "-y", "-loglevel", "warning",
+            "ffmpeg", "-y", "-loglevel", "warning", "-re",
             "-i", self.pipe_path,
             "-vf", v_filter,
             "-c:v", "libx264", "-preset", "veryfast", "-tune", "zerolatency",
