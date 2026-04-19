@@ -38,8 +38,8 @@ def create_static_photo_video(anchor_name: str, ticker: str) -> str:
         cmd = [
             "ffmpeg", "-y", "-loop", "1", "-t", "10", "-i", photo_path,
             "-f", "lavfi", "-i", "anullsrc=r=44100:cl=stereo",
-            "-vf", "scale=1280:720",
-            "-c:v", "libx264", "-preset", "ultrafast", "-tune", "stillimage",
+            "-vf", "scale=1280:720:force_original_aspect_ratio=decrease",
+            "-c:v", "libx264", "-preset", "superfast", "-crf", "23",
             "-pix_fmt", "yuv420p", "-c:a", "aac", "-b:a", "128k",
             output_path
         ]
