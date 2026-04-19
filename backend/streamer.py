@@ -126,11 +126,13 @@ class Streamer:
                 try: self.pumper_process.kill()
                 except: pass
         
-        # Start new pumper
+        # Start new pumper with audio re-encoding to ensure YouTube RTMP compatibility
+        # Critical: Use aac codec for audio to ensure it's properly streamed to YouTube
         cmd = [
             "ffmpeg", "-y", "-re",
             "-i", self.current_video,
-            "-c:v", "copy", "-c:a", "copy",
+            "-c:v", "copy",
+            "-c:a", "aac", "-b:a", "128k", "-ar", "44100", "-ac", "2",
             "-f", "flv", self.pipe_path
         ]
         
@@ -139,7 +141,7 @@ class Streamer:
             cmd.insert(3, "-stream_loop")
             cmd.insert(4, "-1")
 
-        print(f"🎬 [PUMPER] Executing: {' '.join(cmd)}")
+        print(f"🎬 [PUMPER] Executing: ffmpeg -re -i {os.path.basename(self.current_video)} (audio re-encode to AAC 128k)")
         self.pumper_process = subprocess.Popen(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.PIPE)
         self._start_logging_thread(self.pumper_process, "PUMPER")
 
