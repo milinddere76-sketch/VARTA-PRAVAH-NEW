@@ -167,7 +167,7 @@ def init_db():
         import models  # noqa: F401
 
         # 2. Create tables in dependency order (avoids FK resolution issues)
-        tables_in_order = ["users", "anchors", "channels", "ad_campaigns"]
+        tables_in_order = ["users", "anchors", "channels", "ad_campaigns", "news"]
         insp = sa_inspect(eng)
         existing = insp.get_table_names()
         for tname in tables_in_order:

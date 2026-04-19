@@ -1,6 +1,59 @@
 import os, subprocess, asyncio, requests
 from temporalio import activity
 from video_renderer import create_video
+import time
+import uuid
+
+def create_static_photo_video(anchor_name: str, ticker: str) -> str:
+    """
+    Creates a static photo video of the anchor with ticker overlay.
+    Much faster than lip-sync generation for initial news items.
+    """
+    import time
+    import uuid
+
+    # Resolve anchor photo path
+    here = os.path.dirname(os.path.abspath(__file__))
+    is_female = (anchor_name.lower() == "female" or anchor_name.lower() == "kritika")
+    photo_path = os.path.join(here, "..", "assets", "female_anchor.png" if is_female else "male_anchor.png")
+
+    # Create unique output path
+    ts = int(time.time())
+    unique_id = str(uuid.uuid4())[:8]
+    output_path = f"/app/videos/static_news_{ts}_{unique_id}.mp4"
+
+    print(f"📸 [STATIC] Creating static photo video for {anchor_name}...")
+    print(f"📸 [STATIC] Photo path: {photo_path}")
+    print(f"📸 [STATIC] Output path: {output_path}")
+    print(f"📸 [STATIC] Ticker text: {ticker}")
+
+    try:
+        # Verify photo exists
+        if not os.path.exists(photo_path):
+            print(f"❌ [STATIC] Photo not found at {photo_path}, using promo as fallback")
+            return "/app/videos/promo.mp4"
+
+        # Create 10-second static video with photo and ticker overlay
+        # Use simple approach without special characters in filtercomplex
+        cmd = [
+            "ffmpeg", "-y", "-loop", "1", "-t", "10", "-i", photo_path,
+            "-f", "lavfi", "-i", "anullsrc=r=44100:cl=stereo",
+            "-vf", "scale=1280:720",
+            "-c:v", "libx264", "-preset", "ultrafast", "-tune", "stillimage",
+            "-pix_fmt", "yuv420p", "-c:a", "aac", "-b:a", "128k",
+            output_path
+        ]
+
+        subprocess.run(cmd, check=True, capture_output=True)
+        print(f"✅ [STATIC] Static photo video ready: {output_path}")
+        return output_path
+
+    except Exception as e:
+        print(f"❌ [STATIC] Failed to create static video: {e}")
+        import traceback
+        traceback.print_exc()
+        # Return promo as fallback
+        return "/app/videos/promo.mp4"
 
 @activity.defn
 async def fetch_news_activity(channel_id: int) -> list:
@@ -28,41 +81,80 @@ async def generate_closing_activity(input_data: list) -> str:
 @activity.defn
 async def generate_news_video_activity(data: tuple) -> str:
     bulletin_type, start_anchor = data
-    
+
+    # Initialize counter file if needed
+    counter_file = "/app/videos/news_counter.txt"
+    try:
+        os.makedirs("/app/videos", exist_ok=True)
+        if os.path.exists(counter_file):
+            with open(counter_file, "r") as f:
+                content = f.read().strip()
+                processed_count = int(content) if content else 0
+        else:
+            processed_count = 0
+            # Initialize counter file
+            with open(counter_file, "w") as f:
+                f.write("0")
+        
+        use_static_photos = processed_count < 25
+        print(f"\n📊 [NEWS] ========================================")
+        print(f"📊 [NEWS] Processed news count: {processed_count}")
+        print(f"📊 [NEWS] Using static photos: {use_static_photos}")
+        print(f"📊 [NEWS] ========================================\n")
+    except Exception as e:
+        print(f"⚠️ [NEWS] Could not check processed count: {e}, defaulting to static photos")
+        import traceback
+        traceback.print_exc()
+        use_static_photos = True
+
     # 1. Fetch actual news items (Simulated here)
     stories = [
         f"{bulletin_type}: पहिली मोठी बातमी...",
         "दुसरी महत्त्वाची बातमी...",
         "आणि तिसरी बातमी क्रीडा विश्वातून..."
     ]
-    
+
     is_female = (start_anchor == "female")
     clips = []
-    
+
     for story in stories:
         anchor_name = "female" if is_female else "male"
-        # Render individual story block
-        # (Assuming create_video handles single items for now)
-        clip = create_video(("/fake/audio/path", story, anchor_name))
+
+        if use_static_photos:
+            # Use static photo generation for first 25 news items
+            print(f"📸 [STATIC] Generating static photo video for {anchor_name}")
+            clip = create_static_photo_video(anchor_name, story)
+        else:
+            # Use full lip-sync generation for news items 26+
+            print(f"🧬 [LIP-SYNC] Generating lip-sync video for {anchor_name}")
+            clip = create_video(("/fake/audio/path", story, anchor_name))
+
         clips.append(clip)
-        
+
         # 🔄 Toggle for next block
         is_female = not is_female
-        
+
     # 2. Merge all blocks into final bulletin
     # (Simplified for now - just returning the first clip for demo)
-    output_path = clips[0] 
-    
+    output_path = clips[0]
+
     # 3. Queue for streaming via broadcast controller
     queue_video_for_streaming(output_path)
-        
+
+    # Update the counter
+    try:
+        new_count = processed_count + len(stories)
+        with open(counter_file, "w") as f:
+            f.write(str(new_count))
+        print(f"✅ [NEWS] Updated counter from {processed_count} to {new_count}")
+    except Exception as e:
+        print(f"⚠️ [NEWS] Could not update counter: {e}")
+
     return output_path
+
 
 def queue_video_for_streaming(video_path: str) -> bool:
     """Queue a video for streaming with retry logic."""
-    import requests
-    import time
-    
     # Verify file exists before queuing
     if not os.path.exists(video_path):
         print(f"❌ [QUEUE] Video not found: {video_path}")
