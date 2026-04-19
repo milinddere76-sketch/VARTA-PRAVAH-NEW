@@ -83,7 +83,7 @@ services:
       temporal:
         condition: service_started
     environment:
-      DATABASE_URL: postgresql://root:password@postgres:5432/temporal
+      DATABASE_URL: postgresql://root:password@postgres:5432/vartapravah
       TEMPORAL_ADDRESS: temporal:7233
       GROQ_API_KEY: ${GROQ_API_KEY}
       WORLD_NEWS_API_KEY: ${WORLD_NEWS_API_KEY}
@@ -121,7 +121,7 @@ services:
       - postgres
       - temporal
     environment:
-      DATABASE_URL: postgresql://root:password@postgres:5432/temporal
+      DATABASE_URL: postgresql://root:password@postgres:5432/vartapravah
       TEMPORAL_ADDRESS: temporal:7233
       YOUTUBE_STREAM_KEY: ${YOUTUBE_STREAM_KEY:-5w92-9u7p-ucjh-b1bx-bszv}  # Use env var or default placeholder
       GROQ_API_KEY: ${GROQ_API_KEY}
@@ -159,7 +159,7 @@ services:
       - postgres
       - temporal
     environment:
-      DATABASE_URL: postgresql://root:password@postgres:5432/temporal
+      DATABASE_URL: postgresql://root:password@postgres:5432/vartapravah
       TEMPORAL_ADDRESS: temporal:7233
       YOUTUBE_STREAM_KEY: ${YOUTUBE_STREAM_KEY:-5w92-9u7p-ucjh-b1bx-bszv}
       GROQ_API_KEY: ${GROQ_API_KEY}

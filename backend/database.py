@@ -70,6 +70,26 @@ def get_engine():
                 
                 with new_engine.connect() as conn:
                     print(f"✅ [DATABASE] Connection Success: {url.split('@')[-1] if '@' in url else url}")
+                    
+                    # Auto-create database if it doesn't exist (for postgresql only)
+                    if not url.startswith("sqlite") and "vartapravah" in url:
+                        try:
+                            from sqlalchemy import text
+                            # Extract database name from URL
+                            db_name = url.split('/')[-1]
+                            # Connect to postgres db first to check/create target db
+                            postgres_url = url.rsplit('/', 1)[0] + '/postgres'
+                            temp_engine = create_engine(postgres_url, pool_pre_ping=True, pool_size=1, max_overflow=0, isolation_level="AUTOCOMMIT")
+                            with temp_engine.connect() as temp_conn:
+                                result = temp_conn.execute(text(f"SELECT 1 FROM pg_database WHERE datname = '{db_name}'"))
+                                if not result.fetchone():
+                                    print(f"📂 [DATABASE] Creating database '{db_name}'...")
+                                    temp_conn.execute(text(f"CREATE DATABASE {db_name}"))
+                                    print(f"✅ [DATABASE] Database '{db_name}' created.")
+                            temp_engine.dispose()
+                        except Exception as e:
+                            print(f"⚠️ [DATABASE] Could not auto-create database: {e}")
+                    
                     engine = new_engine
                     _CACHED_ENGINE_URL = url 
                     return engine
