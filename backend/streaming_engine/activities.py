@@ -118,16 +118,17 @@ async def generate_news_video_activity(data: tuple) -> str:
         use_static_photos = True
 
     # 1. Fetch actual news items (Simulated here)
-    # TEST: Use just 1 story first to debug
     stories = [
-        f"{bulletin_type}: पहिली मोठी बातमी..."
+        f"{bulletin_type}: पहिली मोठी बातमी...",
+        "दुसरी महत्त्वाची बातमी...",
+        "आणि तिसरी बातमी क्रीडा विश्वातून..."
     ]
 
     is_female = (start_anchor == "female")
     clips = []
 
     for i, story in enumerate(stories):
-        print(f"🔄 [NEWS] Processing story {i+1}/3...")
+        print(f"🔄 [NEWS] Processing story {i+1}/{len(stories)}...")
         anchor_name = "female" if is_female else "male"
 
         if use_static_photos:
