@@ -93,7 +93,11 @@ async def lifespan(app: FastAPI):
 
     yield
 
-app = FastAPI(title="VartaPravah API", lifespan=lifespan)
+app = FastAPI(title="VartaPravah API")  # , lifespan=lifespan)
+
+@app.get("/debug/test")
+async def test_endpoint():
+    return {"status": "test endpoint works"}
 
 app.add_middleware(
     CORSMiddleware,
@@ -166,13 +170,12 @@ async def get_worker_status():
 
 @app.get("/debug/files")
 async def list_videos():
-    try:
-        video_dir = "/app/videos"
-        if not os.path.exists(video_dir): return {"files": []}
-        files = os.listdir(video_dir)
-        return {"files": [f"{f} ({os.path.getsize(os.path.join(video_dir, f))/1024:.1f} KB)" for f in files]}
-    except:
-        return {"error": "videos dir not found"}
+    return {"status": "test endpoint works"}
+
+async def test_endpoint():
+    return {"status": "test endpoint works"}
+
+app.add_api_route("/debug/test", test_endpoint, methods=["GET"])
 
 @app.get("/debug/pipeline")
 async def check_streaming_pipeline():

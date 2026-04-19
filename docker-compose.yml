@@ -5,14 +5,14 @@ services:
   # 🗄️ POSTGRES
   # =========================
   postgres:
-    image: postgres:12
+    image: postgres:15
     restart: unless-stopped
     environment:
       POSTGRES_USER: root
       POSTGRES_PASSWORD: password
       POSTGRES_HOST_AUTH_METHOD: trust
     volumes:
-      - postgres_data_v12:/var/lib/postgresql/data
+      - postgres_data_v15:/var/lib/postgresql/data
     networks: [app-net]
     deploy:
       resources:
@@ -88,6 +88,8 @@ services:
       GROQ_API_KEY: ${GROQ_API_KEY}
       WORLD_NEWS_API_KEY: ${WORLD_NEWS_API_KEY}
       SYNCLABS_API_KEY: ${SYNCLABS_API_KEY}
+    ports:
+      - "8000:8000"
     networks: [app-net]
     deploy:
       resources:
@@ -146,6 +148,46 @@ services:
       "
 
   # =========================
+  # 📺 BROADCAST CONTROLLER
+  # =========================
+  broadcast-controller:
+    build: 
+      context: ./backend
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    depends_on:
+      - postgres
+      - temporal
+    environment:
+      DATABASE_URL: postgresql://root:password@postgres:5432/temporal
+      TEMPORAL_ADDRESS: temporal:7233
+      YOUTUBE_STREAM_KEY: ${YOUTUBE_STREAM_KEY:-5w92-9u7p-ucjh-b1bx-bszv}
+      GROQ_API_KEY: ${GROQ_API_KEY}
+      WORLD_NEWS_API_KEY: ${WORLD_NEWS_API_KEY}
+      SYNCLABS_API_KEY: ${SYNCLABS_API_KEY}
+    ports:
+      - "8001:8001"
+    networks: [app-net]
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+    logging:
+      options:
+        max-size: "10m"
+        max-file: "3"
+    volumes:
+      - video_data:/app/videos
+      - ./backend/assets:/app/assets
+    command: >
+      sh -c "
+      echo '⏳ Waiting for Brain (Temporal)...' &&
+      until nc -z temporal 7233; do sleep 2; done &&
+      echo '✅ Brain Online. Starting Broadcast Controller...' &&
+      python3 broadcast_controller.py
+      "
+
+  # =========================
   # 🎨 FRONTEND
   # =========================
   frontend:
@@ -167,5 +209,5 @@ networks:
   app-net:
 
 volumes:
-  postgres_data_v12:
+  postgres_data_v15:
   video_data:

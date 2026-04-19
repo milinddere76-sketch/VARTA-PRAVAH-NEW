@@ -184,6 +184,20 @@ class Streamer:
         if not os.path.exists("/app/ticker.txt"):
             self.update_ticker(["वार्ता प्रवाह - आपले स्वागत आहे"])
 
+        # Kill any existing main process first
+        if self.main_process:
+            try:
+                print("🛑 [STREAMER] Terminating existing main process...")
+                self.main_process.terminate()
+                self.main_process.wait(timeout=5)
+            except Exception as e:
+                print(f"⚠️ [STREAMER] Failed to terminate existing process: {e}")
+                try:
+                    self.main_process.kill()
+                except:
+                    pass
+            self.main_process = None
+
         # Main persistent engine - STRICT CBR for YouTube Health
         # Note: We use -vf defined by content type
         v_filter = self._get_filter_complex()
@@ -204,7 +218,7 @@ class Streamer:
             print("⚠️ [STREAMER] Cannot start stream because no valid YouTube stream key is configured.")
             return False
 
-        print(f"🎬 [MAIN-STREAM] Connecting to YouTube with {v_filter[:20]}...")
+        print(f"🎬 [MAIN-STREAM] Executing: ffmpeg ... -f flv {self.rtmp_url}")
         self.main_process = subprocess.Popen(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.PIPE)
         self._start_logging_thread(self.main_process, "MAIN-STREAM")
         
@@ -221,11 +235,29 @@ class Streamer:
 
     def _monitor(self):
         """Watchdog to ensure the main connection never dies."""
+        consecutive_failures = 0
         while not self.stop_event.is_set():
             if self.main_process and self.main_process.poll() is not None:
-                print("⚠️ [STREAMER] Main Stream crashed! Re-igniting...")
-                self.start_stream()
+                consecutive_failures += 1
+                print(f"⚠️ [STREAMER] Main Stream crashed! (failure #{consecutive_failures})")
+                
+                # If we've had multiple failures in a row, wait longer before retrying
+                if consecutive_failures > 1:
+                    wait_time = min(30 * consecutive_failures, 300)  # Max 5 minutes
+                    print(f"⏳ [STREAMER] Waiting {wait_time}s before retrying...")
+                    time.sleep(wait_time)
+                
+                # Only restart if we haven't been stopped
+                if not self.stop_event.is_set():
+                    success = self.start_stream()
+                    if success:
+                        consecutive_failures = 0  # Reset on success
+                    else:
+                        print("❌ [STREAMER] Failed to restart stream")
                 break
+            else:
+                consecutive_failures = 0  # Reset if process is healthy
+            
             time.sleep(5)
 
     def stop_stream(self):
