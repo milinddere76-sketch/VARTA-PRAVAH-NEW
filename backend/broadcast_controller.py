@@ -31,44 +31,82 @@ class BroadcastController:
             return self.run_loop()
 
         last_news = "/app/videos/promo.mp4"
+        starvation_counter = 0
         
         while True:
-            # 1. Check for NEW content arriving from the worker
-            if not queue.empty():
-                item = queue.get()
-                video = item["video"]
-                print(f"📺 [MCR] Incoming Content: {video}")
+            try:
+                # 1. Check for NEW content arriving from the worker
+                if not queue.empty():
+                    starvation_counter = 0
+                    item = queue.get()
+                    video = item["video"]
+                    print(f"📺 [MCR] ⬇️ INCOMING: {video}")
+                    
+                    # Verify file exists
+                    if not os.path.exists(video):
+                        print(f"❌ [MCR] Video not found: {video}")
+                        continue
+                    
+                    fsize = os.path.getsize(video) / (1024*1024)
+                    print(f"📊 [MCR] Size: {fsize:.1f}MB, Queue depth: {queue.qsize()}")
+                    
+                    # Update memory
+                    if "news_" in video:
+                        last_news = video
+                    
+                    # Switch the stream pumper to the new video
+                    # Note: update_playlist() handles killing the old pumper
+                    streamer.is_promo = ("news_" not in video)
+                    streamer.update_playlist(video)
+                    
+                    # We don't block here anymore. We let the loop continue 
+                    # to monitor for even newer breaking news.
+                    time.sleep(2)
                 
-                # Update memory
-                if "news_" in video:
-                    last_news = video
+                else:
+                    starvation_counter += 1
+                    if starvation_counter % 6 == 0:  # Log every 30 seconds
+                        print(f"🔄 [MCR] Waiting for content... (queue empty for {starvation_counter*5}s)")
+                    
+                    # 2. Continuity: If nothing is in queue, ensure SOMETHING is playing
+                    # If the pumper died (e.g. news finished), loop back to last known good news or promo
+                    if not streamer.pumper_process or streamer.pumper_process.poll() is not None:
+                        print(f"🕒 [MCR] Pumper ended. Bridging with: {os.path.basename(last_news)}")
+                        streamer.is_promo = ("news_" not in last_news)
+                        streamer.update_playlist(last_news)
                 
-                # Switch the stream pumper to the new video
-                # Note: update_playlist() handles killing the old pumper
-                streamer.is_promo = ("news_" not in video)
-                streamer.update_playlist(video)
-                
-                # We don't block here anymore. We let the loop continue 
-                # to monitor for even newer breaking news.
-                time.sleep(2)
-            
-            else:
-                # 2. Continuity: If nothing is in queue, ensure SOMETHING is playing
-                # If the pumper died (e.g. news finished), loop back to last known good news or promo
-                if not streamer.pumper_process or streamer.pumper_process.poll() is not None:
-                    print(f"🕒 [MCR] Content ended. Bridging with: {last_news}")
-                    streamer.is_promo = ("news_" not in last_news)
-                    streamer.update_playlist(last_news)
-            
-            time.sleep(5)
+                time.sleep(5)
+            except Exception as e:
+                print(f"⚠️ [MCR] Loop error: {e}")
+                import traceback
+                traceback.print_exc()
+                time.sleep(5)
+
+@app.get("/status")
+async def status():
+    """Health check endpoint for the broadcast controller."""
+    return {
+        "status": "online",
+        "queue_size": queue.qsize(),
+        "streaming": streamer.stream_ready(),
+        "current_video": streamer.current_video,
+        "processes": {
+            "main": streamer.main_process.poll() is None if streamer.main_process else False,
+            "pumper": streamer.pumper_process.poll() is None if streamer.pumper_process else False
+        }
+    }
 
 @app.post("/add-video")
 async def add_video(data: dict):
     video_path = data.get("video")
     if video_path and os.path.exists(video_path):
+        file_size_mb = os.path.getsize(video_path) / (1024*1024)
+        print(f"✅ [MCR] Video queued: {video_path} ({file_size_mb:.1f}MB), queue depth: {queue.qsize()}")
         queue.put({"video": video_path})
-        return {"status": "queued"}
-    return {"status": "error", "message": "File not found"}
+        return {"status": "queued", "queue_size": queue.qsize()}
+    else:
+        print(f"❌ [MCR] Invalid video path: {video_path}")
+        return {"status": "error", "message": "File not found or invalid path"}
 
 def start_mcr():
     ctrl = BroadcastController()
@@ -77,4 +115,5 @@ def start_mcr():
 
 if __name__ == "__main__":
     start_mcr()
-    uvicorn.run(app, host="0.0.0.0", port=8001)
+    print(f"🚀 [MCR] Broadcast Controller listening on 0.0.0.0:8001")
+    uvicorn.run(app, host="0.0.0.0", port=8001, log_level="warning")

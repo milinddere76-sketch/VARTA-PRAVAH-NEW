@@ -174,6 +174,59 @@ async def list_videos():
     except:
         return {"error": "videos dir not found"}
 
+@app.get("/debug/pipeline")
+async def check_streaming_pipeline():
+    """Comprehensive check of the entire video streaming pipeline."""
+    checks = {
+        "videos_generated": [],
+        "broadcast_controller": None,
+        "streamer_status": None,
+        "youtube_connection": None
+    }
+    
+    # 1. Check generated videos
+    try:
+        video_dir = "/app/videos"
+        if os.path.exists(video_dir):
+            files = sorted(os.listdir(video_dir), key=lambda f: os.path.getmtime(os.path.join(video_dir, f)), reverse=True)
+            for f in files[:10]:  # Last 10 files
+                if f.endswith('.mp4'):
+                    fsize = os.path.getsize(os.path.join(video_dir, f)) / (1024*1024)
+                    checks["videos_generated"].append({"file": f, "size_mb": round(fsize, 2)})
+    except Exception as e:
+        checks["videos_generated"] = {"error": str(e)}
+    
+    # 2. Check broadcast controller status
+    try:
+        import requests
+        response = requests.get("http://localhost:8001/status", timeout=2)
+        if response.ok:
+            checks["broadcast_controller"] = response.json()
+        else:
+            checks["broadcast_controller"] = {"error": f"HTTP {response.status_code}"}
+    except requests.exceptions.ConnectTimeout:
+        checks["broadcast_controller"] = {"error": "Connection timeout"}
+    except requests.exceptions.ConnectionError:
+        checks["broadcast_controller"] = {"error": "Cannot reach broadcast controller on localhost:8001"}
+    except Exception as e:
+        checks["broadcast_controller"] = {"error": str(e)}
+    
+    # 3. Check streamer status (if available)
+    try:
+        response = requests.get("http://0.0.0.0:8000/health", timeout=2)
+        checks["streamer_status"] = {"api_health": response.ok}
+    except:
+        checks["streamer_status"] = {"api_health": False}
+    
+    # 4. Check YouTube connectivity
+    try:
+        with socket.create_connection(("a.rtmp.youtube.com", 1935), timeout=3):
+            checks["youtube_connection"] = "REACHABLE"
+    except Exception as e:
+        checks["youtube_connection"] = f"BLOCKED: {str(e)}"
+    
+    return checks
+
 #  System Control 
 @app.post("/system/reset")
 async def system_nuclear_reset(db: Session = Depends(database.get_db)):

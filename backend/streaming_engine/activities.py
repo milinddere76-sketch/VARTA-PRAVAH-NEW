@@ -53,14 +53,54 @@ async def generate_news_video_activity(data: tuple) -> str:
     # (Simplified for now - just returning the first clip for demo)
     output_path = clips[0] 
     
-    try:
-        import requests
-        requests.post("http://localhost:8001/add-video", json={"video": output_path}, timeout=5)
-        print(f"🚀 [WORKER] Handed off Multi-Anchor Bulletin to MCR: {output_path}")
-    except Exception as e:
-        print(f"⚠️ [WORKER] MCR hand-off failed: {e}")
+    # 3. Queue for streaming via broadcast controller
+    queue_video_for_streaming(output_path)
         
     return output_path
+
+def queue_video_for_streaming(video_path: str) -> bool:
+    """Queue a video for streaming with retry logic."""
+    import requests
+    import time
+    
+    # Verify file exists before queuing
+    if not os.path.exists(video_path):
+        print(f"❌ [QUEUE] Video not found: {video_path}")
+        return False
+    
+    file_size_mb = os.path.getsize(video_path) / (1024*1024)
+    print(f"📹 [QUEUE] Attempting to queue video: {video_path} ({file_size_mb:.1f}MB)")
+    
+    # Try multiple broadcast controller endpoints
+    endpoints = [
+        "http://localhost:8001/add-video",
+        "http://127.0.0.1:8001/add-video",
+        "http://backend-worker:8001/add-video",  # Docker network name
+        os.getenv("BROADCAST_CONTROLLER_URL", "http://localhost:8001/add-video")
+    ]
+    
+    for endpoint in endpoints:
+        try:
+            print(f"  Trying: {endpoint}")
+            response = requests.post(
+                endpoint, 
+                json={"video": video_path}, 
+                timeout=3
+            )
+            if response.status_code == 200:
+                print(f"✅ [QUEUE] Video queued successfully: {video_path}")
+                return True
+            elif response.status_code in [400, 404, 500]:
+                print(f"  ⚠️ Response {response.status_code}: {response.text}")
+        except requests.exceptions.ConnectTimeout:
+            print(f"  ⏱️ Timeout connecting to {endpoint}")
+        except requests.exceptions.ConnectionError:
+            print(f"  ❌ Cannot reach {endpoint}")
+        except Exception as e:
+            print(f"  ❌ Error: {e}")
+    
+    print(f"⚠️ [QUEUE] Failed to queue video to all endpoints. Video may not stream!")
+    return False
 
 @activity.defn
 async def synclabs_lip_sync_activity(data: dict) -> str:
@@ -80,12 +120,11 @@ async def upload_to_s3_activity(file_path: str) -> str:
 
 @activity.defn
 async def start_stream_activity(data: dict) -> bool:
-    try:
-        import requests
-        requests.post("http://localhost:8001/add-video", json={"video": data["video_url"]}, timeout=5)
-        return True
-    except:
-        return False
+    """Queue a video for streaming."""
+    video_url = data.get("video_url")
+    if video_url:
+        return queue_video_for_streaming(video_url)
+    return False
 
 @activity.defn
 async def merge_videos_activity(clips: list) -> str:
