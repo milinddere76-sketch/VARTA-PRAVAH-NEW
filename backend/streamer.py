@@ -130,7 +130,7 @@ class Streamer:
         # Use video filtering to ensure real-time rate limiting
         cmd = [
             "ffmpeg", "-y", "-re",
-            "-fflags", "+genpts",
+            "-fflags", "+genpts+igndts",
             "-avoid_negative_ts", "make_zero",
             "-i", self.current_video,
             "-c:v", "libx264", "-preset", "ultrafast", "-tune", "zerolatency",
@@ -138,7 +138,9 @@ class Streamer:
             "-pix_fmt", "yuv420p", "-g", "50", "-keyint_min", "50",
             "-r", "25",
             "-c:a", "aac", "-b:a", "128k", "-ar", "44100", "-ac", "2",
-            "-f", "flv", self.pipe_path
+            "-mpegts_flags", "+resend_headers",
+            "-flush_packets", "1",
+            "-f", "mpegts", self.pipe_path
         ]
         
         # If it's a promo, loop it infinitely
@@ -210,12 +212,12 @@ class Streamer:
         v_filter = self._get_filter_complex()
         
         cmd = [
-            "ffmpeg", "-y", "-loglevel", "warning", "-re",
+            "ffmpeg", "-y", "-loglevel", "warning",
             "-fflags", "+discardcorrupt+genpts",
             "-avoid_negative_ts", "make_zero",
             "-thread_queue_size", "512",
             "-use_wallclock_as_timestamps", "1",
-            "-i", self.pipe_path,
+            "-f", "mpegts", "-i", self.pipe_path,
             "-vf", v_filter,
             "-c:v", "libx264", "-preset", "veryfast", "-tune", "zerolatency",
             "-b:v", "2500k", "-minrate", "2500k", "-maxrate", "2500k", "-bufsize", "2500k",
