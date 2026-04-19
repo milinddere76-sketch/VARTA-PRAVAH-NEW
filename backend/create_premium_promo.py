@@ -216,7 +216,7 @@ def create_premium_promo(output_path: str = None) -> bool:
             "sine=f=400:d=60,volume=0.5[tension];"  # Mid tension
             "sine=f=1000:d=60,volume=0.3[alert];"  # High alert
             "[hum][tension]amix=inputs=2:duration=first[base];"
-            "[base][alert]amix=inputs=2:duration=first[out_news]"
+            "[base][alert]amix=inputs=2:duration=first"  # Output to input stream directly
         )
         inputs.extend(["-f", "lavfi", "-i", news_audio])
         # Current input 0-3 are video, 4 is lavfi
