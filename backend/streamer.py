@@ -84,20 +84,39 @@ class Streamer:
             f.write(f" *** {text} *** ")
         print(f"📰 [STREAMER] Ticker Updated: {text[:50]}...")
 
+    def _get_filter_complex(self):
+        """
+        Determines the correct filter chain based on content type.
+        News bulletins (news_*.mp4) already have tickers, so we skip the overlay.
+        Promos/Ads need the dynamic ticker injected.
+        """
+        if self.current_video and "news_" in self.current_video:
+            # Bulletins already have baked-in UI
+            return "copy"
+        
+        # Promos/Loops need the dynamic ticker overlay
+        return (
+            "drawtext=fontfile=/usr/share/fonts/truetype/noto/NotoSansDevanagari-Bold.ttf:"
+            "textfile=/app/ticker.txt:reload=1:"
+            "x=w-mod(max(t\,0)*(w+tw)/20\,(w+tw)):y=h-50:"
+            "fontsize=28:fontcolor=white:box=1:boxcolor=black@0.6:text_shaping=1"
+        )
+
     def start_stream(self):
         """AIR IGNITION: Starts the ONE AND ONLY stream to YouTube."""
         print(f"🚀 [STREAMER] Igniting Persistent YouTube Connection...")
         
-        # Ensure ticker file exists
         if not os.path.exists("/app/ticker.txt"):
             self.update_ticker(["वार्ताप्रवाह - आपले स्वागत आहे"])
 
-        # Main persistent engine with scrolling ticker filter - STRICT CBR for YouTube Health
-        # Specified fontfile to prevent 'square' characters in Marathi ticker
+        # Main persistent engine - STRICT CBR for YouTube Health
+        # Note: We use -vf defined by content type
+        v_filter = self._get_filter_complex()
+        
         cmd = [
-            "ffmpeg", "-y", "-loglevel", "info",
+            "ffmpeg", "-y", "-loglevel", "warning",
             "-i", self.pipe_path,
-            "-vf", "drawtext=fontfile=/usr/share/fonts/truetype/noto/NotoSansDevanagari-Bold.ttf:textfile=/app/ticker.txt:reload=1:x=w-mod(max(t\,0)*(w+tw)/20\,(w+tw)):y=h-50:fontsize=28:fontcolor=white:box=1:boxcolor=black@0.6:text_shaping=1",
+            "-vf", v_filter,
             "-c:v", "libx264", "-preset", "veryfast", "-tune", "zerolatency",
             "-b:v", "2500k", "-minrate", "2500k", "-maxrate", "2500k", "-bufsize", "2500k",
             "-nal-hrd", "cbr",
@@ -106,9 +125,8 @@ class Streamer:
             "-f", "flv", "-flvflags", "no_duration_filesize", self.rtmp_url
         ]
 
-        print(f"🚀 [STREAMER] Igniting Persistent YouTube Connection...")
-        print(f"🎬 [MAIN-STREAM] Executing: {' '.join(cmd)}")
-        self.main_process = subprocess.Popen(cmd) # Enable logs to flow to docker log for debugging
+        print(f"🎬 [MAIN-STREAM] Connecting to YouTube with {v_filter[:20]}...")
+        self.main_process = subprocess.Popen(cmd)
         
         # Ensure we are pumping something immediately
         if not self.current_video:
