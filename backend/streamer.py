@@ -136,6 +136,7 @@ class Streamer:
             "-c:v", "libx264", "-preset", "ultrafast", "-tune", "zerolatency",
             "-b:v", "2000k", "-maxrate", "2000k", "-bufsize", "4000k",
             "-pix_fmt", "yuv420p", "-g", "50", "-keyint_min", "50",
+            "-r", "25",
             "-c:a", "aac", "-b:a", "128k", "-ar", "44100", "-ac", "2",
             "-f", "flv", self.pipe_path
         ]
@@ -212,12 +213,14 @@ class Streamer:
             "ffmpeg", "-y", "-loglevel", "warning", "-re",
             "-fflags", "+discardcorrupt+genpts",
             "-avoid_negative_ts", "make_zero",
+            "-thread_queue_size", "512",
+            "-use_wallclock_as_timestamps", "1",
             "-i", self.pipe_path,
             "-vf", v_filter,
             "-c:v", "libx264", "-preset", "veryfast", "-tune", "zerolatency",
             "-b:v", "2500k", "-minrate", "2500k", "-maxrate", "2500k", "-bufsize", "2500k",
             "-nal-hrd", "cbr",
-            "-pix_fmt", "yuv420p", "-g", "50",
+            "-pix_fmt", "yuv420p", "-g", "50", "-r", "25",
             "-c:a", "aac", "-b:a", "128k", "-ar", "44100", "-ac", "2",
             "-f", "flv", "-flvflags", "no_duration_filesize", self.rtmp_url
         ]
