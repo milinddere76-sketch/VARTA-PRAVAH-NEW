@@ -5,17 +5,46 @@ import threading
 import signal
 
 class Streamer:
+    PLACEHOLDER_KEYS = {
+        "5w92-9u7p-ucjh-b1bx-bszv",
+        "9efm-d8gq-mmma-9y1b-7sez",
+        "your-stream-key-here",
+        "key",
+    }
+
     def __init__(self, youtube_key: str = None, channel_id: int = 1):
         # Auto-detect from environment if not provided (Industrial Standard)
         self.youtube_key = youtube_key or os.getenv("YOUTUBE_STREAM_KEY")
         self.channel_id = channel_id
-        
+
+        if not self.youtube_key and self.channel_id:
+            db = None
+            try:
+                from database import get_session_local
+                from models import Channel
+                db = get_session_local()
+                channel = db.query(Channel).filter(Channel.id == self.channel_id).first()
+                if channel and channel.youtube_stream_key:
+                    self.youtube_key = channel.youtube_stream_key
+            except Exception as e:
+                print(f"⚠️ [STREAMER] DB stream key lookup failed: {e}")
+            finally:
+                if db is not None:
+                    try:
+                        db.close()
+                    except:
+                        pass
+
+        if self.youtube_key and self._is_placeholder_key(self.youtube_key):
+            print("⚠️ [STREAMER] Placeholder stream key detected. Please configure a real YouTube stream key.")
+            self.youtube_key = None
+
         if not self.youtube_key:
-            print("⚠️ [STREAMER] No YouTube Key found! Entering Standby Mode.")
-            self.rtmp_url = "/dev/null"
+            print("⚠️ [STREAMER] No valid YouTube Key found! Entering Standby Mode.")
+            self.rtmp_url = None
         else:
             self.rtmp_url = f"rtmp://a.rtmp.youtube.com/live2/{self.youtube_key}"
-            
+
         self.current_video = None
         
         self.main_process = None
@@ -35,6 +64,18 @@ class Streamer:
         if os.path.exists(self.pipe_path):
             os.remove(self.pipe_path)
         os.mkfifo(self.pipe_path)
+
+    def _is_placeholder_key(self, key: str) -> bool:
+        if not key:
+            return True
+        if key in self.PLACEHOLDER_KEYS:
+            return True
+        if " " in key:
+            return True
+        return key.count("-") < 2
+
+    def stream_ready(self) -> bool:
+        return bool(self.youtube_key)
 
     def update_playlist(self, new_video: str):
         """SWITCHER LOGIC: Changes content WITHOUT dropping the stream."""
@@ -125,6 +166,10 @@ class Streamer:
             "-f", "flv", "-flvflags", "no_duration_filesize", self.rtmp_url
         ]
 
+        if not self.stream_ready():
+            print("⚠️ [STREAMER] Cannot start stream because no valid YouTube stream key is configured.")
+            return False
+
         print(f"🎬 [MAIN-STREAM] Connecting to YouTube with {v_filter[:20]}...")
         self.main_process = subprocess.Popen(cmd)
         
@@ -132,6 +177,7 @@ class Streamer:
         if not self.current_video:
             self.current_video = "/app/videos/promo.mp4"
         self._restart_pumper()
+        return True
 
         # Supervision
         self.stop_event.clear()

@@ -17,10 +17,19 @@ class BroadcastController:
 
     def run_loop(self):
         print("🎬 [MCR] Master Broadcast Control active.")
-        
+
+        global streamer
+        while not streamer.stream_ready():
+            print("⚠️ [MCR] No valid YouTube stream key found. Waiting 30s before retrying...")
+            time.sleep(30)
+            streamer = Streamer()  # Refresh the stream key from environment or DB
+
         # 🚀 Start the persistent YouTube signal
-        streamer.start_stream()
-        
+        if not streamer.start_stream():
+            print("⚠️ [MCR] Stream startup failed. Retrying in 30s...")
+            time.sleep(30)
+            return self.run_loop()
+
         last_news = "/app/videos/promo.mp4"
         
         while True:

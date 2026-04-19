@@ -102,7 +102,7 @@ async def server_health_check(db: Session = Depends(database.get_db)):
             s.current_video = promo_path
             s.start_stream()
             time.sleep(3)
-            is_alive = s.process.poll() is None
+            is_alive = s.main_process is not None and s.main_process.poll() is None
             checks["attempt_stream_alive"] = is_alive
             s.stop_stream()
         except Exception as e:
@@ -195,12 +195,24 @@ def update_settings(data: dict):
     try:
         env_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), ".env")
         # Direct set using set_key for reliability
+        db = next(database.get_db())
         if data.get("groq_api_key"):
             set_key(env_path, "GROQ_API_KEY", data["groq_api_key"])
             os.environ["GROQ_API_KEY"] = data["groq_api_key"]
         if data.get("world_news_api_key"):
             set_key(env_path, "WORLD_NEWS_API_KEY", data["world_news_api_key"])
             os.environ["WORLD_NEWS_API_KEY"] = data["world_news_api_key"]
+        if data.get("youtube_stream_key"):
+            set_key(env_path, "YOUTUBE_STREAM_KEY", data["youtube_stream_key"])
+            os.environ["YOUTUBE_STREAM_KEY"] = data["youtube_stream_key"]
+            try:
+                channel = db.query(models.Channel).filter(models.Channel.id == 1).first()
+                if channel:
+                    channel.youtube_stream_key = data["youtube_stream_key"]
+                    db.commit()
+            except Exception as e:
+                print(f"⚠️ [SETTINGS] Failed to persist channel stream key: {e}")
+        db.close()
         return {"status": "success", "message": "API keys updated and saved."}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
