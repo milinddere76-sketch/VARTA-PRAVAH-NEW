@@ -212,9 +212,9 @@ def create_premium_promo(output_path: str = None) -> bool:
         # Generate professional "News Theme" audio (mix of tones for urgency and professionalism)
         # Low hum + mid tension + high alert beeps
         news_audio = (
-            "sine=f=80:d=60,volume=0.3[hum];"  # Deep bass hum
-            "sine=f=400:d=60,volume=0.2[tension];"  # Mid tension
-            "sine=f=1000:d=60,volume=0.1[alert];"  # High alert
+            "sine=f=80:d=60,volume=0.8[hum];"  # Louder deep bass hum
+            "sine=f=400:d=60,volume=0.5[tension];"  # Mid tension
+            "sine=f=1000:d=60,volume=0.3[alert];"  # High alert
             "[hum][tension]amix=inputs=2:duration=first[base];"
             "[base][alert]amix=inputs=2:duration=first[out_news]"
         )
