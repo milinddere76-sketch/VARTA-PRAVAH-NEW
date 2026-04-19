@@ -6,7 +6,7 @@ import time
 from dotenv import load_dotenv
 
 # --- CONFIG ---
-MARATHI_TEXT = "नमस्कार, वार्ताप्रवाहमध्ये आपले स्वागत आहे. हे एक लोकल लिप-सिंक टेस्टिंग आहे."
+MARATHI_TEXT = "नमस्कार, वार्ता प्रवाहमध्ये आपले स्वागत आहे. हे एक स्थानिक लिप-सिंक चाचणी आहे."
 OUTPUT_AUDIO = "test_audio.mp3"
 OUTPUT_VIDEO = "local_sync_test.mp4"
 

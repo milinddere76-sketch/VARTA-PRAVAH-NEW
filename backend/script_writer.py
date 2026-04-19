@@ -9,9 +9,9 @@ def generate_script(data):
 
     # 1. Gender-specific Introduction
     if anchor_gender == "female":
-        intro = "नमस्कार, मी तुमची बातमीदार आहे."
+        intro = "नमस्कार, मी तुमची संवाददाता आहे."
     else:
-        intro = "नमस्कार, मी तुमचा बातमीदार आहे."
+        intro = "नमस्कार, मी तुमचा संवाददाता आहे."
 
     # 2. Bulletin Header
     script = f"{intro}\nअथक परिश्रमानंतर {bulletin_type} सुरु होत आहे.\n\n"
@@ -31,6 +31,6 @@ def generate_script(data):
         script += f"१. {headline}\n"
 
     # 5. Professional Closing
-    script += "\nपाहत राहा 'वार्ताप्रवाह'. धन्यवाद!"
+    script += "\nपाहत राहा 'वार्ता प्रवाह'. धन्यवाद!"
 
     return script

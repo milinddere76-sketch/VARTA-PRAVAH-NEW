@@ -162,7 +162,7 @@ def create_premium_promo(output_path: str = None) -> bool:
     filter_complex = (
         "[0:v]scale=1280:720,setsar=1[vbg];"
         # Animated logo: breathing effect (scales in/out every 5 seconds)
-        "[3:v]scale='150*(1+0.2*sin(2*PI*t/5))':-1,format=rgba,colorchannelmixer=aa=0.85[pulse_logo];"
+        "[3:v]scale=w='150*(1+0.2*sin(2*PI*t/5))':h=-1:eval=frame,format=rgba,colorchannelmixer=aa=0.85[pulse_logo];"
         "[vbg][pulse_logo]overlay=W-w-50:50[v1];"
         # Add UI Layer with fade-in effect
         "[1:v]format=rgba,fade=t=in:st=0:d=2:alpha=1[faded_ui];"
@@ -187,7 +187,7 @@ def create_premium_promo(output_path: str = None) -> bool:
         filter_complex = (
             "[0:v][1:v]overlay=0:0[v1];"
             f"[v1][2:v]overlay=x='w-mod((200+50*sin(2*PI*t/10))*t,w+{t_width})':y=H-75[v2];"
-            "[3:v]scale='180*(1+0.1*sin(2*PI*t/6))':-1[logo_animated];"
+            "[3:v]scale=w='180*(1+0.1*sin(2*PI*t/6))':h=-1:eval=frame[logo_animated];"
             "[v2][logo_animated]overlay=1080:20[outv]"
         )
     else:

@@ -4,7 +4,7 @@ from video_renderer import create_video
 
 @activity.defn
 async def fetch_news_activity(channel_id: int) -> list:
-    return [('ताज्या बातम्या: वार्ताप्रवाह न्यूज वर आपले स्वागत आहे.', 'Headline', 'Female', False)]
+    return [('ताज्या बातम्या: वार्ता प्रवाह न्यूज वर आपले स्वागत आहे.', 'Headline', 'Female', False)]
 
 @activity.defn
 async def generate_headlines_activity(input_data: list) -> list:
@@ -23,7 +23,7 @@ async def generate_audio_activity(script: str) -> str:
 @activity.defn
 async def generate_closing_activity(input_data: list) -> str:
     # AI Sign-off
-    return "वार्ताप्रवाह न्यूज पाहिल्याबद्दल धन्यवाद. ताज्या घडामोडींसाठी पाहत रहा वार्ताप्रवाह."
+    return "वार्ता प्रवाह न्यूज पाहिल्याबद्दल धन्यवाद. ताज्या घडामोडींसाठी पाहत रहा वार्ता प्रवाह."
 
 @activity.defn
 async def generate_news_video_activity(data: tuple) -> str:

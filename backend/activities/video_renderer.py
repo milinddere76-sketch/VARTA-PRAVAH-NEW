@@ -31,7 +31,7 @@ def create_video(data):
         box_color = "black@0.6"
 
     # Professional Branding & Audio
-    anchor_name = "अँकर: क्रितिका" if anchor == "female" else "अँकर: प्रियांश"
+    anchor_name = "संवाददाता: क्रितिका" if anchor == "female" else "संवाददाता: प्रियांश"
     lower_text = f"VartaPravah | {anchor_name}"
     logo_path = "/app/assets/logo.png"
     music_path = "/app/assets/news_music.mp3"

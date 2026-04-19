@@ -65,6 +65,20 @@ class Streamer:
             os.remove(self.pipe_path)
         os.mkfifo(self.pipe_path)
 
+    def _read_stream(self, stream, prefix: str):
+        for line in iter(stream.readline, b""):
+            try:
+                text = line.decode(errors="replace").strip()
+            except Exception:
+                text = str(line)
+            if text:
+                print(f"{prefix}: {text}")
+        stream.close()
+
+    def _start_logging_thread(self, process, label: str):
+        if process.stderr is not None:
+            threading.Thread(target=self._read_stream, args=(process.stderr, label), daemon=True).start()
+
     def _is_placeholder_key(self, key: str) -> bool:
         if not key:
             return True
@@ -107,7 +121,8 @@ class Streamer:
             cmd.insert(4, "-1")
 
         print(f"🎬 [PUMPER] Executing: {' '.join(cmd)}")
-        self.pumper_process = subprocess.Popen(cmd) # Allow logs to flow to docker log for debugging
+        self.pumper_process = subprocess.Popen(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.PIPE)
+        self._start_logging_thread(self.pumper_process, "PUMPER")
 
     def update_ticker(self, headlines: list):
         """Dynamically updates the scrolling news ticker with character sanitization."""
@@ -120,7 +135,7 @@ class Streamer:
             clean = "".join(c for c in h if c.isalnum() or c.isspace() or '\u0900' <= c <= '\u097F' or c in ".-*|!?,")
             clean_headlines.append(clean.strip())
             
-        text = " | ".join(clean_headlines) if clean_headlines else "वार्ताप्रवाह - ताज्या घडामोडी"
+        text = " | ".join(clean_headlines) if clean_headlines else "वार्ता प्रवाह - ताज्या घडामोडी"
         with open(ticker_path, "w", encoding="utf-8") as f:
             f.write(f" *** {text} *** ")
         print(f"📰 [STREAMER] Ticker Updated: {text[:50]}...")
@@ -148,7 +163,7 @@ class Streamer:
         print(f"🚀 [STREAMER] Igniting Persistent YouTube Connection...")
         
         if not os.path.exists("/app/ticker.txt"):
-            self.update_ticker(["वार्ताप्रवाह - आपले स्वागत आहे"])
+            self.update_ticker(["वार्ता प्रवाह - आपले स्वागत आहे"])
 
         # Main persistent engine - STRICT CBR for YouTube Health
         # Note: We use -vf defined by content type
@@ -171,7 +186,8 @@ class Streamer:
             return False
 
         print(f"🎬 [MAIN-STREAM] Connecting to YouTube with {v_filter[:20]}...")
-        self.main_process = subprocess.Popen(cmd)
+        self.main_process = subprocess.Popen(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.PIPE)
+        self._start_logging_thread(self.main_process, "MAIN-STREAM")
         
         # Ensure we are pumping something immediately
         if not self.current_video:
