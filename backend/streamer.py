@@ -130,6 +130,8 @@ class Streamer:
         # Use video filtering to ensure real-time rate limiting
         cmd = [
             "ffmpeg", "-y", "-re",
+            "-fflags", "+genpts",
+            "-avoid_negative_ts", "make_zero",
             "-i", self.current_video,
             "-c:v", "libx264", "-preset", "ultrafast", "-tune", "zerolatency",
             "-b:v", "2000k", "-maxrate", "2000k", "-bufsize", "4000k",
@@ -208,6 +210,8 @@ class Streamer:
         
         cmd = [
             "ffmpeg", "-y", "-loglevel", "warning", "-re",
+            "-fflags", "+discardcorrupt+genpts",
+            "-avoid_negative_ts", "make_zero",
             "-i", self.pipe_path,
             "-vf", v_filter,
             "-c:v", "libx264", "-preset", "veryfast", "-tune", "zerolatency",
