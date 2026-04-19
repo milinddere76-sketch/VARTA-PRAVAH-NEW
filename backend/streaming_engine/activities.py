@@ -47,7 +47,7 @@ def create_static_photo_video(anchor_name: str, ticker: str) -> str:
         # Run subprocess synchronously (not in async context since this is called from async)
         # Use communicate() instead of run() to properly handle both stdout/stderr
         result = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-        stdout, stderr = result.communicate(timeout=30)  # 30 second timeout per video
+        stdout, stderr = result.communicate(timeout=120)  # 120 second timeout per video for static photos
         
         if result.returncode != 0:
             print(f"❌ [STATIC] FFmpeg failed: {stderr.decode()[:200]}")
