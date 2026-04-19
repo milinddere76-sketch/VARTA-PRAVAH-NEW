@@ -11,6 +11,7 @@ def create_static_photo_video(anchor_name: str, ticker: str) -> str:
     """
     import time
     import uuid
+    import subprocess
 
     # Resolve anchor photo path
     here = os.path.dirname(os.path.abspath(__file__))
@@ -34,7 +35,6 @@ def create_static_photo_video(anchor_name: str, ticker: str) -> str:
             return "/app/videos/promo.mp4"
 
         # Create 10-second static video with photo and ticker overlay
-        # Use simple approach without special characters in filtercomplex
         cmd = [
             "ffmpeg", "-y", "-loop", "1", "-t", "10", "-i", photo_path,
             "-f", "lavfi", "-i", "anullsrc=r=44100:cl=stereo",
@@ -44,15 +44,25 @@ def create_static_photo_video(anchor_name: str, ticker: str) -> str:
             output_path
         ]
 
-        subprocess.run(cmd, check=True, capture_output=True)
+        # Run subprocess synchronously (not in async context since this is called from async)
+        # Use communicate() instead of run() to properly handle both stdout/stderr
+        result = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        stdout, stderr = result.communicate(timeout=30)  # 30 second timeout per video
+        
+        if result.returncode != 0:
+            print(f"❌ [STATIC] FFmpeg failed: {stderr.decode()[:200]}")
+            return "/app/videos/promo.mp4"
+        
         print(f"✅ [STATIC] Static photo video ready: {output_path}")
         return output_path
 
+    except subprocess.TimeoutExpired:
+        print(f"⏱️ [STATIC] FFmpeg timeout creating {output_path}")
+        return "/app/videos/promo.mp4"
     except Exception as e:
         print(f"❌ [STATIC] Failed to create static video: {e}")
         import traceback
         traceback.print_exc()
-        # Return promo as fallback
         return "/app/videos/promo.mp4"
 
 @activity.defn
@@ -108,47 +118,61 @@ async def generate_news_video_activity(data: tuple) -> str:
         use_static_photos = True
 
     # 1. Fetch actual news items (Simulated here)
+    # TEST: Use just 1 story first to debug
     stories = [
-        f"{bulletin_type}: पहिली मोठी बातमी...",
-        "दुसरी महत्त्वाची बातमी...",
-        "आणि तिसरी बातमी क्रीडा विश्वातून..."
+        f"{bulletin_type}: पहिली मोठी बातमी..."
     ]
 
     is_female = (start_anchor == "female")
     clips = []
 
-    for story in stories:
+    for i, story in enumerate(stories):
+        print(f"🔄 [NEWS] Processing story {i+1}/3...")
         anchor_name = "female" if is_female else "male"
 
         if use_static_photos:
             # Use static photo generation for first 25 news items
             print(f"📸 [STATIC] Generating static photo video for {anchor_name}")
             clip = create_static_photo_video(anchor_name, story)
+            print(f"📸 [STATIC] Generated clip: {clip}")
         else:
             # Use full lip-sync generation for news items 26+
             print(f"🧬 [LIP-SYNC] Generating lip-sync video for {anchor_name}")
             clip = create_video(("/fake/audio/path", story, anchor_name))
+            print(f"🧬 [LIP-SYNC] Generated clip: {clip}")
 
         clips.append(clip)
+        print(f"✅ [NEWS] Appended clip. Total clips: {len(clips)}")
 
         # 🔄 Toggle for next block
         is_female = not is_female
+
+    print(f"✅ [NEWS] Finished generating {len(clips)} clips")
 
     # 2. Merge all blocks into final bulletin
     # (Simplified for now - just returning the first clip for demo)
     output_path = clips[0]
 
     # 3. Queue for streaming via broadcast controller
-    queue_video_for_streaming(output_path)
+    print(f"🎬 [NEWS] Queuing video for streaming: {output_path}")
+    queue_result = queue_video_for_streaming(output_path)
+    print(f"🎬 [NEWS] Queue result: {queue_result}")
 
-    # Update the counter
+    # Update the counter (CRITICAL - increment by number of stories processed)
+    print(f"📊 [NEWS] About to update counter: {processed_count} -> {processed_count + len(stories)}")
     try:
         new_count = processed_count + len(stories)
+        print(f"📊 [NEWS] Writing counter file: {counter_file} with value: {new_count}")
         with open(counter_file, "w") as f:
             f.write(str(new_count))
-        print(f"✅ [NEWS] Updated counter from {processed_count} to {new_count}")
+        # Verify write
+        with open(counter_file, "r") as f:
+            verify_count = f.read().strip()
+        print(f"✅ [NEWS] Updated counter from {processed_count} to {new_count} (verified: {verify_count})")
     except Exception as e:
         print(f"⚠️ [NEWS] Could not update counter: {e}")
+        import traceback
+        traceback.print_exc()
 
     return output_path
 
