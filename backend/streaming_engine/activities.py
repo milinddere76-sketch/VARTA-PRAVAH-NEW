@@ -190,9 +190,9 @@ def queue_video_for_streaming(video_path: str) -> bool:
     
     # Try multiple broadcast controller endpoints
     endpoints = [
+        "http://broadcast-controller:8001/add-video",  # Docker service name
         "http://localhost:8001/add-video",
         "http://127.0.0.1:8001/add-video",
-        "http://backend-worker:8001/add-video",  # Docker network name
         os.getenv("BROADCAST_CONTROLLER_URL", "http://localhost:8001/add-video")
     ]
     
