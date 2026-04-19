@@ -161,16 +161,17 @@ def create_premium_promo(output_path: str = None) -> bool:
 
     filter_complex = (
         "[0:v]scale=1280:720,setsar=1[vbg];"
-        # Professional static logo in top-right
-        "[3:v]scale=150:-1,format=rgba,colorchannelmixer=aa=0.85[pulse_logo];"
+        # Animated logo: breathing effect (scales in/out every 5 seconds)
+        "[3:v]scale='150*(1+0.2*sin(2*PI*t/5))':-1,format=rgba,colorchannelmixer=aa=0.85[pulse_logo];"
         "[vbg][pulse_logo]overlay=W-w-50:50[v1];"
-        # Add UI Layer
-        "[v1][1:v]overlay=0:0[v2];"
+        # Add UI Layer with fade-in effect
+        "[1:v]format=rgba,fade=t=in:st=0:d=2:alpha=1[faded_ui];"
+        "[v1][faded_ui]overlay=0:0[v2];"
         # Ticker Box (Red glassmorphism feel)
         "[v2]drawbox=y=ih-100:w=iw:h=100:color=red@0.8:t=fill[v3];"
         "[v3]drawbox=y=ih-103:w=iw:h=3:color=white@0.9:t=fill[v4];"
-        # Scrolling Ticker Overlay
-        f"[v4][2:v]overlay=x='w-mod(250*t,w+{t_width})':y=H-85[outv]"
+        # Scrolling Ticker Overlay with variable speed
+        f"[v4][2:v]overlay=x='w-mod((200+50*sin(2*PI*t/10))*t,w+{t_width})':y=H-85[outv]"
     )
 
     # Re-map inputs based on Emergency Mode
@@ -185,9 +186,9 @@ def create_premium_promo(output_path: str = None) -> bool:
         # v1: black + ui, v2: v1 + ticker, v3: v2 + logo (scaled)
         filter_complex = (
             "[0:v][1:v]overlay=0:0[v1];"
-            f"[v1][2:v]overlay=x='w-mod(250*t,w+{t_width})':y=H-75[v2];"
-            "[3:v]scale=180:-1[logo_small];"
-            "[v2][logo_small]overlay=1080:20[outv]"
+            f"[v1][2:v]overlay=x='w-mod((200+50*sin(2*PI*t/10))*t,w+{t_width})':y=H-75[v2];"
+            "[3:v]scale='180*(1+0.1*sin(2*PI*t/6))':-1[logo_animated];"
+            "[v2][logo_animated]overlay=1080:20[outv]"
         )
     else:
         inputs = [
@@ -208,9 +209,17 @@ def create_premium_promo(output_path: str = None) -> bool:
         # Current input 0-3 are video, 4 is music
         audio_map = "[4:a]volume=1.0[outa]"
     else:
-        # Generate a "News Drone" (40Hz + 80Hz hum) to satisfy YouTube Audio bitrate
-        inputs.extend(["-f", "lavfi", "-i", "sine=f=40:d=60,aecho=0.8:0.8:1000:0.3,volume=0.2"])
-        # Current input 0-3 are video, 4 is sine
+        # Generate professional "News Theme" audio (mix of tones for urgency and professionalism)
+        # Low hum + mid tension + high alert beeps
+        news_audio = (
+            "sine=f=80:d=60,volume=0.3[hum];"  # Deep bass hum
+            "sine=f=400:d=60,volume=0.2[tension];"  # Mid tension
+            "sine=f=1000:d=60,volume=0.1[alert];"  # High alert
+            "[hum][tension]amix=inputs=2:duration=first[base];"
+            "[base][alert]amix=inputs=2:duration=first[out_news]"
+        )
+        inputs.extend(["-f", "lavfi", "-i", news_audio])
+        # Current input 0-3 are video, 4 is lavfi
         audio_map = "[4:a]volume=1.0[outa]"
 
     cmd = [
