@@ -7,8 +7,6 @@ from collections import deque
 
 class Streamer:
     PLACEHOLDER_KEYS = {
-        "5w92-9u7p-ucjh-b1bx-bszv",
-        "9efm-d8gq-mmma-9y1b-7sez",
         "your-stream-key-here",
         "key",
     }

@@ -75,7 +75,7 @@ try:
         channel = Channel(
             name="Varta Pravah Live",
             language="Marathi",
-            youtube_stream_key="your-stream-key-here",
+            youtube_stream_key="qcu7-xesd-m4sv-9zvv-e335",
             is_streaming=False,
             owner_id=users[0].id
         )

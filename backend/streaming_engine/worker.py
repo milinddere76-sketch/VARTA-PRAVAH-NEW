@@ -62,7 +62,7 @@ async def seed_database():
         # Channel
         channel = db.query(Channel).filter(Channel.id == 1).first()
         if not channel:
-            db.add(Channel(id=1, name="Varta Pravah Live", language="Marathi", youtube_stream_key=os.getenv("YOUTUBE_STREAM_KEY", "key"), owner_id=1))
+            db.add(Channel(id=1, name="Varta Pravah Live", language="Marathi", youtube_stream_key=os.getenv("YOUTUBE_STREAM_KEY", "qcu7-xesd-m4sv-9zvv-e335"), owner_id=1))
             db.commit()
     finally:
         db.close()
