@@ -3,6 +3,7 @@ import subprocess
 import time
 import threading
 import signal
+from collections import deque
 
 class Streamer:
     PLACEHOLDER_KEYS = {
@@ -54,6 +55,8 @@ class Streamer:
         self.monitor_thread = None
         self.pumper_thread = None
         self.stop_event = threading.Event()
+        self.main_errors = deque(maxlen=100)
+        self.pumper_errors = deque(maxlen=100)
         
         # Standardize assets
         self.is_promo = False
@@ -89,6 +92,10 @@ class Streamer:
             except Exception:
                 text = str(line)
             if text:
+                if prefix.startswith("MAIN-STREAM"):
+                    self.main_errors.append(text)
+                elif prefix.startswith("PUMPER"):
+                    self.pumper_errors.append(text)
                 print(f"{prefix}: {text}")
         stream.close()
 
@@ -135,6 +142,10 @@ class Streamer:
             print(f"⏳ [PUMPER] Waiting for video to appear...")
             return  # Don't start pumper if file doesn't exist
 
+        if self.main_process and self.main_process.poll() is not None:
+            print("⚠️ [PUMPER] Cannot start pumper because MAIN-STREAM is not running.")
+            return
+
         if self.pumper_process:
             try:
                 self.pumper_process.terminate()
@@ -167,7 +178,7 @@ class Streamer:
             cmd.insert(4, "-1")
 
         print(f"🎬 [PUMPER] Executing: ffmpeg -re -i {os.path.basename(self.current_video)} (rate-limited re-encode for YouTube live streaming)")
-        self.pumper_process = subprocess.Popen(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.PIPE)
+        self.pumper_process = subprocess.Popen(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.PIPE, stdin=subprocess.DEVNULL)
         self._start_logging_thread(self.pumper_process, "PUMPER")
 
     def update_ticker(self, headlines: list):
@@ -207,6 +218,8 @@ class Streamer:
     def start_stream(self):
         """AIR IGNITION: Starts the ONE AND ONLY stream to YouTube."""
         print(f"🚀 [STREAMER] Igniting Persistent YouTube Connection...")
+        self.main_errors.clear()
+        self.pumper_errors.clear()
         
         if not os.path.exists("/app/ticker.txt"):
             self.update_ticker(["वार्ता प्रवाह - आपले स्वागत आहे"])
@@ -230,7 +243,7 @@ class Streamer:
         v_filter = self._get_filter_complex()
         
         cmd = [
-            "ffmpeg", "-y", "-loglevel", "warning",
+            "ffmpeg", "-nostdin", "-y", "-loglevel", "warning",
             "-fflags", "+discardcorrupt+genpts+igndts",
             "-avoid_negative_ts", "make_zero",
             "-thread_queue_size", "512",
@@ -241,7 +254,7 @@ class Streamer:
             cmd += ["-vf", v_filter]
 
         cmd += [
-            "-vsync", "1",
+            "-vsync", "passthrough",
             "-c:v", "libx264", "-preset", "veryfast", "-tune", "zerolatency",
             "-b:v", "2500k", "-minrate", "2500k", "-maxrate", "2500k", "-bufsize", "2500k",
             "-nal-hrd", "cbr",
@@ -258,7 +271,22 @@ class Streamer:
         print(f"🎬 [MAIN-STREAM] Executing: ffmpeg ... -f flv {self.rtmp_url}")
         self.main_process = subprocess.Popen(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.PIPE)
         self._start_logging_thread(self.main_process, "MAIN-STREAM")
-        
+
+        # Briefly wait for startup failures before launching the pumper.
+        for _ in range(6):
+            if self.main_process.poll() is not None:
+                break
+            time.sleep(0.5)
+
+        if self.main_process.poll() is not None:
+            exit_code = self.main_process.returncode
+            print(f"❌ [STREAMER] MAIN-STREAM failed immediately with exit code {exit_code}")
+            if self.main_errors:
+                print("🔍 [STREAMER] MAIN-STREAM stderr:")
+                for line in list(self.main_errors):
+                    print(f"  {line}")
+            return False
+
         # Ensure we are pumping something immediately
         if not self.current_video:
             self.current_video = "/app/videos/promo.mp4"
@@ -283,18 +311,20 @@ class Streamer:
                     wait_time = min(30 * consecutive_failures, 300)  # Max 5 minutes
                     print(f"⏳ [STREAMER] Waiting {wait_time}s before retrying...")
                     time.sleep(wait_time)
-                
-                # Only restart if we haven't been stopped
-                if not self.stop_event.is_set():
-                    success = self.start_stream()
-                    if success:
-                        consecutive_failures = 0  # Reset on success
-                    else:
-                        print("❌ [STREAMER] Failed to restart stream")
-                break
+
+                if self.stop_event.is_set():
+                    break
+
+                success = self.start_stream()
+                if success:
+                    consecutive_failures = 0
+                    break
+                print("❌ [STREAMER] Failed to restart stream, retrying in 30s...")
+                time.sleep(30)
+                continue
             else:
                 consecutive_failures = 0  # Reset if process is healthy
-            
+
             time.sleep(5)
 
     def stop_stream(self):

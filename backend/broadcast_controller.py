@@ -19,73 +19,106 @@ class BroadcastController:
         print("🎬 [MCR] Master Broadcast Control active.")
 
         global streamer
-        while not streamer.stream_ready():
-            print("⚠️ [MCR] No valid YouTube stream key found. Waiting 30s before retrying...")
-            time.sleep(30)
-            old_streamer = streamer
-            streamer = Streamer()  # Refresh the stream key from environment or DB
-            try:
-                old_streamer.stop_stream()  # Clean up old processes and pipe
-            except Exception as e:
-                print(f"⚠️ [MCR] Error cleaning up old streamer: {e}")
-
-        # 🚀 Start the persistent YouTube signal
-        if not streamer.start_stream():
-            print("⚠️ [MCR] Stream startup failed. Retrying in 30s...")
-            time.sleep(30)
-            return self.run_loop()
-
-        last_news = "/app/videos/promo.mp4"
-        starvation_counter = 0
-        
         while True:
-            try:
-                # 1. Check for NEW content arriving from the worker
-                if not queue.empty():
-                    starvation_counter = 0
-                    item = queue.get()
-                    video = item["video"]
-                    print(f"📺 [MCR] ⬇️ INCOMING: {video}")
-                    
-                    # Verify file exists
-                    if not os.path.exists(video):
-                        print(f"❌ [MCR] Video not found: {video}")
-                        continue
-                    
-                    fsize = os.path.getsize(video) / (1024*1024)
-                    print(f"📊 [MCR] Size: {fsize:.1f}MB, Queue depth: {queue.qsize()}")
-                    
-                    # Update memory
-                    if "news_" in video:
-                        last_news = video
-                    
-                    # Switch the stream pumper to the new video
-                    # Note: update_playlist() handles killing the old pumper
-                    streamer.is_promo = ("news_" not in video)
-                    streamer.update_playlist(video)
-                    
-                    # We don't block here anymore. We let the loop continue 
-                    # to monitor for even newer breaking news.
-                    time.sleep(2)
-                
-                else:
-                    starvation_counter += 1
-                    if starvation_counter % 6 == 0:  # Log every 30 seconds
-                        print(f"🔄 [MCR] Waiting for content... (queue empty for {starvation_counter*5}s)")
-                    
-                    # 2. Continuity: If nothing is in queue, ensure SOMETHING is playing
-                    # If the pumper died (e.g. news finished), loop back to last known good news or promo
-                    if not streamer.pumper_process or streamer.pumper_process.poll() is not None:
-                        print(f"🕒 [MCR] Pumper ended. Bridging with: {os.path.basename(last_news)}")
-                        streamer.is_promo = ("news_" not in last_news)
-                        streamer.update_playlist(last_news)
-                
-                time.sleep(5)
-            except Exception as e:
-                print(f"⚠️ [MCR] Loop error: {e}")
-                import traceback
-                traceback.print_exc()
-                time.sleep(5)
+            while not streamer.stream_ready():
+                print("⚠️ [MCR] No valid YouTube stream key found. Waiting 30s before retrying...")
+                time.sleep(30)
+                old_streamer = streamer
+                streamer = Streamer()  # Refresh the stream key from environment or DB
+                try:
+                    old_streamer.stop_stream()  # Clean up old processes and pipe
+                except Exception as e:
+                    print(f"⚠️ [MCR] Error cleaning up old streamer: {e}")
+
+            # 🚀 Start the persistent YouTube signal
+            while not streamer.start_stream():
+                print("⚠️ [MCR] Stream startup failed. Retrying in 30s...")
+                time.sleep(30)
+                old_streamer = streamer
+                streamer = Streamer()
+                try:
+                    old_streamer.stop_stream()
+                except Exception as e:
+                    print(f"⚠️ [MCR] Error cleaning up failed streamer: {e}")
+
+            last_news = "/app/videos/promo.mp4"
+            starvation_counter = 0
+
+            while True:
+                try:
+                    if streamer.main_process and streamer.main_process.poll() is not None:
+                        print("⚠️ [MCR] MAIN-STREAM is down. Restarting persistent stream...")
+                        if streamer.start_stream():
+                            if not streamer.current_video:
+                                streamer.current_video = last_news
+                            streamer.update_playlist(last_news)
+                            continue
+                        print("⚠️ [MCR] MAIN-STREAM restart failed. Rebooting controller in 30s.")
+                        time.sleep(30)
+                        old_streamer = streamer
+                        streamer = Streamer()
+                        try:
+                            old_streamer.stop_stream()
+                        except Exception as e:
+                            print(f"⚠️ [MCR] Error cleaning up old streamer: {e}")
+                        break
+
+                    # 1. Check for NEW content arriving from the worker
+                    if not queue.empty():
+                        starvation_counter = 0
+                        item = queue.get()
+                        video = item["video"]
+                        print(f"📺 [MCR] ⬇️ INCOMING: {video}")
+
+                        # Verify file exists
+                        if not os.path.exists(video):
+                            print(f"❌ [MCR] Video not found: {video}")
+                            continue
+
+                        if not streamer.main_process or streamer.main_process.poll() is not None:
+                            print("⚠️ [MCR] MAIN-STREAM inactive, restarting before queuing video...")
+                            queue.put(item)
+                            if not streamer.start_stream():
+                                print("❌ [MCR] Cannot queue video because persistent stream is unavailable.")
+                                time.sleep(30)
+                                continue
+                            time.sleep(2)
+                            continue
+
+                        fsize = os.path.getsize(video) / (1024*1024)
+                        print(f"📊 [MCR] Size: {fsize:.1f}MB, Queue depth: {queue.qsize()}")
+
+                        # Update memory
+                        if "news_" in video:
+                            last_news = video
+
+                        # Switch the stream pumper to the new video
+                        # Note: update_playlist() handles killing the old pumper
+                        streamer.is_promo = ("news_" not in video)
+                        streamer.update_playlist(video)
+
+                        # We don't block here anymore. We let the loop continue 
+                        # to monitor for even newer breaking news.
+                        time.sleep(2)
+
+                    else:
+                        starvation_counter += 1
+                        if starvation_counter % 6 == 0:  # Log every 30 seconds
+                            print(f"🔄 [MCR] Waiting for content... (queue empty for {starvation_counter*5}s)")
+
+                        # 2. Continuity: If nothing is in queue, ensure SOMETHING is playing
+                        # If the pumper died (e.g. news finished), loop back to last known good news or promo
+                        if not streamer.pumper_process or streamer.pumper_process.poll() is not None:
+                            print(f"🕒 [MCR] Pumper ended. Bridging with: {os.path.basename(last_news)}")
+                            streamer.is_promo = ("news_" not in last_news)
+                            streamer.update_playlist(last_news)
+
+                    time.sleep(5)
+                except Exception as e:
+                    print(f"⚠️ [MCR] Loop error: {e}")
+                    import traceback
+                    traceback.print_exc()
+                    time.sleep(5)
 
 @app.get("/status")
 async def status():
