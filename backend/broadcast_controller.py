@@ -73,6 +73,9 @@ class BroadcastController:
                         # Verify file exists
                         if not os.path.exists(video):
                             print(f"❌ [MCR] Video not found: {video}")
+                            print("🔁 [MCR] Falling back to promo content.")
+                            streamer.update_playlist("/app/videos/promo.mp4")
+                            last_news = "/app/videos/promo.mp4"
                             continue
 
                         if not streamer.main_process or streamer.main_process.poll() is not None:
@@ -110,6 +113,9 @@ class BroadcastController:
                         # If the pumper died (e.g. news finished), loop back to last known good news or promo
                         if not streamer.pumper_process or streamer.pumper_process.poll() is not None:
                             print(f"🕒 [MCR] Pumper ended. Bridging with: {os.path.basename(last_news)}")
+                            if not os.path.exists(last_news):
+                                print(f"❌ [MCR] Bridging target missing: {last_news}. Using promo fallback.")
+                                last_news = "/app/videos/promo.mp4"
                             streamer.is_promo = ("news_" not in last_news)
                             streamer.update_playlist(last_news)
 
