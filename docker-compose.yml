@@ -27,7 +27,7 @@ services:
   # ⏱️ TEMPORAL
   # =========================
   temporal:
-    image: temporalio/auto-setup:1.24.2
+    image: temporalio/server:1.24.2
     restart: unless-stopped
     depends_on:
       postgres:
@@ -48,6 +48,13 @@ services:
       options:
         max-size: "10m"
         max-file: "3"
+    command: >
+      sh -c "
+      echo '⏳ Setting up Temporal databases...' &&
+      /etc/temporal/schema/setup.sh &&
+      echo '✅ Temporal databases ready. Starting server...' &&
+      temporal-server start
+      "
 
   # =========================
   # 🌐 TEMPORAL UI
@@ -105,7 +112,9 @@ services:
       sh -c "
       echo '⏳ Waiting for Database...' &&
       until nc -z postgres 5432; do sleep 2; done &&
-      echo '✅ DB Online. Starting API...' &&
+      echo '✅ PostgreSQL Online. Ensuring vartapravah database exists...' &&
+      PGPASSWORD=password psql -h postgres -U root -d postgres -c 'CREATE DATABASE vartapravah;' 2>/dev/null || echo 'Database vartapravah already exists or creation failed' &&
+      echo '✅ DB Ready. Starting API...' &&
       python3 main.py
       "
 
@@ -143,7 +152,9 @@ services:
       sh -c "
       echo '⏳ Waiting for Brain (Temporal)...' &&
       until nc -z temporal 7233; do sleep 2; done &&
-      echo '✅ Brain Online. Starting Worker...' &&
+      echo '✅ Temporal Online. Ensuring vartapravah database exists...' &&
+      PGPASSWORD=password psql -h postgres -U root -d postgres -c 'CREATE DATABASE vartapravah;' 2>/dev/null || echo 'Database vartapravah already exists or creation failed' &&
+      echo '✅ DB Ready. Starting Worker...' &&
       python3 monitor.py
       "
 
@@ -183,7 +194,9 @@ services:
       sh -c "
       echo '⏳ Waiting for Brain (Temporal)...' &&
       until nc -z temporal 7233; do sleep 2; done &&
-      echo '✅ Brain Online. Starting Broadcast Controller...' &&
+      echo '✅ Temporal Online. Ensuring vartapravah database exists...' &&
+      PGPASSWORD=password psql -h postgres -U root -d postgres -c 'CREATE DATABASE vartapravah;' 2>/dev/null || echo 'Database vartapravah already exists or creation failed' &&
+      echo '✅ DB Ready. Starting Broadcast Controller...' &&
       python3 broadcast_controller.py
       "
 
