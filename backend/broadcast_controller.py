@@ -129,16 +129,30 @@ class BroadcastController:
 @app.get("/status")
 async def status():
     """Health check endpoint for the broadcast controller."""
-    return {
+    current_video_exists = bool(streamer.current_video and os.path.exists(streamer.current_video))
+    status = {
         "status": "online",
         "queue_size": queue.qsize(),
         "streaming": streamer.stream_ready(),
         "current_video": streamer.current_video,
+        "current_video_exists": current_video_exists,
+        "fallback": streamer.promo_status(),
         "processes": {
             "main": streamer.main_process.poll() is None if streamer.main_process else False,
             "pumper": streamer.pumper_process.poll() is None if streamer.pumper_process else False
         }
     }
+    return status
+
+@app.get("/status/fallback")
+async def fallback_status():
+    current_video_exists = bool(streamer.current_video and os.path.exists(streamer.current_video))
+    status = streamer.promo_status()
+    status.update({
+        "current_video": streamer.current_video,
+        "current_video_exists": current_video_exists
+    })
+    return status
 
 @app.post("/add-video")
 async def add_video(data: dict):

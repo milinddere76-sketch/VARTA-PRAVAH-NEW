@@ -150,6 +150,16 @@ class Streamer:
             print(f"❌ [STREAMER] Fallback promo generation error: {e}")
             return False
 
+    def promo_status(self) -> dict:
+        promo_path = "/app/videos/promo.mp4"
+        exists = os.path.exists(promo_path) and os.path.getsize(promo_path) > 0
+        size_mb = os.path.getsize(promo_path) / (1024 * 1024) if exists else 0.0
+        return {
+            "promo_path": promo_path,
+            "promo_exists": exists,
+            "promo_size_mb": round(size_mb, 2)
+        }
+
     def _restart_pumper(self):
         """Kills the current content pump and starts a new one into the persistent pipe."""
         # Validate video file exists
