@@ -3,6 +3,7 @@ import subprocess
 import time
 import threading
 import signal
+import datetime
 from collections import deque
 
 class Streamer:
@@ -55,6 +56,8 @@ class Streamer:
         self.stop_event = threading.Event()
         self.main_errors = deque(maxlen=100)
         self.pumper_errors = deque(maxlen=100)
+        self.promo_fallback_active = False
+        self.promo_fallback_last_created = None
         
         # Standardize assets
         self.is_promo = False
@@ -115,6 +118,8 @@ class Streamer:
 
     def update_playlist(self, new_video: str):
         """SWITCHER LOGIC: Changes content WITHOUT dropping the stream."""
+        if "/app/videos/promo.mp4" not in new_video:
+            self.promo_fallback_active = False
         print(f"🔄 [STREAMER] Seamlessly switching to: {new_video}")
         self.current_video = new_video
         self._restart_pumper()
@@ -133,6 +138,7 @@ class Streamer:
             return True
 
         print("⚠️ [STREAMER] Promo file missing, creating fallback promo...")
+        self.promo_fallback_active = True
         cmd = [
             "ffmpeg", "-y", "-f", "lavfi", "-i", "color=c=black:s=1280x720:d=10",
             "-vf", "drawtext=text='VARTA PRAVAH':fontfile=/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf:fontsize=80:fontcolor=white:x=(w-text_w)/2:y=(h-text_h)/2",
@@ -144,6 +150,7 @@ class Streamer:
             if result.returncode != 0:
                 print(f"❌ [STREAMER] Fallback promo creation failed: {result.stderr.strip()}")
                 return False
+            self.promo_fallback_last_created = datetime.datetime.utcnow().isoformat() + "Z"
             print("✅ [STREAMER] Fallback promo created.")
             return True
         except Exception as e:
@@ -157,7 +164,9 @@ class Streamer:
         return {
             "promo_path": promo_path,
             "promo_exists": exists,
-            "promo_size_mb": round(size_mb, 2)
+            "promo_size_mb": round(size_mb, 2),
+            "promo_fallback_active": bool(self.promo_fallback_active),
+            "promo_fallback_last_created": self.promo_fallback_last_created
         }
 
     def _restart_pumper(self):
