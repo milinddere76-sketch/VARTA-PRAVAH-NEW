@@ -119,26 +119,47 @@ class Streamer:
         self.current_video = new_video
         self._restart_pumper()
 
+    def _ensure_promo_exists(self) -> bool:
+        promo_path = "/app/videos/promo.mp4"
+        promo_dir = os.path.dirname(promo_path)
+        if not os.path.exists(promo_dir):
+            try:
+                os.makedirs(promo_dir, exist_ok=True)
+            except Exception as e:
+                print(f"❌ [STREAMER] Could not create promo directory: {e}")
+                return False
+
+        if os.path.exists(promo_path) and os.path.getsize(promo_path) > 0:
+            return True
+
+        print("⚠️ [STREAMER] Promo file missing, creating fallback promo...")
+        cmd = [
+            "ffmpeg", "-y", "-f", "lavfi", "-i", "color=c=black:s=1280x720:d=10",
+            "-vf", "drawtext=text='VARTA PRAVAH':fontfile=/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf:fontsize=80:fontcolor=white:x=(w-text_w)/2:y=(h-text_h)/2",
+            "-c:v", "libx264", "-preset", "ultrafast", "-crf", "28",
+            "-pix_fmt", "yuv420p", "-an", promo_path
+        ]
+        try:
+            result = subprocess.run(cmd, capture_output=True, text=True, timeout=30)
+            if result.returncode != 0:
+                print(f"❌ [STREAMER] Fallback promo creation failed: {result.stderr.strip()}")
+                return False
+            print("✅ [STREAMER] Fallback promo created.")
+            return True
+        except Exception as e:
+            print(f"❌ [STREAMER] Fallback promo generation error: {e}")
+            return False
+
     def _restart_pumper(self):
         """Kills the current content pump and starts a new one into the persistent pipe."""
         # Validate video file exists
         if not self.current_video or not os.path.exists(self.current_video):
-            print(f"❌ [PUMPER] ERROR: Video file not found: {self.current_video}")
-            print(f"📂 [PUMPER] Available files in /app/videos:")
-            try:
-                import os as os_module
-                if os_module.path.exists("/app/videos"):
-                    files = os_module.listdir("/app/videos")
-                    for f in files:
-                        fpath = os_module.path.join("/app/videos", f)
-                        size = os_module.path.getsize(fpath) / (1024*1024)
-                        print(f"  - {f} ({size:.1f}MB)")
-                else:
-                    print("  /app/videos directory does not exist!")
-            except Exception as e:
-                print(f"  Could not list directory: {e}")
-            print(f"⏳ [PUMPER] Waiting for video to appear...")
-            return  # Don't start pumper if file doesn't exist
+            if self.current_video != "/app/videos/promo.mp4":
+                print(f"⚠️ [PUMPER] Requested video missing, switching to fallback promo.")
+            self.current_video = "/app/videos/promo.mp4"
+            if not self._ensure_promo_exists():
+                print(f"❌ [PUMPER] Cannot start pumper because fallback promo creation failed.")
+                return
 
         if self.main_process and self.main_process.poll() is not None:
             print("⚠️ [PUMPER] Cannot start pumper because MAIN-STREAM is not running.")
