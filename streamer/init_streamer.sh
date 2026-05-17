@@ -41,42 +41,41 @@ envsubst '$YOUTUBE_RTMP_URL' < /etc/nginx/nginx.conf.template > /etc/nginx/nginx
 nginx
 echo "✅ [INIT] Nginx RTMP server online with injected configuration."
 
-# 3. Generate Branded Promo (Self-Healing Force)
-echo "🎬 [INIT] Verifying branding assets..."
-rm -f /app/assets/promo.mp4 # FORCE CLEAN START
-ls -l /app/assets/
+# 3. Use Premium Pre-rendered Promo (Skip FFmpeg regeneration entirely)
+echo "🎬 [INIT] Loading premium branding assets..."
 
-if [ ! -f "/app/assets/premium_promo.mp4" ]; then
-    echo "🔨 [INIT] Generating promo.mp4 from cinematic slides..."
-    
-    # Hunt for images in multiple potential locations
+# PRIORITY 1: Use backup_assets/promo.mp4 (the genuine pre-rendered premium cinematic video)
+if [ -f "/app/backup_assets/promo.mp4" ]; then
+    echo "✅ [INIT] Premium promo found in backup_assets. Deploying directly..."
+    cp /app/backup_assets/promo.mp4 /app/assets/promo.mp4
+    chmod 777 /app/assets/promo.mp4
+    echo "✅ [INIT] Premium promo deployed: $(du -sh /app/assets/promo.mp4 | cut -f1)"
+
+# PRIORITY 2: Use pre-existing fallback if it's the full-size version
+elif [ -f "/app/assets/fallback.mp4" ] && [ $(stat -c%s /app/assets/fallback.mp4) -gt 2000000 ]; then
+    echo "✅ [INIT] Using existing full-size fallback as promo..."
+    cp /app/assets/fallback.mp4 /app/assets/promo.mp4
+    chmod 777 /app/assets/promo.mp4
+
+# PRIORITY 3: Generate from PNG slides as last resort
+else
+    echo "🔨 [INIT] No pre-rendered promo found. Generating from cinematic slides..."
     SEARCH_PATH="/app/assets"
-    [ ! -d "$SEARCH_PATH" ] && SEARCH_PATH="./assets"
-    
     FILES_COUNT=$(ls $SEARCH_PATH/promo_*.png 2>/dev/null | wc -l)
     echo "📊 [INIT] Found $FILES_COUNT promo slides in $SEARCH_PATH."
-    
     if [ "$FILES_COUNT" -gt 0 ]; then
-        echo "🎨 [INIT] FORCING FRESH CINEMATIC RENDER (16:9 + MUSIC + LOGO)..."
-        rm -f /app/assets/promo.mp4 # Ensure no old version survives
+        echo "🎨 [INIT] Rendering cinematic promo (16:9 + LOGO)..."
         LOGO_FILE="/app/assets/logo.png"
-        
-        # DEFINITIVE 16:9 FORCE: Increase and Crop to eliminate all black bars
-        # AUDIO: Cinematic News Beat injection
-        # LOGO: Top-Right Professional Overlay
         ffmpeg -framerate 1/5 -c:v mjpeg -pattern_type glob -i "$SEARCH_PATH/promo_*.png" \
           -c:v mjpeg -i "$LOGO_FILE" \
           -f lavfi -i "sine=f=100:d=1,aecho=0.8:0.88:60:0.4" \
           -filter_complex "[0:v]scale=1280:720:force_original_aspect_ratio=increase,crop=1280:720[bg]; [1:v]scale=180:-1[logo]; [bg][logo]overlay=W-w-30:30,format=yuv420p[v]; [2:a]arealtime,aloop=loop=25:size=44100[a]" \
-          -map "[v]" -map "[a]" -c:v libx264 -preset ultrafast -r 25 -pix_fmt yuv420p -c:a aac -shortest -y /app/assets/promo.mp4
+          -map "[v]" -map "[a]" -c:v libx264 -preset ultrafast -r 25 -pix_fmt yuv420p -c:a aac -shortest -y /app/assets/promo.mp4 2>/dev/null
     fi
-    
-    if [ -f "/app/assets/promo.mp4" ]; then
-        echo "✅ [INIT] Cinematic Promo generated successfully at /app/assets/promo.mp4"
-    else
-        echo "⚠️ [WARN] Promo generation failed. Creating emergency FULL-SCREEN standby..."
-        ffmpeg -f lavfi -i color=c=blue:s=1280x720:d=10 -f lavfi -i "sine=f=100:d=10" \
-          -vf "drawtext=text='VARTA PRAVAH NEWS standby...':fontcolor=white:fontsize=70:x=(w-tw)/2:y=(h-th)/2" \
+    if [ ! -f "/app/assets/promo.mp4" ] || [ $(stat -c%s /app/assets/promo.mp4 2>/dev/null || echo 0) -lt 100000 ]; then
+        echo "⚠️ [WARN] Generating emergency blue standby screen..."
+        ffmpeg -f lavfi -i color=c=0x1a1a2e:s=1280x720:d=30 -f lavfi -i "sine=f=220:d=30" \
+          -vf "drawtext=text='VARTA PRAVAH':fontcolor=white:fontsize=80:x=(w-tw)/2:y=(h-th)/2" \
           -c:v libx264 -preset ultrafast -pix_fmt yuv420p -c:a aac -shortest -y /app/assets/promo.mp4
     fi
 fi
