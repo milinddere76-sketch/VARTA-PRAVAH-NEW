@@ -59,16 +59,15 @@ if [ ! -f "/app/assets/premium_promo.mp4" ]; then
     if [ "$FILES_COUNT" -gt 0 ]; then
         echo "🎨 [INIT] FORCING FRESH CINEMATIC RENDER (16:9 + MUSIC + LOGO)..."
         rm -f /app/assets/promo.mp4 # Ensure no old version survives
-        LOGO_FILE="/app/assets/varta_logo.png"
-        [ ! -f "$LOGO_FILE" ] && LOGO_FILE="/app/assets/logo.png"
+        LOGO_FILE="/app/assets/logo.png"
         
         # DEFINITIVE 16:9 FORCE: Increase and Crop to eliminate all black bars
         # AUDIO: Cinematic News Beat injection
         # LOGO: Top-Right Professional Overlay
-        ffmpeg -framerate 1/5 -pattern_type glob -i "$SEARCH_PATH/promo_*.png" \
-          -i "$LOGO_FILE" \
+        ffmpeg -framerate 1/5 -c:v mjpeg -pattern_type glob -i "$SEARCH_PATH/promo_*.png" \
+          -c:v mjpeg -i "$LOGO_FILE" \
           -f lavfi -i "sine=f=100:d=1,aecho=0.8:0.88:60:0.4" \
-          -filter_complex "[0:v]scale=1280:720:force_original_aspect_ratio=increase,crop=1280:720[bg]; [1:v]scale=180:-1[logo]; [bg][logo]overlay=W-w-30:30,format=yuv420p[v]; [2:a]arealtime,aloop=-1:sample_rate=44100[a]" \
+          -filter_complex "[0:v]scale=1280:720:force_original_aspect_ratio=increase,crop=1280:720[bg]; [1:v]scale=180:-1[logo]; [bg][logo]overlay=W-w-30:30,format=yuv420p[v]; [2:a]arealtime,aloop=loop=25:size=44100[a]" \
           -map "[v]" -map "[a]" -c:v libx264 -preset ultrafast -r 25 -pix_fmt yuv420p -c:a aac -shortest -y /app/assets/promo.mp4
     fi
     

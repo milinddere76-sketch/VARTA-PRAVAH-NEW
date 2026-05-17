@@ -4,7 +4,7 @@ WORKDIR /app
 
 # In Lean Mode, the context is already inside the frontend folder
 COPY package*.json ./
-RUN npm install
+RUN npm install --legacy-peer-deps
 COPY . ./
 RUN CI=false npm run build
 

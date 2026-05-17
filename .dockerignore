@@ -45,3 +45,18 @@ checkpoints/
 *.log
 *.pot
 .env
+
+# --- Recursive optimized exclusions ---
+**/checkpoints/
+**/weights/
+**/*.pth
+**/*.tar
+**/*.onnx
+**/*.ckpt
+**/*.pkl
+**/node_modules/
+**/venv/
+**/.venv/
+**/__pycache__/
+**/dist/
+**/build/
