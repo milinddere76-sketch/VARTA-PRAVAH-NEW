@@ -58,6 +58,7 @@ def create_video(sadtalker_video_path, output_path, script_text=""):
         "-r", "25", "-s", "1280x720", "-shortest",
         "-c:v", "libx264", "-preset", "ultrafast", "-b:v", "2500k", "-pix_fmt", "yuv420p",
         "-c:a", "aac", "-b:a", "128k",
+        "-f", "mp4",
         tmp_output_path
     ]
     
