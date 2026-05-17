@@ -46,6 +46,7 @@ def create_video(sadtalker_video_path, output_path, script_text=""):
             print(f"❌ [VIDEO-ENGINE] Missing Asset: {asset}")
             return None
 
+    tmp_output_path = output_path + ".tmp"
     cmd = [
         "ffmpeg", "-y", "-loop", "1", "-i", studio_path,
         "-i", sadtalker_video_path,
@@ -57,17 +58,20 @@ def create_video(sadtalker_video_path, output_path, script_text=""):
         "-r", "25", "-s", "1280x720", "-shortest",
         "-c:v", "libx264", "-preset", "ultrafast", "-b:v", "2500k", "-pix_fmt", "yuv420p",
         "-c:a", "aac", "-b:a", "128k",
-        output_path
+        tmp_output_path
     ]
     
-    print(f"🎬 [VIDEO-ENGINE] Branded Composition: {output_path}...")
+    print(f"🎬 [VIDEO-ENGINE] Branded Composition: {tmp_output_path}...")
     import subprocess
     result = subprocess.run(cmd, capture_output=True, text=True)
     
     if result.returncode != 0:
         print(f"❌ [VIDEO-ENGINE-ERROR] {result.stderr}")
+        if os.path.exists(tmp_output_path):
+            os.remove(tmp_output_path)
         return None
 
+    os.rename(tmp_output_path, output_path)
     return output_path
 
 class VideoEngine:
