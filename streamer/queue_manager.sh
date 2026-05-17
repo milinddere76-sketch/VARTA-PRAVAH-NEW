@@ -18,7 +18,7 @@ while true; do
   fi
 
   # 3. PRIORITY: Add Breaking News
-  for file in "$VIDEO_DIR"/breaking/*.mp4; do
+  for file in "$VIDEO_DIR"/breaking/final_bulletin_*.mp4; do
     if [ -f "$file" ]; then
       echo "file '$file'" >> "$PLAYLIST"
     fi
@@ -26,7 +26,7 @@ while true; do
 
   # 4. STANDARD: Add regular news bulletins
   has_news=false
-  for file in "$VIDEO_DIR"/*.mp4; do
+  for file in "$VIDEO_DIR"/final_bulletin_*.mp4; do
     if [ -f "$file" ]; then
       echo "file '$file'" >> "$PLAYLIST"
       has_news=true
