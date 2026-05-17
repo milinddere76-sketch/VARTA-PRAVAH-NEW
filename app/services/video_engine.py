@@ -14,7 +14,7 @@ def create_video(sadtalker_video_path, output_path, script_text=""):
         logo_path = os.path.join(config.ASSETS_DIR, "promo_1.png") # Ultimate fallback
         
     studio_path = os.path.join(config.ASSETS_DIR, "studio_bg.png")
-    font_path = "/usr/share/fonts/truetype/noto/NotoSansMarathi-Regular.ttf"
+    font_path = "/usr/share/fonts/truetype/noto/NotoSansDevanagari-Regular.ttf"
     
     if not os.path.exists(font_path):
         font_path = "DejaVu Sans"
