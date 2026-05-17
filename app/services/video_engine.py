@@ -7,9 +7,9 @@ def create_video(sadtalker_video_path, output_path, script_text=""):
     Overlays: News Ticker, LIVE Badge, and Channel Logo.
     """
     # LOGO-HUNTER: Search for every possible logo name to ensure branding uptime
-    logo_path = os.path.join(config.ASSETS_DIR, "varta_logo.png")
+    logo_path = os.path.join(config.ASSETS_DIR, "logo.png")
     if not os.path.exists(logo_path):
-        logo_path = os.path.join(config.ASSETS_DIR, "logo.png")
+        logo_path = os.path.join(config.ASSETS_DIR, "varta_logo.png")
     if not os.path.exists(logo_path):
         logo_path = os.path.join(config.ASSETS_DIR, "promo_1.png") # Ultimate fallback
         
