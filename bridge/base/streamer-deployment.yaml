@@ -39,7 +39,7 @@ spec:
                     - name: NEWS_API_KEY
                       value: "YOUR_NEWS_API_KEY"
                     - name: ORACLE_IP
-                      value: "80.225.209.104"
+                      value: "161.118.173.23"
                     - name: ORACLE_KEY_PATH
                       value: "/app/oracle_key.key"
                     - name: ORACLE_USER

@@ -14,7 +14,7 @@ This guide covers the setup for the **2-Server Architecture** (Hetzner + Oracle 
 ### 2. Configuration
 Edit the `.env` file (Personalized for your servers):
 ```bash
-ORACLE_IP=80.225.209.104
+ORACLE_IP=161.118.173.23
 HETZNER_IP=157.180.24.243
 ORACLE_USER=ubuntu
 YOUTUBE_RTMP_URL=rtmp://a.rtmp.youtube.com/live2/your_key

@@ -8,6 +8,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     libnginx-mod-rtmp \
     gettext-base \
     liquidsoap \
+    dos2unix \
     && rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/*
 
 # Create necessary directories
@@ -21,7 +22,7 @@ COPY streamer/nginx.conf.template /etc/nginx/nginx.conf.template
 COPY streamer/playout.sh /app/playout.sh
 COPY streamer/queue_manager.sh /app/queue_manager.sh
 COPY streamer/init_streamer.sh /app/init_streamer.sh
-RUN chmod +x /app/*.sh
+RUN dos2unix /app/*.sh && chmod +x /app/*.sh
 
 # Copy ALL assets explicitly (indestructible backup included)
 COPY assets /app/assets

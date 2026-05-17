@@ -9,9 +9,24 @@ LOG_FILE="/home/ubuntu/logs/playout.log"
 echo "🚀 [PRO-PLAYOUT] Starting continuous broadcast engine..."
 
 # Wait for the Brain to create the first playlist
+WAIT_COUNT=0
 while [ ! -f "$PLAYLIST" ]; do
   echo "⏳ [WAIT] Waiting for Queue Manager to generate the first playlist..."
   sleep 2
+  WAIT_COUNT=$((WAIT_COUNT + 1))
+  if [ $WAIT_COUNT -gt 15 ]; then
+    echo "⚠️ [WARN] Queue Manager taking too long! Forcing initial playlist generation..."
+    mkdir -p $(dirname "$PLAYLIST")
+    echo "ffconcat version 1.0" > "$PLAYLIST"
+    if [ -f "/app/assets/promo.mp4" ]; then
+        echo "file '/app/assets/promo.mp4'" >> "$PLAYLIST"
+    else
+        # Extreme fallback
+        ffmpeg -f lavfi -i color=c=black:s=1280x720:d=5 -f lavfi -i aevalsrc=0:d=5 -c:v libx264 -c:a aac -y /app/assets/fallback_standby.mp4
+        echo "file '/app/assets/fallback_standby.mp4'" >> "$PLAYLIST"
+    fi
+    break
+  fi
 done
 
 while true; do
