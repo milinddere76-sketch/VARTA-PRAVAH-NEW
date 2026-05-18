@@ -43,11 +43,11 @@ def create_video(sadtalker_video_path, output_path, script_text=""):
     # 2. Position Anchor, Logo, and Ticker
     # 3. Overlay visual elements
     master_filter = (
-        "[0:v]scale=1280:720:force_original_aspect_ratio=increase,crop=1280:720,format=yuv420p[studio];"
-        "[1:v]scale=640:-1,format=yuv420p[anchor];"
-        "[studio][anchor]overlay=(main_w-640)/2:(main_h-480)/2[v1];"
+        "[0:v]scale=1280:720:force_original_aspect_ratio=increase,crop=1280:720,format=rgb24[studio];"
+        "[1:v]scale=640:-1,format=rgb24[anchor];"
+        "[studio][anchor]overlay=(main_w-640)/2:(main_h-480)/2:format=rgb[v1];"
         f"[2:v]scale=250:-1,format=rgba,colorkey=white:0.1:0.2[logo];"
-        "[v1][logo]overlay=W-w-30:30[v2];"
+        "[v1][logo]overlay=W-w-30:30:format=rgb[v2];"
         "[v2]drawtext=text='LIVE':fontcolor=white:fontsize=24:x=40:y=40:box=1:boxcolor=red@0.9:boxborderw=10[v3];"
         f"[v3]drawtext=fontfile='{font_path}':textfile='{ticker_file}':fontsize=38:fontcolor=white:x='w-mod(t*80,w+tw)':y='h-75':box=1:boxcolor=black@0.85:boxborderw=12:line_spacing=4,format=yuv420p[vout]"
     )
