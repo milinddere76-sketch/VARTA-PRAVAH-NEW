@@ -6,14 +6,16 @@ from app.text_cleaner import clean_marathi
 def female_voice_effect(file):
     """Fake female pitch shift."""
     temp = file.replace(".mp3", "_f.mp3")
-    os.system(f"ffmpeg -y -i {file} -filter:a 'asetrate=44100*1.1,atempo=0.909' {temp} > /dev/null 2>&1")
+    # Normalize tempo back to 1.0x speed (no slowdown)
+    os.system(f"ffmpeg -y -i {file} -filter:a 'asetrate=44100*1.1,atempo=1.0' {temp} > /dev/null 2>&1")
     if os.path.exists(temp):
         os.rename(temp, file)
 
 def male_voice_effect(file):
     """Fake male pitch shift."""
     temp = file.replace(".mp3", "_m.mp3")
-    os.system(f"ffmpeg -y -i {file} -filter:a 'asetrate=44100*0.9,atempo=1.111' {temp} > /dev/null 2>&1")
+    # Normalize tempo back to 1.0x speed (no speedup)
+    os.system(f"ffmpeg -y -i {file} -filter:a 'asetrate=44100*0.9,atempo=1.0' {temp} > /dev/null 2>&1")
     if os.path.exists(temp):
         os.rename(temp, file)
 
@@ -31,7 +33,8 @@ def generate_tts(text, output_file, anchor_type="female"):
     """Full Synthesis Pipeline with Gender Effects."""
     text = clean_marathi(text)
     
-    tts = gTTS(text=text, lang='mr', slow=False)
+    # Use slow=True for clearer, more intelligible audio
+    tts = gTTS(text=text, lang='mr', slow=True)
     temp_raw = os.path.join(config.OUTPUT_DIR, f"raw_{os.path.basename(output_file)}")
     tts.save(temp_raw)
 

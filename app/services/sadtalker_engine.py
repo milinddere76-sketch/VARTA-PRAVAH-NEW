@@ -1,5 +1,6 @@
 import os
 import uuid
+import subprocess
 
 def generate_ai_video(image, audio):
     """
@@ -10,7 +11,7 @@ def generate_ai_video(image, audio):
     job_id = uuid.uuid4()
     output_file = f"/app/output/{job_id}.mp4"
 
-    print(f"🎭 [SADTALKER-WRAPER] Launching Remote CPU Synthesis Job: {job_id}")
+    print(f"🎭 [SADTALKER-WRAPPER] Launching Remote CPU Synthesis Job: {job_id}")
 
     # Note: Using 'docker exec' to bridge the standard CPU node to the GPU synthesis node
     cmd = f"""
@@ -18,12 +19,24 @@ def generate_ai_video(image, audio):
     --driven_audio {audio} \
     --source_image {image} \
     --result_dir /app/output \
-    --size 256 \
-    --cpu
+    --size 512 \
+    --enhancer gfpgan \
+    --cpu \
+    --still
     """
 
     # Execute the command via the Docker socket bridge
-    os.system(cmd)
-
-    # In a real enterprise flow, we would wait for the file to appear or use a callback
+    import subprocess
+    result = subprocess.run(cmd, shell=True, capture_output=True, text=True)
+    
+    if result.returncode != 0:
+        print(f"❌ [SADTALKER-ERROR] {result.stderr}")
+        return None
+    
+    # Verify output file exists
+    if os.path.exists(output_file):
+        print(f"✅ [SADTALKER] Anchor video generated: {output_file}")
+    else:
+        print(f"⚠️ [SADTALKER] Output file not found at {output_file}")
+    
     return output_file
