@@ -16,11 +16,28 @@ def create_video(sadtalker_video_path, output_path, script_text=""):
     studio_path = os.path.join(config.ASSETS_DIR, "studio_bg.png")
     font_path = "/usr/share/fonts/truetype/noto/NotoSansDevanagari-Regular.ttf"
     
+    # Ensure font exists, try alternate paths
     if not os.path.exists(font_path):
-        font_path = "DejaVu Sans"
+        alt_paths = [
+            "/app/assets/NotoSansDevanagari-Regular.ttf",
+            "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
+            "/usr/local/share/fonts/NotoSansDevanagari-Regular.ttf"
+        ]
+        for alt in alt_paths:
+            if os.path.exists(alt):
+                font_path = alt
+                break
+        if not os.path.exists(font_path):
+            print(f"⚠️ [VIDEO-ENGINE] Devanagari font not found, using system default")
+            font_path = "DejaVuSans"
 
-    # Clean text for FFmpeg (The Ultimate Shield)
-    ticker_text = script_text.replace("\n", " | ").replace("'", "").replace("\"", "")
+    # Clean text for FFmpeg ticker - preserve Marathi script properly
+    # Replace newlines with danda (।) for proper Marathi text flow
+    ticker_text = script_text.strip()
+    # Remove only problematic quotes, keep Marathi punctuation
+    ticker_text = ticker_text.replace('"', '').replace("'", '')
+    ticker_text = ticker_text.replace("\n", " | ")
+    
     ticker_file = os.path.join(config.OUTPUT_DIR, "ticker.txt")
     with open(ticker_file, "w", encoding="utf-8") as f:
         f.write(ticker_text)
@@ -36,7 +53,7 @@ def create_video(sadtalker_video_path, output_path, script_text=""):
         f"[2:v]scale=200:-1[logo];"
         "[v1][logo]overlay=W-w-30:30[v2];"
         "[v2]drawtext=text='LIVE':fontcolor=white:fontsize=24:x=40:y=40:box=1:boxcolor=red@0.9:boxborderw=10[v3];"
-        f"[v3]drawtext=fontfile='{font_path}':textfile='{ticker_file}':x='w-mod(t*100,w+tw)':y='h-80':fontsize=40:fontcolor=white:box=1:boxcolor=black@0.8:boxborderw=15[vout]"
+        f"[v3]drawtext=fontfile='{font_path}':textfile='{ticker_file}':fontsize=38:fontcolor=white:x='w-mod(t*80,w+tw)':y='h-75':box=1:boxcolor=black@0.85:boxborderw=12:line_spacing=4[vout]"
     )
 
     # Pre-Flight Check: Verify Assets
