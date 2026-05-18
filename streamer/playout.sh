@@ -34,9 +34,9 @@ while true; do
   # Use environment variable if present, otherwise default to the provided key
   echo "📺 [PLAYOUT] Starting live broadcast to Oracle relay..."
   # AUDIO LOCK: Injecting silent audio track (Required for YouTube to go Live)
-  ffmpeg -re -f concat -safe 0 -i "$PLAYLIST" \
+  ffmpeg -re -stream_loop -1 -f concat -safe 0 -i "$PLAYLIST" \
     -f lavfi -i anoisesrc=c=white:a=0.001:r=44100 \
-    -filter_complex "[0:v]scale=1280:720:force_original_aspect_ratio=decrease,pad=1280:720:(ow-iw)/2:(oh-ih)/2:color=black,format=yuv420p,fps=25[v]; [0:a][1:a]amix=inputs=2:duration=first[amixout]; [amixout]volume=2[a]" \
+    -filter_complex "[0:v]scale=1280:720:force_original_aspect_ratio=decrease,pad=1280:720:(ow-iw)/2:(oh-ih)/2:color=black,format=yuv420p,fps=25[v]; [0:a]aformat=channel_layouts=stereo[a0]; [a0][1:a]amix=inputs=2:duration=first[amixout]; [amixout]volume=2[a]" \
     -map "[v]" -map "[a]" \
     -c:v libx264 -preset ultrafast -tune zerolatency -b:v 2500k -minrate 2500k -maxrate 2500k -bufsize 5000k \
     -threads 0 -g 50 -keyint_min 50 -x264-params "keyint=50:nal-hrd=cbr" \

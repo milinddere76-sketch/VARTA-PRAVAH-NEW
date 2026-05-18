@@ -47,13 +47,13 @@ def create_video(sadtalker_video_path, output_path, script_text=""):
     # 2. Position Anchor, Logo, and Ticker
     # 3. Overlay visual elements
     master_filter = (
-        "[0:v]scale=1280:720:force_original_aspect_ratio=increase,crop=1280:720[studio];"
-        "[1:v]scale=640:-1[anchor];"
+        "[0:v]scale=1280:720:force_original_aspect_ratio=increase,crop=1280:720,format=yuv420p[studio];"
+        "[1:v]scale=640:-1,format=yuv420p[anchor];"
         "[studio][anchor]overlay=(main_w-640)/2:(main_h-480)/2[v1];"
-        f"[2:v]scale=200:-1[logo];"
+        f"[2:v]scale=200:-1,format=yuv420p[logo];"
         "[v1][logo]overlay=W-w-30:30[v2];"
         "[v2]drawtext=text='LIVE':fontcolor=white:fontsize=24:x=40:y=40:box=1:boxcolor=red@0.9:boxborderw=10[v3];"
-        f"[v3]drawtext=fontfile='{font_path}':textfile='{ticker_file}':fontsize=38:fontcolor=white:x='w-mod(t*80,w+tw)':y='h-75':box=1:boxcolor=black@0.85:boxborderw=12:line_spacing=4[vout]"
+        f"[v3]drawtext=fontfile='{font_path}':textfile='{ticker_file}':fontsize=38:fontcolor=white:x='w-mod(t*80,w+tw)':y='h-75':box=1:boxcolor=black@0.85:boxborderw=12:line_spacing=4,format=yuv420p[vout]"
     )
 
     # Pre-Flight Check: Verify Assets
@@ -72,7 +72,7 @@ def create_video(sadtalker_video_path, output_path, script_text=""):
         "-map", "1:a", # Use audio from sadtalker video (input 1)
         "-r", "25", "-s", "1280x720", "-shortest",
         "-c:v", "libx264", "-preset", "fast", "-b:v", "2500k", "-pix_fmt", "yuv420p",
-        "-c:a", "aac", "-b:a", "128k", "-ar", "44100",
+        "-c:a", "aac", "-b:a", "128k", "-ar", "44100", "-ac", "2",
         "-f", "mp4",
         tmp_output_path
     ]
