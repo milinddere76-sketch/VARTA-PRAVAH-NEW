@@ -24,7 +24,7 @@ STREAM_KEY = os.getenv("YOUTUBE_STREAM_KEY", "qcu7-xesd-m4sv-9zvv-e335")
 ORACLE_IP = os.getenv("ORACLE_IP", "")
 ORACLE_USER = os.getenv("ORACLE_USER", "ubuntu")
 ORACLE_KEY_PATH = os.getenv("ORACLE_KEY_PATH", "/app/oracle_key.key")
-ORACLE_VIDEO_DIR = os.getenv("ORACLE_VIDEO_DIR", "/home/ubuntu/videos")
+ORACLE_VIDEO_DIR = os.getenv("ORACLE_VIDEO_DIR", "/home/ubuntu/vartapravah/output")
 
 # --- MODEL CONFIG ---
 TTS_MODEL = os.getenv("TTS_MODEL", "tts_models/multilingual/multi-dataset/xtts_v2")

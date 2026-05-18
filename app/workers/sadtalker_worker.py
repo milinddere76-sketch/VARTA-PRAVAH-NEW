@@ -91,7 +91,7 @@ def add_to_queue(video_filename, is_breaking=False):
         "ssh", "-i", ACTIVE_KEY_PATH,
         "-o", "StrictHostKeyChecking=no",
         f"{config.ORACLE_USER}@{config.ORACLE_IP}",
-        f"echo \"file '{remote_file_path}'\" >> /home/ubuntu/queue/playlist.txt"
+        f"echo \"file '{remote_file_path}'\" >> /home/ubuntu/vartapravah/queue/playlist.txt"
     ]
     
     print(f"🧠 [PIPELINE] Adding {video_filename} to Oracle Queue...")
