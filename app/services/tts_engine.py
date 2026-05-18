@@ -34,7 +34,7 @@ def generate_tts(text, output_file, anchor_type="male"):
     elif anchor_type == "female2":
         voice = "mr-IN-AarohiNeural"
         rate = "+6%"
-        pitch = "-5%"
+        pitch = "-5Hz"
     elif anchor_type == "male1":
         voice = "mr-IN-ManoharNeural"
         rate = "+3%"
@@ -42,7 +42,7 @@ def generate_tts(text, output_file, anchor_type="male"):
     elif anchor_type == "male2":
         voice = "mr-IN-ManoharNeural"
         rate = "+5%"
-        pitch = "-8%"
+        pitch = "-8Hz"
     else:
         # Fallback to standard mapping
         voice = "mr-IN-ManoharNeural" if "male" in str(anchor_type).lower() else "mr-IN-AarohiNeural"
