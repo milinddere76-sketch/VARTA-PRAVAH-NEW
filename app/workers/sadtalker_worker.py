@@ -133,10 +133,20 @@ while True:
             continue
 
         # 2. LEAN SYNTHESIS: Generate a video loop from anchor image + audio
-        face_image = os.path.join(config.ASSETS_DIR, f"anchor_{anchor_type}.png")
+        face_image = None
+        for ext in [".png", ".jpg", ".jpeg"]:
+            test_path = os.path.join(config.ASSETS_DIR, f"anchor_{anchor_type}{ext}")
+            if os.path.exists(test_path):
+                face_image = test_path
+                break
+        
+        if not face_image:
+            print(f"❌ [SADTALKER-WORKER] Missing face image for anchor {anchor_type}")
+            continue
+            
         sadtalker_video = os.path.join(config.OUTPUT_DIR, f"lean_bulletin_{task_id}.mp4")
         
-        print(f"⚡ [LEAN-MODE] Generating high-speed loop using OPTIMIZED command...")
+        print(f"⚡ [LEAN-MODE] Generating high-speed loop using OPTIMIZED command with {os.path.basename(face_image)}...")
         # Upgraded to ARM64-Robust command
         lean_cmd = [
             "ffmpeg", "-y", "-loop", "1", "-i", face_image,

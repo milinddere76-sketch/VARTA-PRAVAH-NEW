@@ -16,7 +16,8 @@ def enhance_audio(input_file, output_file):
     """
     os.system(cmd)
     if os.path.exists(temp):
-        os.rename(temp, output_file)
+        import shutil
+        shutil.move(temp, output_file)
 
 def generate_tts(text, output_file, anchor_type="male"):
     """
@@ -25,16 +26,33 @@ def generate_tts(text, output_file, anchor_type="male"):
     """
     text = clean_marathi(text)
     
-    # Premium Neural Voices
-    voice = "mr-IN-ManoharNeural" if anchor_type == "male" else "mr-IN-AarohiNeural"
-    
-    # Adjust speech rate for clear, professional, official news delivery (+4% faster tempo)
-    rate = "+4%"
+    # Premium Neural Voices & Styles mapping
+    if anchor_type == "female1":
+        voice = "mr-IN-AarohiNeural"
+        rate = "+4%"
+        pitch = "+0Hz"
+    elif anchor_type == "female2":
+        voice = "mr-IN-AarohiNeural"
+        rate = "+6%"
+        pitch = "-5%"
+    elif anchor_type == "male1":
+        voice = "mr-IN-ManoharNeural"
+        rate = "+3%"
+        pitch = "+0Hz"
+    elif anchor_type == "male2":
+        voice = "mr-IN-ManoharNeural"
+        rate = "+5%"
+        pitch = "-8%"
+    else:
+        # Fallback to standard mapping
+        voice = "mr-IN-ManoharNeural" if "male" in str(anchor_type).lower() else "mr-IN-AarohiNeural"
+        rate = "+4%"
+        pitch = "+0Hz"
     
     temp_raw = os.path.join(config.OUTPUT_DIR, f"raw_{os.path.basename(output_file)}")
     
     async def amain():
-        communicate = edge_tts.Communicate(text, voice, rate=rate)
+        communicate = edge_tts.Communicate(text, voice, rate=rate, pitch=pitch)
         await communicate.save(temp_raw)
 
     try:

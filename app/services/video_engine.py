@@ -6,13 +6,9 @@ def create_video(sadtalker_video_path, output_path, script_text=""):
     Generates a professional branded news video.
     Overlays: News Ticker, LIVE Badge, and Channel Logo.
     """
-    # LOGO-HUNTER: Search for every possible logo name to ensure branding uptime
+    # ENFORCED STRICT LOGO: The user strictly requested ONLY this logo to be used
     logo_path = os.path.join(config.ASSETS_DIR, "logo.png")
-    if not os.path.exists(logo_path):
-        logo_path = os.path.join(config.ASSETS_DIR, "varta_logo.png")
-    if not os.path.exists(logo_path):
-        logo_path = os.path.join(config.ASSETS_DIR, "promo_1.png") # Ultimate fallback
-        
+
     studio_path = os.path.join(config.ASSETS_DIR, "studio_bg.png")
     font_path = "/usr/share/fonts/truetype/noto/NotoSansDevanagari-Regular.ttf"
     
@@ -50,7 +46,7 @@ def create_video(sadtalker_video_path, output_path, script_text=""):
         "[0:v]scale=1280:720:force_original_aspect_ratio=increase,crop=1280:720,format=yuv420p[studio];"
         "[1:v]scale=640:-1,format=yuv420p[anchor];"
         "[studio][anchor]overlay=(main_w-640)/2:(main_h-480)/2[v1];"
-        f"[2:v]scale=200:-1,format=yuv420p[logo];"
+        f"[2:v]scale=250:-1,format=rgba,colorkey=white:0.1:0.2[logo];"
         "[v1][logo]overlay=W-w-30:30[v2];"
         "[v2]drawtext=text='LIVE':fontcolor=white:fontsize=24:x=40:y=40:box=1:boxcolor=red@0.9:boxborderw=10[v3];"
         f"[v3]drawtext=fontfile='{font_path}':textfile='{ticker_file}':fontsize=38:fontcolor=white:x='w-mod(t*80,w+tw)':y='h-75':box=1:boxcolor=black@0.85:boxborderw=12:line_spacing=4,format=yuv420p[vout]"

@@ -12,13 +12,14 @@ from app.services.fact_checker import is_verified
 # Using config for flexibility
 r = redis.Redis(host=config.REDIS_HOST, port=int(config.REDIS_PORT))
 
-# --- AUTO GENDER SWITCH LOGIC ---
-is_female = True
+# --- 4-WAY ANCHOR ROTATION LOGIC ---
+anchors = ["female1", "female2", "male1", "male2"]
+anchor_index = 0
 
 def get_next_anchor():
-    global is_female
-    selected = "female" if is_female else "male"
-    is_female = not is_female
+    global anchor_index
+    selected = anchors[anchor_index]
+    anchor_index = (anchor_index + 1) % len(anchors)
     return selected
 
 def cleanup_temp_files():
