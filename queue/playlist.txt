@@ -1,3 +1,0 @@
-ffconcat version 1.0
-file '/app/assets/promo.mp4'
-file '/app/assets/promo.mp4'

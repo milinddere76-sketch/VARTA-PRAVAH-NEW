@@ -14,10 +14,9 @@ __pycache__/
 *$py.class
 
 # IGNORE ONLY GENERATED CONTENT (Saves space)
-output/*.mp4
-output/*.mp3
-output/*.png
-output/*.jpg
+output/
+logs/
+queue/
 sadtalker_output/
 temp/
 
