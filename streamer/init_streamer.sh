@@ -38,53 +38,30 @@ envsubst '$YOUTUBE_RTMP_URL' < /etc/nginx/nginx.conf.template > /etc/nginx/nginx
 nginx
 echo "✅ [INIT] Nginx RTMP server online with injected configuration."
 
-# 3. Use Premium Pre-rendered Promo (Skip FFmpeg regeneration entirely)
-echo "🎬 [INIT] Loading premium branding assets..."
+# 3. Generate Widescreen 16:9 Premium Standby Promo Video
+echo "🎬 [INIT] Rendering widescreen 16:9 premium standby promo..."
+STUDIO_BG="/app/assets/studio_bg.png"
+LOGO_FILE="/app/assets/logo.png"
+PROMO_OUT="/app/assets/promo.mp4"
 
-# PRIORITY 1: Use backup_assets/promo.mp4 (the genuine pre-rendered premium cinematic video)
-if [ -f "/app/backup_assets/promo.mp4" ]; then
-    echo "✅ [INIT] Premium promo found in backup_assets. Deploying directly..."
-    cp /app/backup_assets/promo.mp4 /app/assets/promo.mp4
-    chmod 777 /app/assets/promo.mp4
-    echo "✅ [INIT] Premium promo deployed: $(du -sh /app/assets/promo.mp4 | cut -f1)"
-
-# PRIORITY 2: Use pre-existing fallback if it's the full-size version
-elif [ -f "/app/assets/fallback.mp4" ] && [ $(stat -c%s /app/assets/fallback.mp4) -gt 2000000 ]; then
-    echo "✅ [INIT] Using existing full-size fallback as promo..."
-    cp /app/assets/fallback.mp4 /app/assets/promo.mp4
-    chmod 777 /app/assets/promo.mp4
-
-# PRIORITY 3: Generate from PNG slides as last resort
+if [ -f "$STUDIO_BG" ] && [ -f "$LOGO_FILE" ]; then
+    echo "🎨 [INIT] Composing widescreen 16:9 promo loop with huge branding overlay..."
+    ffmpeg -y -loop 1 -i "$STUDIO_BG" \
+      -loop 1 -i "$LOGO_FILE" \
+      -f lavfi -i "sine=f=60:d=30,aecho=0.8:0.88:60:0.4" \
+      -filter_complex "[0:v]scale=1280:1280,crop=1280:720[bg]; [1:v]scale=180:180[logo]; [bg][logo]overlay=50:50[vbg]; [vbg]drawtext=text='VARTA PRAVAH':fontcolor=white:fontsize=95:fontfile=/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf:borderw=5:bordercolor=0x00d2ff:x=(w-tw)/2:y=(h-th)/2-40,drawtext=text='वार्ता प्रवाह':fontcolor=0x00d2ff:fontsize=65:fontfile=/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf:borderw=2:bordercolor=black:x=(w-tw)/2:y=(h-th)/2+60,format=yuv420p[v]; [2:a]arealtime,aloop=loop=25:size=44100[a]" \
+      -map "[v]" -map "[a]" -c:v libx264 -preset fast -crf 20 -r 25 -pix_fmt yuv420p -c:a aac -shortest -t 30 "$PROMO_OUT"
 else
-    echo "🔨 [INIT] No pre-rendered promo found. Generating from cinematic slides..."
-    SEARCH_PATH="/app/assets"
-    FILES_COUNT=$(ls $SEARCH_PATH/promo_*.png 2>/dev/null | wc -l)
-    echo "📊 [INIT] Found $FILES_COUNT promo slides in $SEARCH_PATH."
-    if [ "$FILES_COUNT" -gt 0 ]; then
-        echo "🎨 [INIT] Rendering cinematic promo (16:9 + LOGO)..."
-        LOGO_FILE="/app/assets/logo.png"
-        ffmpeg -framerate 1/5 -c:v mjpeg -pattern_type glob -i "$SEARCH_PATH/promo_*.png" \
-          -c:v mjpeg -i "$LOGO_FILE" \
-          -f lavfi -i "sine=f=100:d=1,aecho=0.8:0.88:60:0.4" \
-          -filter_complex "[0:v]scale=1280:720:force_original_aspect_ratio=increase,crop=1280:720[bg]; [1:v]scale=180:-1[logo]; [bg][logo]overlay=W-w-30:30,format=yuv420p[v]; [2:a]arealtime,aloop=loop=25:size=44100[a]" \
-          -map "[v]" -map "[a]" -c:v libx264 -preset ultrafast -r 25 -pix_fmt yuv420p -c:a aac -shortest -y /app/assets/promo.mp4 2>/dev/null
-    fi
-    if [ ! -f "/app/assets/promo.mp4" ] || [ $(stat -c%s /app/assets/promo.mp4 2>/dev/null || echo 0) -lt 100000 ]; then
-        echo "⚠️ [WARN] Generating emergency blue standby screen..."
-        ffmpeg -f lavfi -i color=c=0x1a1a2e:s=1280x720:d=30 -f lavfi -i "sine=f=220:d=30" \
-          -vf "drawtext=text='VARTA PRAVAH':fontcolor=white:fontsize=80:x=(w-tw)/2:y=(h-th)/2" \
-          -c:v libx264 -preset ultrafast -pix_fmt yuv420p -c:a aac -shortest -y /app/assets/promo.mp4
-    fi
+    echo "⚠️ [WARN] Missing key branding assets. Generating backup widescreen blue screen..."
+    ffmpeg -y -f lavfi -i color=c=0x1a1a2e:s=1280x720:d=30 -f lavfi -i "sine=f=220:d=30" \
+      -vf "drawtext=text='VARTA PRAVAH':fontcolor=white:fontsize=95:fontfile=/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf:borderw=5:bordercolor=0x00d2ff:x=(w-tw)/2:y=(h-th)/2-40,drawtext=text='वार्ता प्रवाह':fontcolor=0x00d2ff:fontsize=65:fontfile=/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf:borderw=2:bordercolor=black:x=(w-tw)/2:y=(h-th)/2+60" \
+      -c:v libx264 -preset fast -pix_fmt yuv420p -c:a aac -shortest -y "$PROMO_OUT"
 fi
 
 # 4. Sync Fallback
-if [ ! -f "/app/assets/fallback.mp4" ]; then
-    if [ -f "/app/assets/premium_promo.mp4" ]; then
-        cp /app/assets/premium_promo.mp4 /app/assets/fallback.mp4
-    else
-        cp /app/assets/promo.mp4 /app/assets/fallback.mp4
-    fi
-fi
+cp "$PROMO_OUT" /app/assets/fallback.mp4
+chmod 777 /app/assets/promo.mp4 /app/assets/fallback.mp4
+echo "✅ [INIT] Premium 16:9 Standby Promo deployed."
 
 # 5. Launch the Brain (Queue Manager)
 echo "🧠 [INIT] Starting the Brain (Queue Manager)..."
