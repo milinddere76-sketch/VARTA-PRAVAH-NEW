@@ -16,12 +16,7 @@ while true; do
   # 1. Start fresh in a temp file
   echo "ffconcat version 1.0" > "$TMP_PLAYLIST"
 
-  # 2. INTRO: Start with the Promo
-  if [ -f "/app/assets/promo.mp4" ]; then
-    echo "file '/app/assets/promo.mp4'" >> "$TMP_PLAYLIST"
-  fi
-
-  # 3. PRIORITY: Add Breaking News
+  # 2. PRIORITY: Add Breaking News
   for file in "$VIDEO_DIR"/breaking/final_bulletin_*.mp4; do
     if [ -f "$file" ]; then
       if ! ffprobe -v error -show_entries format=duration -of default=noprint_wrappers=1 "$file" >/dev/null 2>&1; then
@@ -50,6 +45,26 @@ while true; do
       fi
     fi
   done
+
+  # 4b. FALLBACK: If no final bulletins, include lean bulletins from local output
+  if [ "$has_news" = false ]; then
+    echo "⚠️ [QUEUE-MANAGER] No final bulletins found. Falling back to lean bulletins..."
+    for file in $(ls -t "$VIDEO_DIR"/lean_bulletin_*.mp4 2>/dev/null | head -n 10); do
+      if [ -f "$file" ]; then
+        if ! ffprobe -v error -show_entries format=duration -of default=noprint_wrappers=1 "$file" >/dev/null 2>&1; then
+          echo "⚠️ [QUEUE-MANAGER] File $file is corrupt or incomplete. Removing..."
+          rm -f "$file"
+          continue
+        fi
+        echo "📰 [QUEUE-MANAGER] Adding lean bulletin: $file"
+        echo "file '$file'" >> "$TMP_PLAYLIST"
+        has_news=true
+        if [ -f "/app/assets/promo.mp4" ]; then
+          echo "file '/app/assets/promo.mp4'" >> "$TMP_PLAYLIST"
+        fi
+      fi
+    done
+  fi
 
   # 5. IDLE: If no news, just loop the promo
   if [ "$has_news" = false ] && [ -f "/app/assets/promo.mp4" ]; then

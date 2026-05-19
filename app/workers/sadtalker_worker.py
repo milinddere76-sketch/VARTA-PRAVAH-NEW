@@ -92,19 +92,24 @@ def add_to_queue(video_filename, is_breaking=False):
         return False
 
     subfolder = "breaking/" if is_breaking else ""
-    remote_file_path = f"/home/ubuntu/videos/{subfolder}{video_filename}"
+    remote_file_path = f"{config.ORACLE_VIDEO_DIR}/{subfolder}{video_filename}"
     
-    # Command to append the file to the playlist.txt
+    remote_queue_path = f"{config.ORACLE_QUEUE_DIR}/playlist.txt"
+
+    # Command to append the file to the oracle playlist queue
     cmd = [
         "ssh", "-i", ACTIVE_KEY_PATH,
         "-o", "StrictHostKeyChecking=no",
         f"{config.ORACLE_USER}@{config.ORACLE_IP}",
-        f"echo \"file '{remote_file_path}'\" >> /home/ubuntu/vartapravah/queue/playlist.txt"
+        f"mkdir -p {config.ORACLE_QUEUE_DIR} && sudo chmod 777 {config.ORACLE_QUEUE_DIR} && echo \"file '{remote_file_path}'\" >> {remote_queue_path}"
     ]
     
-    print(f"🧠 [PIPELINE] Adding {video_filename} to Oracle Queue...")
+    print(f"🧠 [PIPELINE] Adding {video_filename} to Oracle Queue at {remote_queue_path}...")
     try:
-        subprocess.run(cmd, capture_output=True, text=True)
+        result = subprocess.run(cmd, capture_output=True, text=True)
+        if result.returncode != 0:
+            print(f"⚠️ [PIPELINE] Queue update failed: {result.stderr}")
+            return False
         return True
     except Exception as e:
         print(f"⚠️ [PIPELINE] Failed to update queue: {e}")
