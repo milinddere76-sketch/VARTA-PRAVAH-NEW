@@ -34,10 +34,27 @@ def upload_to_oracle(video_path, is_breaking=False):
     """
     Python Upload Hook (STEP 4)
     Automated transfer of news bulletins to the Oracle relay node.
+    If ORACLE_IP is not set, runs in Local Single-Server Mode.
     """
     if not config.ORACLE_IP:
-        print("⚠️ [PIPELINE] ORACLE_IP not set. Skipping upload.")
-        return False
+        print("⚠️ [PIPELINE] ORACLE_IP not set. Running in Local Single-Server Mode.")
+        filename = os.path.basename(video_path)
+        if is_breaking:
+            dest_dir = os.path.join(config.OUTPUT_DIR, "breaking")
+            os.makedirs(dest_dir, exist_ok=True)
+            dest_path = os.path.join(dest_dir, filename)
+            try:
+                import shutil
+                shutil.copy2(video_path, dest_path)
+                print(f"✅ [LOCAL-SINGLE-SERVER] Copied Breaking News to: {dest_path}")
+                # Remove original to avoid duplicate standard playout
+                if os.path.exists(video_path):
+                    os.remove(video_path)
+            except Exception as e:
+                print(f"⚠️ [LOCAL-SINGLE-SERVER] Failed to copy breaking news: {e}")
+        else:
+            print(f"✅ [LOCAL-SINGLE-SERVER] Standard bulletin ready at: {video_path}")
+        return "local"
 
     filename = os.path.basename(video_path)
     
@@ -152,12 +169,15 @@ while True:
             
         if not ticker_text:
             # Clean fallback: remove greetings for ticker if parsing failed
-            ticker_text = anchor_script.replace("नमस्कार, वार्ता प्रवाह मध्ये आपले स्वागत आहे.", "")
-            ticker_text = ticker_text.replace("याबाबत पुढील तपशील आणि इतर घडामोडींसाठी पाहत राहा, वार्ता प्रवाह. धन्यवाद!", "")
+            ticker_text = anchor_script
+            for greeting in ["नमस्कार, वार्ता प्रवाह में आपका स्वागत है।", "नमस्कार, वार्ता प्रवाह मध्ये आपले स्वागत आहे."]:
+                ticker_text = ticker_text.replace(greeting, "")
+            for signoff in ["इस खबर पर अधिक जानकारी और अन्य अपडेट के लिए देखते रहिए, वार्ता प्रवाह। धन्यवाद!", "याबाबत पुढील तपशील आणि इतर घडामोडींसाठी पाहत राहा, वार्ता प्रवाह. धन्यवाद!"]:
+                ticker_text = ticker_text.replace(signoff, "")
             ticker_text = ticker_text.strip()
             
         # 1. News Style Formatting (Adds Anchor Feel)
-        formatted_script = f"मुख्य बातम्या...\n\n{anchor_script}\n\nधन्यवाद।"
+        formatted_script = f"मुख्य समाचार...\n\n{anchor_script}\n\nधन्यवाद।"
         
         # 2. Neural TTS Synthesis
         audio_file = os.path.join(config.OUTPUT_DIR, f"audio_{task_id}.mp3")
@@ -223,12 +243,14 @@ while True:
                 
                 # 5. AUTO-TRANSFER TO ORACLE (STEP 4)
                 is_breaking = task.get("type") == "BREAKING"
-                success = upload_to_oracle(final_path, is_breaking=is_breaking)
+                upload_status = upload_to_oracle(final_path, is_breaking=is_breaking)
                 
-                if success:
+                if upload_status == "local":
+                    print(f"✅ [LOCAL-SINGLE-SERVER] Bulletin processing complete for local playout.")
+                elif upload_status:
                     # 6. INSTANT QUEUE INJECTION (STEP 5)
                     add_to_queue(final_video, is_breaking=is_breaking)
-
+ 
                     # 7. AUTO-CLEANUP (Hetzner)
                     print(f"🧹 [CLEANUP] Removing local file: {final_path}")
                     os.remove(final_path)

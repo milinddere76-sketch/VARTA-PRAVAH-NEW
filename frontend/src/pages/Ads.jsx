@@ -78,7 +78,7 @@ export default function Ads() {
                 <td className="px-6 py-4 text-slate-400 text-sm">30s</td>
               </tr>
               <tr>
-                <td className="px-6 py-4 font-mono text-xs">govt_awareness_marathi.mp4</td>
+                <td className="px-6 py-4 font-mono text-xs">govt_awareness_hindi.mp4</td>
                 <td className="px-6 py-4"><span className="px-2 py-1 rounded-full bg-emerald-500/10 text-emerald-500 text-[10px] font-bold">ACTIVE</span></td>
                 <td className="px-6 py-4 text-slate-400 text-sm">45s</td>
               </tr>

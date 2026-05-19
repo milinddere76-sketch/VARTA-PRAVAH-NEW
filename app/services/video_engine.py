@@ -27,10 +27,10 @@ def create_video(sadtalker_video_path, output_path, script_text=""):
             print(f"⚠️ [VIDEO-ENGINE] Devanagari font not found, using system default")
             font_path = "DejaVuSans"
 
-    # Clean text for FFmpeg ticker - preserve Marathi script properly
-    # Replace newlines with danda (।) for proper Marathi text flow
+    # Clean text for FFmpeg ticker - preserve Hindi/Devanagari script properly
+    # Replace newlines with danda (।) for proper Hindi text flow
     ticker_text = script_text.strip()
-    # Remove only problematic quotes, keep Marathi punctuation
+    # Remove only problematic quotes, keep Hindi/Devanagari punctuation
     ticker_text = ticker_text.replace('"', '').replace("'", '')
     ticker_text = ticker_text.replace("\n", " | ")
     

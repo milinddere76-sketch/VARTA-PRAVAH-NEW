@@ -1,4 +1,49 @@
+version: "3.9"
+
 services:
+  # --- CORE NEWS ENGINE ---
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile.app
+    container_name: vp_app
+    restart: always
+    command: python3 -m uvicorn app.main:app --host 0.0.0.0 --port 8000
+    ports:
+      - "8000:8000"
+    env_file:
+      - .env
+    volumes:
+      - ./output:/app/output
+      - ./queue:/app/queue
+    depends_on:
+      - postgres
+      - redis
+
+  worker:
+    build:
+      context: .
+      dockerfile: Dockerfile.worker
+    container_name: vp_worker
+    restart: always
+    env_file:
+      - .env
+    volumes:
+      - ./output:/app/output
+      - ./queue:/app/queue
+    depends_on:
+      - app
+      - redis
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: vp_frontend
+    restart: always
+    ports:
+      - "3000:80"
+
   # --- LIGHTWEIGHT STREAMING NODE (ORACLE FREE TIER) ---
   streamer:
     build:
@@ -14,9 +59,34 @@ services:
       - ./output:/home/ubuntu/videos
       - ./queue:/home/ubuntu/queue
       - ./logs:/home/ubuntu/logs
-    network_mode: bridge
     logging:
       driver: "json-file"
       options:
         max-size: "10m"
         max-file: "3"
+    depends_on:
+      - worker
+
+  # --- MINIMAL INFRASTRUCTURE ---
+  postgres:
+    image: postgres:15-alpine
+    container_name: vp_db
+    restart: always
+    environment:
+      POSTGRES_DB: vartapravah
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: password
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+  redis:
+    image: redis:7-alpine
+    container_name: vp_redis
+    restart: always
+
+volumes:
+  postgres_data:
+
+networks:
+  default:
+    name: vp_network

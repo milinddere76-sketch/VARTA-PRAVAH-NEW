@@ -36,9 +36,9 @@ class NewsFetcher:
             except Exception:
                 pass
         
-        # 2. Fallback: Google News RSS (returns pre-translated clean Marathi)
+        # 2. Fallback: Google News RSS (returns pre-translated clean Hindi)
         try:
-            rss_url = f"https://news.google.com/rss/search?q={rss_query}&hl=mr&gl=IN&ceid=IN:mr"
+            rss_url = f"https://news.google.com/rss/search?q={rss_query}&hl=hi&gl=IN&ceid=IN:hi"
             res_rss = requests.get(rss_url, timeout=10)
             titles = res_rss.text.split("<title>")[2:12]
             for t in titles:
@@ -49,23 +49,23 @@ class NewsFetcher:
             pass
             
         return list(set(headlines))[:6]
-
+ 
     def fetch_all_categories(self):
         """Fetches news across all required domains: Regional, National, World, and Sports."""
         print("📰 [NEWS-FETCHER] Gathering Regional, National, World, and Sports headlines...")
         all_headlines = []
         
-        # Category 1: Regional (Maharashtra)
-        all_headlines.extend(self.fetch_category_headlines("Maharashtra", "Maharashtra"))
+        # Category 1: Regional (India regional news / Hindi belt)
+        all_headlines.extend(self.fetch_category_headlines("India regional news", "भारत प्रादेशिक"))
         
         # Category 2: National (India)
-        all_headlines.extend(self.fetch_category_headlines("India National News", "India National"))
+        all_headlines.extend(self.fetch_category_headlines("India National News", "भारत राष्ट्रीय"))
         
         # Category 3: World (International)
-        all_headlines.extend(self.fetch_category_headlines("World News International", "World International"))
+        all_headlines.extend(self.fetch_category_headlines("World News International", "अंतरराष्ट्रीय"))
         
         # Category 4: Sports (India & World)
-        all_headlines.extend(self.fetch_category_headlines("Sports Khel Cricket", "sports khel cricket"))
+        all_headlines.extend(self.fetch_category_headlines("Sports Khel Cricket", "खेल समाचार"))
         
         # De-duplicate while preserving order
         unique_headlines = []

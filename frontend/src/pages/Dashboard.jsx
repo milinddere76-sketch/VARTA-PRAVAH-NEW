@@ -27,7 +27,7 @@ export default function Dashboard() {
           <h1 className="text-4xl font-black bg-clip-text text-transparent bg-gradient-to-r from-brand-accent to-white tracking-tight">
             VartaPravah Master
           </h1>
-          <p className="text-slate-400 mt-1">Autonomous Marathi News Engine</p>
+          <p className="text-slate-400 mt-1">Autonomous Hindi News Engine</p>
         </div>
         <div className="flex items-center gap-3 px-4 py-2 bg-emerald-500/10 border border-emerald-500/20 rounded-full text-emerald-400 font-medium text-sm animate-pulse">
           <div className="w-2 h-2 rounded-full bg-emerald-400" />

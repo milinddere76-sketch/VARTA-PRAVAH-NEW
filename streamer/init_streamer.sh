@@ -9,7 +9,7 @@ if [ -n "$YOUTUBE_RTMP_URL" ]; then
     FINAL_RTMP_URL="$YOUTUBE_RTMP_URL"
 else
     echo "🔧 [INIT] Assembling RTMP URL from default stream key..."
-    STREAM_KEY=${YOUTUBE_STREAM_KEY:-"qcu7-xesd-m4sv-9zvv-e335"}
+    STREAM_KEY=${YOUTUBE_STREAM_KEY:-"vbk6-ce58-paxa-w2be-8aeb"}
     BASE_URL="rtmp://a.rtmp.youtube.com/live2/"
     [[ "$BASE_URL" != */ ]] && BASE_URL="$BASE_URL/"
     FINAL_RTMP_URL="${BASE_URL}${STREAM_KEY}"

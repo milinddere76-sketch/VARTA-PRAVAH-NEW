@@ -2,7 +2,7 @@ import asyncio
 import edge_tts
 import os
 from app import config
-from app.text_cleaner import clean_marathi
+from app.text_cleaner import clean_hindi
 
 def enhance_audio(input_file, output_file):
     """Broadcast Enhancement - normalizes volume and adds a high-fidelity compressor presence (no muffled lowpass!)."""
@@ -24,28 +24,28 @@ def generate_tts(text, output_file, anchor_type="male"):
     State-of-the-Art Neural TTS Synthesis Pipeline.
     Uses Microsoft Edge's highly-realistic neural voices for professional news presentation.
     """
-    text = clean_marathi(text)
+    text = clean_hindi(text)
     
     # Premium Neural Voices & Styles mapping
     if anchor_type == "female1":
-        voice = "mr-IN-AarohiNeural"
+        voice = "hi-IN-SwaraNeural"
         rate = "+4%"
         pitch = "+0Hz"
     elif anchor_type == "female2":
-        voice = "mr-IN-AarohiNeural"
+        voice = "hi-IN-SwaraNeural"
         rate = "+6%"
         pitch = "-5Hz"
     elif anchor_type == "male1":
-        voice = "mr-IN-ManoharNeural"
+        voice = "hi-IN-MadhurNeural"
         rate = "+3%"
         pitch = "+0Hz"
     elif anchor_type == "male2":
-        voice = "mr-IN-ManoharNeural"
+        voice = "hi-IN-MadhurNeural"
         rate = "+5%"
         pitch = "-8Hz"
     else:
         # Fallback to standard mapping
-        voice = "mr-IN-ManoharNeural" if "male" in str(anchor_type).lower() else "mr-IN-AarohiNeural"
+        voice = "hi-IN-MadhurNeural" if "male" in str(anchor_type).lower() else "hi-IN-SwaraNeural"
         rate = "+4%"
         pitch = "+0Hz"
     
@@ -54,7 +54,7 @@ def generate_tts(text, output_file, anchor_type="male"):
     async def amain():
         communicate = edge_tts.Communicate(text, voice, rate=rate, pitch=pitch)
         await communicate.save(temp_raw)
-
+ 
     try:
         asyncio.run(amain())
     except Exception as e:
@@ -62,7 +62,7 @@ def generate_tts(text, output_file, anchor_type="male"):
         # Fallback to standard gTTS if network / edge-tts is down
         from gtts import gTTS
         try:
-            tts = gTTS(text=text, lang='mr', slow=False)
+            tts = gTTS(text=text, lang='hi', slow=False)
             tts.save(temp_raw)
         except Exception as fallback_err:
             print(f"🚨 [TTS-ENGINE] Absolute Fallback Failed: {fallback_err}")

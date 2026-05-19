@@ -43,10 +43,10 @@ def cleanup_temp_files():
 
 def get_bulletin_type():
     hour = datetime.now().hour
-    if 5 <= hour < 12: return "सकाळ"        # Morning Slot
-    elif 12 <= hour < 17: return "दुपार"    # Afternoon Slot
+    if 5 <= hour < 12: return "सुबह"        # Morning Slot
+    elif 12 <= hour < 17: return "दोपहर"    # Afternoon Slot
     elif 17 <= hour < 21: return "प्राइम टाइम" # Evening Slot
-    else: return "रात्री"                 # Night Slot
+    else: return "रात"                 # Night Slot
 
 def main():
     print("🏢 [ENTERPRISE] VARTAPRAVAH TV Master Scheduler Active.")
