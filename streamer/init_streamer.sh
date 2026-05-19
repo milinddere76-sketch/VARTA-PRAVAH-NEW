@@ -40,12 +40,19 @@ echo "✅ [INIT] Nginx RTMP server online with injected configuration."
 
 # 3. Generate Widescreen 16:9 Premium Standby Promo Video
 echo "🎬 [INIT] Rendering widescreen 16:9 premium standby promo..."
+PROMO_BG="/app/assets/promo_bg.png"
 STUDIO_BG="/app/assets/studio_bg.png"
 LOGO_FILE="/app/assets/logo.png"
 PROMO_OUT="/app/assets/promo.mp4"
 
-if [ -f "$STUDIO_BG" ] && [ -f "$LOGO_FILE" ]; then
-    echo "🎨 [INIT] Composing widescreen 16:9 promo loop with huge branding overlay..."
+if [ -f "$PROMO_BG" ]; then
+    echo "🎨 [INIT] Composing widescreen 16:9 promo loop using user-provided slide: $PROMO_BG"
+    ffmpeg -y -loop 1 -i "$PROMO_BG" \
+      -f lavfi -i "sine=f=60:d=30,aecho=0.8:0.88:60:0.4" \
+      -filter_complex "[0:v]scale=1280:1280,crop=1280:720,format=yuv420p[v]; [1:a]arealtime,aloop=loop=25:size=44100[a]" \
+      -map "[v]" -map "[a]" -c:v libx264 -preset fast -crf 20 -r 25 -pix_fmt yuv420p -c:a aac -shortest -t 30 "$PROMO_OUT"
+elif [ -f "$STUDIO_BG" ] && [ -f "$LOGO_FILE" ]; then
+    echo "🎨 [INIT] Composing widescreen 16:9 promo loop with fallback branding overlay..."
     ffmpeg -y -loop 1 -i "$STUDIO_BG" \
       -loop 1 -i "$LOGO_FILE" \
       -f lavfi -i "sine=f=60:d=30,aecho=0.8:0.88:60:0.4" \
