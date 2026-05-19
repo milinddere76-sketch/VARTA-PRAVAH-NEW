@@ -158,6 +158,7 @@ while True:
             continue
             
         sadtalker_video = os.path.join(config.OUTPUT_DIR, f"lean_bulletin_{task_id}.mp4")
+        tmp_sadtalker_video = sadtalker_video + ".tmp"
         
         print(f"⚡ [LEAN-MODE] Generating high-speed loop using OPTIMIZED command with {os.path.basename(face_image)}...")
         # Upgraded to ARM64-Robust command
@@ -166,12 +167,19 @@ while True:
             "-i", audio_file,
             "-c:v", "libx264", "-preset", "ultrafast", "-tune", "stillimage",
             "-pix_fmt", "yuv420p", "-r", "25", "-s", "1280x720", "-shortest",
-            sadtalker_video
+            tmp_sadtalker_video
         ]
         
         result = subprocess.run(lean_cmd, capture_output=True, text=True)
         print(f"📊 [FFMPEG-DEBUG] Command: {' '.join(lean_cmd)}")
         print(f"📊 [FFMPEG-DEBUG] Return Code: {result.returncode}")
+        
+        if result.returncode == 0 and os.path.exists(tmp_sadtalker_video):
+            os.rename(tmp_sadtalker_video, sadtalker_video)
+        else:
+            if os.path.exists(tmp_sadtalker_video):
+                os.remove(tmp_sadtalker_video)
+                
         print(f"📊 [FFMPEG-DEBUG] target_video: {sadtalker_video}")
         print(f"📊 [FFMPEG-DEBUG] exists in python: {os.path.exists(sadtalker_video)}")
         if result.returncode != 0:

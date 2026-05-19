@@ -20,8 +20,12 @@ while true; do
   for file in "$VIDEO_DIR"/breaking/final_bulletin_*.mp4; do
     if [ -f "$file" ]; then
       if ! ffprobe -v error -show_entries format=duration -of default=noprint_wrappers=1 "$file" >/dev/null 2>&1; then
-        echo "⚠️ [QUEUE-MANAGER] Breaking file $file is corrupt. Removing..."
-        rm -f "$file"
+        if [ $(( $(date +%s) - $(stat -c %Y "$file" 2>/dev/null || stat -f %m "$file" 2>/dev/null || echo 0) )) -gt 60 ]; then
+          echo "⚠️ [QUEUE-MANAGER] Breaking file $file is corrupt. Removing..."
+          rm -f "$file"
+        else
+          echo "⏳ [QUEUE-MANAGER] Breaking file $file is currently writing. Skipping..."
+        fi
         continue
       fi
       echo "file '$file'" >> "$TMP_PLAYLIST"
@@ -33,8 +37,12 @@ while true; do
   for file in $(ls -t "$VIDEO_DIR"/final_bulletin_*.mp4 2>/dev/null | head -n 10); do
     if [ -f "$file" ]; then
       if ! ffprobe -v error -show_entries format=duration -of default=noprint_wrappers=1 "$file" >/dev/null 2>&1; then
-        echo "⚠️ [QUEUE-MANAGER] File $file is corrupt or incomplete. Removing..."
-        rm -f "$file"
+        if [ $(( $(date +%s) - $(stat -c %Y "$file" 2>/dev/null || stat -f %m "$file" 2>/dev/null || echo 0) )) -gt 60 ]; then
+          echo "⚠️ [QUEUE-MANAGER] File $file is corrupt or incomplete. Removing..."
+          rm -f "$file"
+        else
+          echo "⏳ [QUEUE-MANAGER] File $file is currently writing. Skipping..."
+        fi
         continue
       fi
       echo "file '$file'" >> "$TMP_PLAYLIST"
@@ -52,8 +60,12 @@ while true; do
     for file in $(ls -t "$VIDEO_DIR"/lean_bulletin_*.mp4 2>/dev/null | head -n 10); do
       if [ -f "$file" ]; then
         if ! ffprobe -v error -show_entries format=duration -of default=noprint_wrappers=1 "$file" >/dev/null 2>&1; then
-          echo "⚠️ [QUEUE-MANAGER] File $file is corrupt or incomplete. Removing..."
-          rm -f "$file"
+          if [ $(( $(date +%s) - $(stat -c %Y "$file" 2>/dev/null || stat -f %m "$file" 2>/dev/null || echo 0) )) -gt 60 ]; then
+            echo "⚠️ [QUEUE-MANAGER] File $file is corrupt or incomplete. Removing..."
+            rm -f "$file"
+          else
+            echo "⏳ [QUEUE-MANAGER] File $file is currently writing. Skipping..."
+          fi
           continue
         fi
         echo "📰 [QUEUE-MANAGER] Adding lean bulletin: $file"
