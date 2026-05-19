@@ -44,7 +44,7 @@ def upload_to_oracle(video_path, is_breaking=False):
     # Priority handling: Breaking news goes to its own subfolder
     subfolder = "breaking/" if is_breaking else ""
     # Target specific filename for maximum reliability and ensure permissions
-    remote_dest = f"{config.ORACLE_USER}@{config.ORACLE_IP}:{config.ORACLE_VIDEO_DIR}/{subfolder}{filename}"
+    remote_dest_tmp = f"{config.ORACLE_USER}@{config.ORACLE_IP}:{config.ORACLE_VIDEO_DIR}/{subfolder}{filename}.tmp"
     
     # HARDEN DESTINATION: Force permissions on remote folder before upload
     try:
@@ -60,13 +60,21 @@ def upload_to_oracle(video_path, is_breaking=False):
         "scp", "-i", ACTIVE_KEY_PATH,
         "-o", "StrictHostKeyChecking=no",
         video_path,
-        remote_dest
+        remote_dest_tmp
     ]
     
     print(f"📤 [PIPELINE] Uploading {filename} to Oracle ({'BREAKING' if is_breaking else 'NORMAL'})...")
     try:
         result = subprocess.run(cmd, capture_output=True, text=True)
         if result.returncode == 0:
+            # ATOMIC RENAME: Convert .tmp to final .mp4 only after complete upload
+            rename_cmd = [
+                "ssh", "-i", ACTIVE_KEY_PATH,
+                "-o", "StrictHostKeyChecking=no",
+                f"{config.ORACLE_USER}@{config.ORACLE_IP}",
+                f"mv {config.ORACLE_VIDEO_DIR}/{subfolder}{filename}.tmp {config.ORACLE_VIDEO_DIR}/{subfolder}{filename}"
+            ]
+            subprocess.run(rename_cmd, capture_output=True)
             print(f"✅ [PIPELINE] Upload Successful: {filename}")
             return True
         else:
