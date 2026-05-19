@@ -172,6 +172,8 @@ while True:
         result = subprocess.run(lean_cmd, capture_output=True, text=True)
         print(f"📊 [FFMPEG-DEBUG] Command: {' '.join(lean_cmd)}")
         print(f"📊 [FFMPEG-DEBUG] Return Code: {result.returncode}")
+        print(f"📊 [FFMPEG-DEBUG] target_video: {sadtalker_video}")
+        print(f"📊 [FFMPEG-DEBUG] exists in python: {os.path.exists(sadtalker_video)}")
         if result.returncode != 0:
             print(f"❌ [FFMPEG-ERROR] Stderr: {result.stderr}")
             print(f"❌ [FFMPEG-ERROR] Stdout: {result.stdout}")
