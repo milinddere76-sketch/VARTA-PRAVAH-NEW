@@ -167,6 +167,7 @@ while True:
             "-i", audio_file,
             "-c:v", "libx264", "-preset", "ultrafast", "-tune", "stillimage",
             "-pix_fmt", "yuv420p", "-r", "25", "-s", "1280x720", "-shortest",
+            "-f", "mp4",
             tmp_sadtalker_video
         ]
         
