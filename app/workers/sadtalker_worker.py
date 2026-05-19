@@ -129,13 +129,35 @@ while True:
     try:
         task = json.loads(data[1])
         task_id = task["id"]
-        script = task["script"]
+        raw_script = task["script"]
         anchor_type = task.get("anchor_type", "female")
         
         print(f"🎙️ [SADTALKER-WORKER] Processing Task {task_id} for {anchor_type.upper()}...")
 
+        # Parse TICKER and SCRIPT components
+        ticker_text = ""
+        anchor_script = ""
+        
+        if "TICKER:" in raw_script and "SCRIPT:" in raw_script:
+            try:
+                parts = raw_script.split("SCRIPT:")
+                ticker_text = parts[0].replace("TICKER:", "").strip()
+                anchor_script = parts[1].strip()
+            except Exception as parse_err:
+                print(f"⚠️ [SADTALKER-WORKER] Parse error: {parse_err}")
+                ticker_text = ""
+                anchor_script = raw_script
+        else:
+            anchor_script = raw_script
+            
+        if not ticker_text:
+            # Clean fallback: remove greetings for ticker if parsing failed
+            ticker_text = anchor_script.replace("नमस्कार, वार्ता प्रवाह मध्ये आपले स्वागत आहे.", "")
+            ticker_text = ticker_text.replace("याबाबत पुढील तपशील आणि इतर घडामोडींसाठी पाहत राहा, वार्ता प्रवाह. धन्यवाद!", "")
+            ticker_text = ticker_text.strip()
+            
         # 1. News Style Formatting (Adds Anchor Feel)
-        formatted_script = f"मुख्य बातम्या...\n\n{script}\n\nधन्यवाद।"
+        formatted_script = f"मुख्य बातम्या...\n\n{anchor_script}\n\nधन्यवाद।"
         
         # 2. Neural TTS Synthesis
         audio_file = os.path.join(config.OUTPUT_DIR, f"audio_{task_id}.mp3")
@@ -190,7 +212,7 @@ while True:
         if os.path.exists(sadtalker_video):
             # 4. Final Video Composition (Ticker + Overlays)
             final_video = f"final_bulletin_{task_id}.mp4"
-            final_path = video_engine.generate_video(sadtalker_video, script, final_video)
+            final_path = video_engine.generate_video(sadtalker_video, ticker_text, final_video)
             
             if final_path and os.path.exists(final_path):
                 # FIX 4: Proactively update the playlist for zero-downtime streaming
