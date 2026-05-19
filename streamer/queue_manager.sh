@@ -28,9 +28,9 @@ while true; do
     fi
   done
 
-  # 4. STANDARD: Add regular news bulletins
+  # 4. STANDARD: Add regular news bulletins (Limit to latest 10, newest first)
   has_news=false
-  for file in "$VIDEO_DIR"/final_bulletin_*.mp4; do
+  for file in $(ls -t "$VIDEO_DIR"/final_bulletin_*.mp4 2>/dev/null | head -n 10); do
     if [ -f "$file" ]; then
       echo "file '$file'" >> "$TMP_PLAYLIST"
       has_news=true
