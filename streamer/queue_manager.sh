@@ -13,6 +13,10 @@ echo "🧠 [QUEUE-MANAGER] Brain is active. Monitoring $VIDEO_DIR..."
 mkdir -p "$(dirname "$PLAYLIST")"
 
 while true; do
+  # STRICT PLayout Age Limit: Automatically purge any news video file older than 3 days
+  find "$VIDEO_DIR" -type f -name "final_bulletin_*.mp4" -mtime +3 -delete
+  find "$VIDEO_DIR" -type f -name "lean_bulletin_*.mp4" -mtime +3 -delete
+
   # 1. Start fresh in a temp file
   echo "ffconcat version 1.0" > "$TMP_PLAYLIST"
 

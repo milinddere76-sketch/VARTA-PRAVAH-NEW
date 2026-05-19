@@ -13,9 +13,22 @@ class NewsFetcher:
             try:
                 url = f"https://newsapi.org/v2/everything?q={query}&sortBy=publishedAt&apiKey={self.api_key}"
                 res = requests.get(url, timeout=10)
-                articles = res.json().get("articles", [])[:5]
+                articles = res.json().get("articles", [])[:10]
+                from datetime import datetime
                 for a in articles:
                     title = a.get("title", "")
+                    published_at = a.get("publishedAt", "")
+                    
+                    # STRICT AGE LIMIT: Max 3 days old (259200 seconds)
+                    if published_at:
+                        try:
+                            pub_date = datetime.strptime(published_at[:19], "%Y-%m-%dT%H:%M:%S")
+                            if (datetime.now() - pub_date).days > 3:
+                                print(f"⏳ [NEWS-FETCHER] Skipping stale article (>3 days old): {title[:50]}")
+                                continue
+                        except Exception:
+                            pass
+
                     if " - " in title:
                         title = title.split(" - ")[0]
                     if title:
