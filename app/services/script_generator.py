@@ -13,7 +13,7 @@ def generate_script(news):
             news = "\n".join(news)
             
         response = client.chat.completions.create(
-            model="llama-3.3-70b-specdec",
+            model="llama-3.3-70b-versatile",
             messages=[
                 {
                     "role": "system", 
