@@ -43,70 +43,106 @@ def cleanup_temp_files():
 
 def get_bulletin_type():
     hour = datetime.now().hour
-    if 5 <= hour < 10: return "सकाळ"
-    elif 10 <= hour < 14: return "दुपार"
-    elif 14 <= hour < 18: return "संध्याकाळ"
-    elif 18 <= hour < 22: return "प्राइम टाइम"
-    else: return "रात्री"
+    if 5 <= hour < 12: return "सकाळ"        # Morning Slot
+    elif 12 <= hour < 17: return "दुपार"    # Afternoon Slot
+    elif 17 <= hour < 21: return "प्राइम टाइम" # Evening Slot
+    else: return "रात्री"                 # Night Slot
 
 def main():
     print("🏢 [ENTERPRISE] VARTAPRAVAH TV Master Scheduler Active.")
 
+    # 1. Run immediately on container startup to populate the playout queue
+    print("🚀 [SCHEDULER] Initial startup run triggered. Populating active news queue...")
+    try:
+        cleanup_temp_files()
+        bulletin_type = get_bulletin_type()
+        articles = fetch_news()
+        verified_articles = []
+        for article in articles:
+            if not is_verified(article):
+                continue
+            verified_articles.append(article)
+            
+        if verified_articles:
+            active_articles = verified_articles[:6] # Enqueue up to 6 articles across categories
+            for index, article in enumerate(active_articles):
+                anchor_type = get_next_anchor()
+                prompt = f"BULLETIN_TYPE: {bulletin_type}\nANCHOR_TYPE: {anchor_type.upper()}\nRAW_HEADLINES:\n- {article}"
+                task_id = int(time.time()) * 1000 + index
+                script = generate_script(prompt)
+                if script:
+                    r.rpush(config.QUEUE_NAME, json.dumps({
+                        "id": task_id,
+                        "type": bulletin_type,
+                        "anchor_type": anchor_type,
+                        "script": script
+                    }))
+                    print(f"✅ [{anchor_type.upper()}] Initial Story {index + 1} queued: {article[:50]}...")
+                    time.sleep(1)
+    except Exception as e:
+        print(f"⚠️ [SCHEDULER-STARTUP] Error on initial run: {e}")
+
+    last_triggered_time = None
+    target_hours = [8, 14, 19, 23]
+
     while True:
         try:
-            # 0. Clean up old production artifacts
-            cleanup_temp_files()
-            
-            bulletin_type = get_bulletin_type()
-            print(f"🕒 [SCHEDULER] Slot: {bulletin_type}")
-            
-            articles = fetch_news()
-            print(f"📰 [SCHEDULER] Found {len(articles)} articles from sources.")
-            verified_articles = []
-
-            for article in articles:
-                title = article["title"] if isinstance(article, dict) else article
-                if not is_verified(title):
-                    print(f"❌ Skipping unverified news: {title[:50]}")
-                    continue
-                verified_articles.append(title)
-
-            print(f"✅ [SCHEDULER] {len(verified_articles)} articles verified.")
-
-            if verified_articles:
-                # Process up to 5 verified articles individually per cycle (One Headline, One News rule)
-                active_articles = verified_articles[:5]
-                print(f"📰 [SCHEDULER] Processing {len(active_articles)} verified articles individually...")
-                
-                for index, article in enumerate(active_articles):
-                    anchor_type = get_next_anchor()
-                    prompt = f"BULLETIN_TYPE: {bulletin_type}\nANCHOR_TYPE: {anchor_type.upper()}\nRAW_HEADLINES:\n- {article}"
+            now = datetime.now()
+            # Check if we match the top of the hour at minute 00 of our target hours
+            if now.hour in target_hours and now.minute == 0:
+                if last_triggered_time is None or last_triggered_time.hour != now.hour or last_triggered_time.date() != now.date():
+                    last_triggered_time = now
                     
-                    # Generate a unique sequential task ID for each individual story
-                    task_id = int(time.time()) * 1000 + index
+                    cleanup_temp_files()
+                    bulletin_type = get_bulletin_type()
+                    print(f"🕒 [SCHEDULER] Scheduled trigger at {now.strftime('%H:%M:%S')}. Slot: {bulletin_type}")
                     
-                    print(f"✍️ [ENTERPRISE] Generating individual script for Story {index + 1}/{len(active_articles)} ({anchor_type.upper()} anchor)...")
-                    script = generate_script(prompt)
+                    articles = fetch_news()
+                    print(f"📰 [SCHEDULER] Found {len(articles)} articles from sources.")
+                    verified_articles = []
 
-                    if script:
-                        r.rpush(config.QUEUE_NAME, json.dumps({
-                            "id": task_id,
-                            "type": bulletin_type,
-                            "anchor_type": anchor_type,
-                            "script": script
-                        }))
-                        print(f"✅ [{anchor_type.upper()}] Story {index + 1} queued: {article[:50]}...")
-                        # Brief sleep to respect API rate limits during sequential generation
-                        time.sleep(1)
-            else:
-                print("⏳ [SCHEDULER] No verified news available this cycle.")
+                    for article in articles:
+                        if not is_verified(article):
+                            print(f"❌ Skipping unverified news: {article[:50]}")
+                            continue
+                        verified_articles.append(article)
 
-            # 5-minute cycle for faster production
-            time.sleep(300)
+                    print(f"✅ [SCHEDULER] {len(verified_articles)} articles verified.")
+
+                    if verified_articles:
+                        # Clear old bulletins from Redis queue on new scheduled block to keep rotation fresh
+                        print("🧹 [SCHEDULER] Clearing old queue items to rotate fresh slot bulletins...")
+                        r.delete(config.QUEUE_NAME)
+                        
+                        active_articles = verified_articles[:6] # Process top 6 verified articles across categories
+                        print(f"📰 [SCHEDULER] Processing {len(active_articles)} verified articles individually...")
+                        
+                        for index, article in enumerate(active_articles):
+                            anchor_type = get_next_anchor()
+                            prompt = f"BULLETIN_TYPE: {bulletin_type}\nANCHOR_TYPE: {anchor_type.upper()}\nRAW_HEADLINES:\n- {article}"
+                            task_id = int(time.time()) * 1000 + index
+                            
+                            print(f"✍️ [ENTERPRISE] Generating individual script for Story {index + 1}/{len(active_articles)} ({anchor_type.upper()} anchor)...")
+                            script = generate_script(prompt)
+
+                            if script:
+                                r.rpush(config.QUEUE_NAME, json.dumps({
+                                    "id": task_id,
+                                    "type": bulletin_type,
+                                    "anchor_type": anchor_type,
+                                    "script": script
+                                }))
+                                print(f"✅ [{anchor_type.upper()}] Story {index + 1} queued: {article[:50]}...")
+                                time.sleep(1)
+                    else:
+                        print("⏳ [SCHEDULER] No verified news available for this scheduled slot.")
+            
+            # Check every 15 seconds
+            time.sleep(15)
 
         except Exception as e:
             print(f"⚠️ [SCHEDULER] Error: {e}")
-            time.sleep(60)
+            time.sleep(15)
 
 if __name__ == "__main__":
     main()
