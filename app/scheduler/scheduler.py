@@ -77,19 +77,7 @@ def main():
                 news_text = "\n".join(verified_articles)
                 anchor_type = get_next_anchor()
                 
-                prompt = f"""
-तुम्ही व्यावसायिक मराठी न्यूज अँकर आहात. ({anchor_type.upper()} ANCHOR)
-
-बुलेटिन: {bulletin_type}
-
-नियम:
-- शुद्ध मराठी भाषा
-- कोणतीही इंग्रजी शब्द नाही
-- न्यूज शैली
-
-न्यूज:
-{news_text}
-"""
+                prompt = f"BULLETIN_TYPE: {bulletin_type}\nANCHOR_TYPE: {anchor_type.upper()}\nRAW_HEADLINES:\n{news_text}"
                 print(f"✍️ [ENTERPRISE] Generating {bulletin_type} script for {anchor_type.upper()} anchor...")
                 script = generate_script(prompt)
 
