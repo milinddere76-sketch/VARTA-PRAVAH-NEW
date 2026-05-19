@@ -24,6 +24,11 @@ while true; do
   # 3. PRIORITY: Add Breaking News
   for file in "$VIDEO_DIR"/breaking/final_bulletin_*.mp4; do
     if [ -f "$file" ]; then
+      if ! ffprobe -v error -show_entries format=duration -of default=noprint_wrappers=1 "$file" >/dev/null 2>&1; then
+        echo "⚠️ [QUEUE-MANAGER] Breaking file $file is corrupt. Removing..."
+        rm -f "$file"
+        continue
+      fi
       echo "file '$file'" >> "$TMP_PLAYLIST"
     fi
   done
@@ -32,6 +37,11 @@ while true; do
   has_news=false
   for file in $(ls -t "$VIDEO_DIR"/final_bulletin_*.mp4 2>/dev/null | head -n 10); do
     if [ -f "$file" ]; then
+      if ! ffprobe -v error -show_entries format=duration -of default=noprint_wrappers=1 "$file" >/dev/null 2>&1; then
+        echo "⚠️ [QUEUE-MANAGER] File $file is corrupt or incomplete. Removing..."
+        rm -f "$file"
+        continue
+      fi
       echo "file '$file'" >> "$TMP_PLAYLIST"
       has_news=true
       # Add a separator promo after every news item to keep branding high
