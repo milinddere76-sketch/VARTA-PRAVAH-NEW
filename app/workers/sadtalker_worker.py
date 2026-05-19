@@ -170,8 +170,11 @@ while True:
         ]
         
         result = subprocess.run(lean_cmd, capture_output=True, text=True)
+        print(f"📊 [FFMPEG-DEBUG] Command: {' '.join(lean_cmd)}")
+        print(f"📊 [FFMPEG-DEBUG] Return Code: {result.returncode}")
         if result.returncode != 0:
-            print(f"❌ [FFMPEG-ERROR] {result.stderr}")
+            print(f"❌ [FFMPEG-ERROR] Stderr: {result.stderr}")
+            print(f"❌ [FFMPEG-ERROR] Stdout: {result.stdout}")
         
         if os.path.exists(sadtalker_video):
             # 4. Final Video Composition (Ticker + Overlays)
