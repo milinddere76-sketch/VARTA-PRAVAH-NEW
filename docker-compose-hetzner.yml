@@ -44,6 +44,29 @@ services:
     ports:
       - "3000:80"
 
+  # --- STREAMING NODE (HETZNER) ---
+  streamer:
+    build:
+      context: .
+      dockerfile: Dockerfile.streamer
+    container_name: vartapravah_stream_hetzner
+    restart: always
+    env_file: .env
+    ports:
+      - "1935:1935"
+      - "8085:8080"
+    volumes:
+      - ./output:/home/ubuntu/videos
+      - ./queue:/home/ubuntu/queue
+      - ./logs:/home/ubuntu/logs
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+    depends_on:
+      - worker
+
   # --- MINIMAL INFRASTRUCTURE ---
   postgres:
     image: postgres:15-alpine
