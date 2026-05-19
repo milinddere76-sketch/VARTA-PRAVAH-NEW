@@ -74,21 +74,30 @@ def main():
             print(f"✅ [SCHEDULER] {len(verified_articles)} articles verified.")
 
             if verified_articles:
-                news_text = "\n".join(verified_articles)
-                anchor_type = get_next_anchor()
+                # Process up to 5 verified articles individually per cycle (One Headline, One News rule)
+                active_articles = verified_articles[:5]
+                print(f"📰 [SCHEDULER] Processing {len(active_articles)} verified articles individually...")
                 
-                prompt = f"BULLETIN_TYPE: {bulletin_type}\nANCHOR_TYPE: {anchor_type.upper()}\nRAW_HEADLINES:\n{news_text}"
-                print(f"✍️ [ENTERPRISE] Generating {bulletin_type} script for {anchor_type.upper()} anchor...")
-                script = generate_script(prompt)
+                for index, article in enumerate(active_articles):
+                    anchor_type = get_next_anchor()
+                    prompt = f"BULLETIN_TYPE: {bulletin_type}\nANCHOR_TYPE: {anchor_type.upper()}\nRAW_HEADLINES:\n- {article}"
+                    
+                    # Generate a unique sequential task ID for each individual story
+                    task_id = int(time.time()) * 1000 + index
+                    
+                    print(f"✍️ [ENTERPRISE] Generating individual script for Story {index + 1}/{len(active_articles)} ({anchor_type.upper()} anchor)...")
+                    script = generate_script(prompt)
 
-                if script:
-                    r.rpush(config.QUEUE_NAME, json.dumps({
-                        "id": int(time.time()),
-                        "type": bulletin_type,
-                        "anchor_type": anchor_type,
-                        "script": script
-                    }))
-                    print(f"✅ [{anchor_type.upper()}] {bulletin_type} Bulletin queued.")
+                    if script:
+                        r.rpush(config.QUEUE_NAME, json.dumps({
+                            "id": task_id,
+                            "type": bulletin_type,
+                            "anchor_type": anchor_type,
+                            "script": script
+                        }))
+                        print(f"✅ [{anchor_type.upper()}] Story {index + 1} queued: {article[:50]}...")
+                        # Brief sleep to respect API rate limits during sequential generation
+                        time.sleep(1)
             else:
                 print("⏳ [SCHEDULER] No verified news available this cycle.")
 
