@@ -4,16 +4,13 @@
 echo "🚀 [INIT] Starting Varta Pravah Playout Node..."
 
 # 1. Setup Environment
-# SMARTER FUSION: Ensure the Stream Key is present exactly ONCE
-# Restoring the qcu7 key as the definitive default for immediate launch
-STREAM_KEY=${YOUTUBE_STREAM_KEY:-"qcu7-xesd-m4sv-9zvv-e335"}
-BASE_URL=${YOUTUBE_RTMP_URL:-"rtmp://a.rtmp.youtube.com/live2/"}
-
-if [[ "$BASE_URL" == *"$STREAM_KEY"* ]]; then
-    echo "✅ [INIT] Stream Key already present in URL."
-    FINAL_RTMP_URL="$BASE_URL"
+if [ -n "$YOUTUBE_RTMP_URL" ]; then
+    echo "✅ [INIT] Using YOUTUBE_RTMP_URL directly from environment."
+    FINAL_RTMP_URL="$YOUTUBE_RTMP_URL"
 else
-    echo "🔧 [INIT] Appending Stream Key to Base URL..."
+    echo "🔧 [INIT] Assembling RTMP URL from default stream key..."
+    STREAM_KEY=${YOUTUBE_STREAM_KEY:-"qcu7-xesd-m4sv-9zvv-e335"}
+    BASE_URL="rtmp://a.rtmp.youtube.com/live2/"
     [[ "$BASE_URL" != */ ]] && BASE_URL="$BASE_URL/"
     FINAL_RTMP_URL="${BASE_URL}${STREAM_KEY}"
 fi
