@@ -51,8 +51,8 @@ def upload_to_oracle(video_path, is_breaking=False):
         subprocess.run([
             "ssh", "-i", ACTIVE_KEY_PATH, "-o", "StrictHostKeyChecking=no",
             f"{config.ORACLE_USER}@{config.ORACLE_IP}",
-            f"mkdir -p {config.ORACLE_VIDEO_DIR}/{subfolder} && chmod 777 {config.ORACLE_VIDEO_DIR}/{subfolder}"
-        ], timeout=15)
+            f"mkdir -p {config.ORACLE_VIDEO_DIR}/{subfolder} && sudo chmod 777 {config.ORACLE_VIDEO_DIR}/{subfolder}"
+        ], timeout=15, capture_output=True)
     except:
         pass
 
