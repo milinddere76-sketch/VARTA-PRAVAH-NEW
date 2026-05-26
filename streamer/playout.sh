@@ -40,7 +40,8 @@ while true; do
     -c:v libx264 -preset ultrafast -tune zerolatency -b:v 2500k -minrate 2500k -maxrate 2500k -bufsize 5000k \
     -threads 0 -g 50 -keyint_min 50 -x264-params "keyint=50:nal-hrd=cbr" \
     -c:a aac -b:a 128k -ar 44100 -shortest -f flv -flvflags no_duration_filesize \
-    "$YOUTUBE_RTMP_URL"
+    "rtmp://127.0.0.1:1935/live/stream"
+
 
   echo "⚠️ [$(date)] Stream ended or crashed. Restarting in 2s..." >> "$LOG_FILE"
   sleep 2

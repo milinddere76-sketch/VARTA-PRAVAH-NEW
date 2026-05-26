@@ -23,7 +23,7 @@ do
         -c:v libx264 -preset veryfast -maxrate 3000k -bufsize 6000k \
         -pix_fmt yuv420p -g 50 \
         -c:a aac -b:a 128k \
-        -f flv "$YOUTUBE_RTMP_URL"
+        -f flv "rtmp://127.0.0.1:1935/live/stream"
         
       echo "✅ Finished streaming $(basename "$SOURCE")"
       sleep 2
@@ -35,7 +35,7 @@ do
       -c:v libx264 -preset veryfast -maxrate 3000k -bufsize 6000k \
       -pix_fmt yuv420p -g 50 \
       -c:a aac -b:a 128k \
-      -f flv "$YOUTUBE_RTMP_URL"
+      -f flv "rtmp://127.0.0.1:1935/live/stream"
       
     echo "⚠️ Fallback loop ended. Checking for new news in 10s..."
     sleep 10

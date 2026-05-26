@@ -19,6 +19,9 @@ DB_PASS = os.getenv("DB_PASS", "password")
 GROQ_API_KEY = os.getenv("GROQ_API_KEY", "")
 NEWS_API_KEY = os.getenv("NEWS_API_KEY", "")
 STREAM_KEY = os.getenv("YOUTUBE_STREAM_KEY", "qcu7-xesd-m4sv-9zvv-e335")
+FACEBOOK_STREAM_KEY = os.getenv("FACEBOOK_STREAM_KEY", "")
+FACEBOOK_RTMP_URL = os.getenv("FACEBOOK_RTMP_URL", "")
+
 
 # --- ORACLE CLOUD (RELAY) CONFIG ---
 ORACLE_IP = os.getenv("ORACLE_IP", "")

@@ -18,9 +18,28 @@ fi
 # Export for playout.sh and envsubst
 export YOUTUBE_RTMP_URL="$FINAL_RTMP_URL"
 
+# 1a. Setup Facebook Environment
+if [ -n "$FACEBOOK_RTMP_URL" ]; then
+    echo "✅ [INIT] Using FACEBOOK_RTMP_URL directly from environment."
+    FINAL_FB_RTMP_URL="$FACEBOOK_RTMP_URL"
+elif [ -n "$FACEBOOK_STREAM_KEY" ]; then
+    echo "🔧 [INIT] Assembling Facebook RTMP URL from stream key..."
+    BASE_FB_URL="rtmp://live-api-s.facebook.com:80/rtmp/"
+    [[ "$BASE_FB_URL" != */ ]] && BASE_FB_URL="$BASE_FB_URL/"
+    FINAL_FB_RTMP_URL="${BASE_FB_URL}${FACEBOOK_STREAM_KEY}"
+else
+    FINAL_FB_RTMP_URL=""
+fi
+export FACEBOOK_RTMP_URL="$FINAL_FB_RTMP_URL"
+
 # VERIFICATION: Show masked URL to confirm fusion worked
 MASKED_URL=$(echo "$YOUTUBE_RTMP_URL" | sed 's/live2\/.*/live2\/XXXXX/')
 echo "🔗 [INIT] Target Broadcast URL: $MASKED_URL"
+
+if [ -n "$FACEBOOK_RTMP_URL" ]; then
+    MASKED_FB_URL=$(echo "$FACEBOOK_RTMP_URL" | sed 's/rtmp\/.*/rtmp\/XXXXX/')
+    echo "🔗 [INIT] Target Facebook Broadcast URL: $MASKED_FB_URL"
+fi
 
 mkdir -p /home/ubuntu/queue /home/ubuntu/logs /home/ubuntu/videos/breaking /app/assets
 chmod -R 777 /app/assets /home/ubuntu/queue /home/ubuntu/logs /home/ubuntu/videos
@@ -34,9 +53,22 @@ if [ -d "/app/backup_assets" ] && [ $(ls /app/assets/promo_*.png 2>/dev/null | w
 fi
 
 # 2. Configure Nginx (Inject Environment Variables)
-envsubst '$YOUTUBE_RTMP_URL' < /etc/nginx/nginx.conf.template > /etc/nginx/nginx.conf
+if [ -n "$FACEBOOK_RTMP_URL" ]; then
+    echo "✅ [INIT] Facebook streaming enabled: configuring Nginx push relay."
+    # Replace placeholder with the push command
+    sed "s|#PUSH_FACEBOOK_HERE|push \"${FACEBOOK_RTMP_URL}\";|g" /etc/nginx/nginx.conf.template > /tmp/nginx.conf.tmp
+else
+    echo "ℹ️ [INIT] Facebook streaming not configured."
+    # Remove the placeholder line
+    sed "s|#PUSH_FACEBOOK_HERE||g" /etc/nginx/nginx.conf.template > /tmp/nginx.conf.tmp
+fi
+
+envsubst '$YOUTUBE_RTMP_URL $FACEBOOK_RTMP_URL' < /tmp/nginx.conf.tmp > /etc/nginx/nginx.conf
+rm -f /tmp/nginx.conf.tmp
+
 nginx
 echo "✅ [INIT] Nginx RTMP server online with injected configuration."
+
 
 # 3. Generate Widescreen 16:9 Premium Standby Promo Video
 echo "🎬 [INIT] Rendering widescreen 16:9 premium standby promo..."
