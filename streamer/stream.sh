@@ -31,6 +31,8 @@ do
       ffmpeg -re -i "$SOURCE" \
         -c:v libx264 -preset veryfast -maxrate 3000k -bufsize 6000k \
         -pix_fmt yuv420p -g 50 \
+        -vsync cfr \
+        -r 25 \
         -c:a aac -b:a 128k \
         -f tee "$TEE_TARGETS"
         
@@ -43,6 +45,8 @@ do
     ffmpeg -re -i "$LOCAL_FALLBACK" \
       -c:v libx264 -preset veryfast -maxrate 3000k -bufsize 6000k \
       -pix_fmt yuv420p -g 50 \
+      -vsync cfr \
+      -r 25 \
       -c:a aac -b:a 128k \
       -f tee "$TEE_TARGETS"
       
