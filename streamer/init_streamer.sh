@@ -55,19 +55,17 @@ fi
 # 2. Configure Nginx (Inject Environment Variables)
 if [ -n "$FACEBOOK_RTMP_URL" ]; then
     echo "✅ [INIT] Facebook streaming enabled: configuring Nginx push relay."
-    # Replace placeholder with the push command
-    sed "s|#PUSH_FACEBOOK_HERE|push \"${FACEBOOK_RTMP_URL}\";|g" /etc/nginx/nginx.conf.template > /tmp/nginx.conf.tmp
+    export FACEBOOK_PUSH="push \"${FACEBOOK_RTMP_URL}\";"
 else
     echo "ℹ️ [INIT] Facebook streaming not configured."
-    # Remove the placeholder line
-    sed "s|#PUSH_FACEBOOK_HERE||g" /etc/nginx/nginx.conf.template > /tmp/nginx.conf.tmp
+    export FACEBOOK_PUSH=""
 fi
 
-envsubst '$YOUTUBE_RTMP_URL $FACEBOOK_RTMP_URL' < /tmp/nginx.conf.tmp > /etc/nginx/nginx.conf
-rm -f /tmp/nginx.conf.tmp
+envsubst '$YOUTUBE_RTMP_URL $FACEBOOK_PUSH' < /etc/nginx/nginx.conf.template > /etc/nginx/nginx.conf
 
 nginx
 echo "✅ [INIT] Nginx RTMP server online with injected configuration."
+
 
 
 # 3. Generate Widescreen 16:9 Premium Standby Promo Video

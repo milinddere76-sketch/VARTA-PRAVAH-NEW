@@ -21,8 +21,9 @@ rtmp {
             # Push to YouTube (Injected via Environment Variable)
             push "${YOUTUBE_RTMP_URL}";
 
-            # Push to Facebook (Injected dynamically via Environment Variable if present)
-            #PUSH_FACEBOOK_HERE
+            # Push to Facebook (Injected dynamically via Environment Variable)
+            ${FACEBOOK_PUSH}
+
 
         }
     }
