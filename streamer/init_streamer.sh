@@ -24,7 +24,7 @@ if [ -n "$FACEBOOK_RTMP_URL" ]; then
     FINAL_FB_RTMP_URL="$FACEBOOK_RTMP_URL"
 elif [ -n "$FACEBOOK_STREAM_KEY" ]; then
     echo "🔧 [INIT] Assembling Facebook RTMP URL from stream key..."
-    BASE_FB_URL="rtmp://live-api-s.facebook.com:80/rtmp/"
+    BASE_FB_URL="rtmps://live-api-s.facebook.com:443/rtmp/"
     [[ "$BASE_FB_URL" != */ ]] && BASE_FB_URL="$BASE_FB_URL/"
     FINAL_FB_RTMP_URL="${BASE_FB_URL}${FACEBOOK_STREAM_KEY}"
 else
