@@ -29,20 +29,29 @@ while [ ! -f "$PLAYLIST" ]; do
   fi
 done
 
+# Build target list for FFmpeg tee muxer
+TEE_TARGETS="[f=flv:onfail=ignore]rtmp://127.0.0.1:1935/live/stream"
+if [ -n "$YOUTUBE_RTMP_URL" ]; then
+    TEE_TARGETS="${TEE_TARGETS}|[f=flv:onfail=ignore]${YOUTUBE_RTMP_URL}"
+fi
+if [ -n "$FACEBOOK_RTMP_URL" ]; then
+    TEE_TARGETS="${TEE_TARGETS}|[f=flv:onfail=ignore]${FACEBOOK_RTMP_URL}"
+fi
+
 while true; do
 
   # Use environment variable if present, otherwise default to the provided key
-  echo "📺 [PLAYOUT] Starting live broadcast to Oracle relay..."
+  echo "📺 [PLAYOUT] Starting live broadcast..."
   ffmpeg -re -f concat -safe 0 -i "$PLAYLIST" \
     -f lavfi -i anoisesrc=c=white:a=0.001:r=44100 \
     -filter_complex "[0:v]scale=1280:720:force_original_aspect_ratio=decrease,pad=1280:720:(ow-iw)/2:(oh-ih)/2:color=black,format=yuv420p,fps=25[v]; [0:a]aformat=channel_layouts=stereo[a0]; [a0][1:a]amix=inputs=2:duration=first[amixout]; [amixout]volume=2[a]" \
     -map "[v]" -map "[a]" \
     -c:v libx264 -preset ultrafast -tune zerolatency -b:v 2500k -minrate 2500k -maxrate 2500k -bufsize 5000k \
     -threads 0 -g 50 -keyint_min 50 -x264-params "keyint=50:nal-hrd=cbr" \
-    -c:a aac -b:a 128k -ar 44100 -shortest -f flv -flvflags no_duration_filesize \
-    "rtmp://127.0.0.1:1935/live/stream"
-
+    -c:a aac -b:a 128k -ar 44100 -shortest -f tee \
+    "$TEE_TARGETS"
 
   echo "⚠️ [$(date)] Stream ended or crashed. Restarting in 2s..." >> "$LOG_FILE"
   sleep 2
 done
+

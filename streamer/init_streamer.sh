@@ -52,19 +52,12 @@ if [ -d "/app/backup_assets" ] && [ $(ls /app/assets/promo_*.png 2>/dev/null | w
     chmod -R 777 /app/assets
 fi
 
-# 2. Configure Nginx (Inject Environment Variables)
-if [ -n "$FACEBOOK_RTMP_URL" ]; then
-    echo "✅ [INIT] Facebook streaming enabled: configuring Nginx push relay."
-    export FACEBOOK_PUSH="push \"${FACEBOOK_RTMP_URL}\";"
-else
-    echo "ℹ️ [INIT] Facebook streaming not configured."
-    export FACEBOOK_PUSH=""
-fi
-
-envsubst '$YOUTUBE_RTMP_URL $FACEBOOK_PUSH' < /etc/nginx/nginx.conf.template > /etc/nginx/nginx.conf
+# 2. Configure Nginx (Copy template)
+cp /etc/nginx/nginx.conf.template /etc/nginx/nginx.conf
 
 nginx
-echo "✅ [INIT] Nginx RTMP server online with injected configuration."
+echo "✅ [INIT] Nginx RTMP server online."
+
 
 
 
