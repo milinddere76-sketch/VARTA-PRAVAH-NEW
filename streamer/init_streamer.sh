@@ -71,21 +71,21 @@ PROMO_OUT="/app/assets/promo.mp4"
 if [ -f "$PROMO_BG" ]; then
     echo "🎨 [INIT] Composing widescreen 16:9 promo loop using user-provided slide: $PROMO_BG"
     ffmpeg -y -loop 1 -i "$PROMO_BG" \
-      -f lavfi -i "sine=f=60:d=30,aecho=0.8:0.88:60:0.4" \
+      -f lavfi -i "sine=f=60:d=5,aecho=0.8:0.88:60:0.4" \
       -filter_complex "[0:v]scale=1280:1280,crop=1280:720,format=yuv420p[v]; [1:a]arealtime,aloop=loop=25:size=44100[a]" \
-      -map "[v]" -map "[a]" -c:v libx264 -preset fast -crf 20 -r 25 -pix_fmt yuv420p -c:a aac -shortest -t 30 "$PROMO_OUT"
+      -map "[v]" -map "[a]" -c:v libx264 -preset fast -crf 20 -r 25 -pix_fmt yuv420p -c:a aac -shortest -t 5 "$PROMO_OUT"
 elif [ -f "$STUDIO_BG" ] && [ -f "$LOGO_FILE" ]; then
     echo "🎨 [INIT] Composing widescreen 16:9 promo loop with fallback branding overlay..."
     ffmpeg -y -loop 1 -i "$STUDIO_BG" \
       -loop 1 -i "$LOGO_FILE" \
-      -f lavfi -i "sine=f=60:d=30,aecho=0.8:0.88:60:0.4" \
+      -f lavfi -i "sine=f=60:d=5,aecho=0.8:0.88:60:0.4" \
       -filter_complex "[0:v]scale=1280:1280,crop=1280:720[bg]; [1:v]scale=180:180[logo]; [bg][logo]overlay=50:50[vbg]; [vbg]drawtext=text='VARTA PRAVAH':fontcolor=white:fontsize=95:fontfile=/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf:borderw=5:bordercolor=0x00d2ff:x=(w-tw)/2:y=(h-th)/2-40,drawtext=text='वार्ता प्रवाह':fontcolor=0x00d2ff:fontsize=65:fontfile=/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf:borderw=2:bordercolor=black:x=(w-tw)/2:y=(h-th)/2+60,format=yuv420p[v]; [2:a]arealtime,aloop=loop=25:size=44100[a]" \
-      -map "[v]" -map "[a]" -c:v libx264 -preset fast -crf 20 -r 25 -pix_fmt yuv420p -c:a aac -shortest -t 30 "$PROMO_OUT"
+      -map "[v]" -map "[a]" -c:v libx264 -preset fast -crf 20 -r 25 -pix_fmt yuv420p -c:a aac -shortest -t 5 "$PROMO_OUT"
 else
     echo "⚠️ [WARN] Missing key branding assets. Generating backup widescreen blue screen..."
-    ffmpeg -y -f lavfi -i color=c=0x1a1a2e:s=1280x720:d=30 -f lavfi -i "sine=f=220:d=30" \
+    ffmpeg -y -f lavfi -i color=c=0x1a1a2e:s=1280x720:d=5 -f lavfi -i "sine=f=220:d=5" \
       -vf "drawtext=text='VARTA PRAVAH':fontcolor=white:fontsize=95:fontfile=/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf:borderw=5:bordercolor=0x00d2ff:x=(w-tw)/2:y=(h-th)/2-40,drawtext=text='वार्ता प्रवाह':fontcolor=0x00d2ff:fontsize=65:fontfile=/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf:borderw=2:bordercolor=black:x=(w-tw)/2:y=(h-th)/2+60" \
-      -c:v libx264 -preset fast -pix_fmt yuv420p -c:a aac -shortest -y "$PROMO_OUT"
+      -c:v libx264 -preset fast -pix_fmt yuv420p -c:a aac -shortest -t 5 -y "$PROMO_OUT"
 fi
 
 # 4. Sync Fallback
