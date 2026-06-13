@@ -9,9 +9,6 @@ TEE_TARGETS="[f=flv:onfail=ignore]rtmp://127.0.0.1:1935/live/stream"
 if [ -n "$YOUTUBE_RTMP_URL" ]; then
     TEE_TARGETS="${TEE_TARGETS}|[f=flv:onfail=ignore]${YOUTUBE_RTMP_URL}"
 fi
-if [ -n "$FACEBOOK_RTMP_URL" ]; then
-    TEE_TARGETS="${TEE_TARGETS}|[f=flv:onfail=ignore]${FACEBOOK_RTMP_URL}"
-fi
 
 echo "🚀 [STREAMER] Starting Varta Pravah Broadcast..."
 

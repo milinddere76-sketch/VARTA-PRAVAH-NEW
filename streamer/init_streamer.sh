@@ -18,28 +18,9 @@ fi
 # Export for playout.sh and envsubst
 export YOUTUBE_RTMP_URL="$FINAL_RTMP_URL"
 
-# 1a. Setup Facebook Environment
-if [ -n "$FACEBOOK_RTMP_URL" ]; then
-    echo "✅ [INIT] Using FACEBOOK_RTMP_URL directly from environment."
-    FINAL_FB_RTMP_URL="$FACEBOOK_RTMP_URL"
-elif [ -n "$FACEBOOK_STREAM_KEY" ]; then
-    echo "🔧 [INIT] Assembling Facebook RTMP URL from stream key..."
-    BASE_FB_URL="rtmps://live-api-s.facebook.com:443/rtmp/"
-    [[ "$BASE_FB_URL" != */ ]] && BASE_FB_URL="$BASE_FB_URL/"
-    FINAL_FB_RTMP_URL="${BASE_FB_URL}${FACEBOOK_STREAM_KEY}"
-else
-    FINAL_FB_RTMP_URL=""
-fi
-export FACEBOOK_RTMP_URL="$FINAL_FB_RTMP_URL"
-
 # VERIFICATION: Show masked URL to confirm fusion worked
 MASKED_URL=$(echo "$YOUTUBE_RTMP_URL" | sed 's/live2\/.*/live2\/XXXXX/')
 echo "🔗 [INIT] Target Broadcast URL: $MASKED_URL"
-
-if [ -n "$FACEBOOK_RTMP_URL" ]; then
-    MASKED_FB_URL=$(echo "$FACEBOOK_RTMP_URL" | sed 's/rtmp\/.*/rtmp\/XXXXX/')
-    echo "🔗 [INIT] Target Facebook Broadcast URL: $MASKED_FB_URL"
-fi
 
 mkdir -p /home/ubuntu/queue /home/ubuntu/logs /home/ubuntu/videos/breaking /app/assets
 chmod -R 777 /app/assets /home/ubuntu/queue /home/ubuntu/logs /home/ubuntu/videos

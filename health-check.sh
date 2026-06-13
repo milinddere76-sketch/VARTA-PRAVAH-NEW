@@ -288,21 +288,6 @@ check_configuration() {
                 print_warning "$VAR is not configured"
             fi
         done
-
-        # Check Facebook Live configuration
-        print_info "Checking Facebook Live variables..."
-        FB_VARS=(
-            "FACEBOOK_STREAM_KEY"
-            "FACEBOOK_RTMP_URL"
-        )
-        for VAR in "${FB_VARS[@]}"; do
-            if grep -q "^$VAR=" .env; then
-                print_success "$VAR is configured"
-            else
-                print_info "$VAR is not configured (optional)"
-            fi
-        done
-
     else
         print_error ".env file not found"
     fi
