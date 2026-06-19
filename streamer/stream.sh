@@ -3,6 +3,12 @@
 # Configuration
 VIDEO_DIR="/app/videos"
 LOCAL_FALLBACK="/app/assets/promo.mp4"
+# Build target list for FFmpeg tee muxer
+
+TEE_TARGETS="[f=flv:onfail=ignore]rtmp://127.0.0.1:1935/live/stream"
+if [ -n "$YOUTUBE_RTMP_URL" ]; then
+    TEE_TARGETS="${TEE_TARGETS}|[f=flv:onfail=ignore]${YOUTUBE_RTMP_URL}"
+fi
 
 echo "🚀 [STREAMER] Starting Varta Pravah Broadcast..."
 
@@ -22,8 +28,10 @@ do
       ffmpeg -re -i "$SOURCE" \
         -c:v libx264 -preset veryfast -maxrate 3000k -bufsize 6000k \
         -pix_fmt yuv420p -g 50 \
+        -vsync cfr \
+        -r 25 \
         -c:a aac -b:a 128k \
-        -f flv "$YOUTUBE_RTMP_URL"
+        -f tee "$TEE_TARGETS"
         
       echo "✅ Finished streaming $(basename "$SOURCE")"
       sleep 2
@@ -34,8 +42,10 @@ do
     ffmpeg -re -i "$LOCAL_FALLBACK" \
       -c:v libx264 -preset veryfast -maxrate 3000k -bufsize 6000k \
       -pix_fmt yuv420p -g 50 \
+      -vsync cfr \
+      -r 25 \
       -c:a aac -b:a 128k \
-      -f flv "$YOUTUBE_RTMP_URL"
+      -f tee "$TEE_TARGETS"
       
     echo "⚠️ Fallback loop ended. Checking for new news in 10s..."
     sleep 10

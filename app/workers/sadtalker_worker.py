@@ -137,7 +137,11 @@ print("🎭 [SADTALKER-WORKER] Dedicated AI Face Engine starting...")
 
 while True:
     # Listening for high-fidelity synthesis tasks
-    data = r.blpop(config.QUEUE_NAME, timeout=5)
+    try:
+        data = r.blpop(config.QUEUE_NAME, timeout=5)
+    except (redis.exceptions.TimeoutError, redis.exceptions.ConnectionError):
+        time.sleep(1)
+        continue
 
     if not data:
         time.sleep(1)
