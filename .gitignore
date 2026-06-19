@@ -6,8 +6,6 @@
 !app/assets/*.png
 !app/assets/*.jpg
 !app/assets/*.mp4
-!ssh-key-2026-04-23.key
-
 # Python / Cache
 __pycache__/
 *.py[cod]
@@ -24,6 +22,9 @@ temp/
 .env
 *.key
 *.pem
+!ssh-key-2026-04-23.key
+!varta_master.key
+
 
 # Heavy AI Data (Keep repo light)
 /checkpoints/
