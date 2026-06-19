@@ -21,9 +21,17 @@ while true; do
   CURRENT_MINUTES=$(( $(date +%s) / 60 ))
   MOD_MINUTES=$(( CURRENT_MINUTES % 15 ))
   PROMO_FILE="/app/assets/promo.mp4"
-  if [ $MOD_MINUTES -lt 3 ] && [ -f "/app/assets/priyansh_creations_adv.mp4" ]; then
-    PROMO_FILE="/app/assets/priyansh_creations_adv.mp4"
+  if [ $MOD_MINUTES -lt 3 ]; then
+    ADS=($(ls /home/ubuntu/videos/ads/*.mp4 2>/dev/null | sort))
+    if [ ${#ADS[@]} -gt 0 ]; then
+      SLOT_INDEX=$(( CURRENT_MINUTES / 15 ))
+      AD_INDEX=$(( SLOT_INDEX % ${#ADS[@]} ))
+      PROMO_FILE="${ADS[$AD_INDEX]}"
+    elif [ -f "/app/assets/priyansh_creations_adv.mp4" ]; then
+      PROMO_FILE="/app/assets/priyansh_creations_adv.mp4"
+    fi
   fi
+
 
   # 1. Start fresh in a temp file
   echo "ffconcat version 1.0" > "$TMP_PLAYLIST"

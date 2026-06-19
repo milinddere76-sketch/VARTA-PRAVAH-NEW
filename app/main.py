@@ -1,10 +1,12 @@
-from fastapi import FastAPI
+from fastapi import FastAPI, UploadFile, File
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
 import threading
 import os
 import redis
 import time
+import shutil
+import json
 from app.scheduler.scheduler import main as scheduler_main
 from app import config
 from app.database import init_db, log_analytics
@@ -23,6 +25,9 @@ if os.path.exists(static_dir):
     app.mount("/static", StaticFiles(directory=static_dir), name="static")
 if not os.path.exists(output_dir):
     os.makedirs(output_dir)
+ads_dir = os.path.join(output_dir, "ads")
+if not os.path.exists(ads_dir):
+    os.makedirs(ads_dir)
 app.mount("/videos", StaticFiles(directory=output_dir), name="videos")
 
 @app.get("/")
@@ -91,6 +96,98 @@ def get_latest_news():
             task_data = json.loads(last_task)
             return {"status": "success", "news": task_data.get("script", "No news data available.")[:500]}
         return {"status": "idle", "message": "Waiting for next news cycle..."}
+    except Exception as e:
+        return {"status": "error", "message": str(e)}
+
+# --- ADS MANAGER ENDPOINTS ---
+
+@app.post("/api/ads/upload")
+def upload_ad_file(file: UploadFile = File(...)):
+    """Uploads an advertisement video file."""
+    try:
+        if not file.filename.endswith(".mp4"):
+            return {"status": "error", "message": "Only MP4 files are supported"}
+        
+        # Ensure ads directory exists
+        ads_dir = os.path.join(output_dir, "ads")
+        os.makedirs(ads_dir, exist_ok=True)
+        
+        # Save file
+        file_path = os.path.join(ads_dir, file.filename)
+        with open(file_path, "wb") as buffer:
+            shutil.copyfileobj(file.file, buffer)
+            
+        # Trigger playlist regeneration to sync immediately
+        try:
+            from app.services.playlist_manager import generate_playlist
+            generate_playlist()
+        except Exception as pe:
+            print(f"⚠️ [API-AD] Playlist sync failed: {pe}")
+            
+        return {"status": "success", "filename": file.filename}
+    except Exception as e:
+        return {"status": "error", "message": str(e)}
+
+@app.get("/api/ads")
+def list_ads():
+    """Lists all available ads, including active status."""
+    try:
+        ads_dir = os.path.join(output_dir, "ads")
+        if not os.path.exists(ads_dir):
+            return {"status": "success", "ads": []}
+            
+        files = [f for f in os.listdir(ads_dir) if f.endswith(".mp4")]
+        files.sort() # alphabetical ordering
+        
+        # Determine which ad is active in the current 15-minute slot
+        current_minutes = int(time.time() / 60)
+        slot_index = current_minutes // 15
+        
+        ads_list = []
+        for idx, f in enumerate(files):
+            f_path = os.path.join(ads_dir, f)
+            size = os.path.getsize(f_path)
+            size_mb = round(size / (1024 * 1024), 2)
+            
+            # Active status
+            is_active = False
+            if len(files) > 0 and (slot_index % len(files)) == idx:
+                is_active = True
+                
+            ads_list.append({
+                "filename": f,
+                "size_mb": size_mb,
+                "url": f"/videos/ads/{f}",
+                "is_active": is_active
+            })
+            
+        return {"status": "success", "ads": ads_list}
+    except Exception as e:
+        return {"status": "error", "message": str(e)}
+
+@app.delete("/api/ads/{filename}")
+def delete_ad(filename: str):
+    """Deletes an advertisement video file."""
+    try:
+        ads_dir = os.path.join(output_dir, "ads")
+        file_path = os.path.join(ads_dir, filename)
+        
+        # Security check: prevent directory traversal
+        if os.path.dirname(os.path.abspath(file_path)) != os.path.abspath(ads_dir):
+            return {"status": "error", "message": "Unauthorized access"}
+            
+        if os.path.exists(file_path):
+            os.remove(file_path)
+            
+            # Trigger playlist regeneration to sync immediately
+            try:
+                from app.services.playlist_manager import generate_playlist
+                generate_playlist()
+            except Exception as pe:
+                print(f"⚠️ [API-AD] Playlist sync failed: {pe}")
+                
+            return {"status": "success", "message": f"Ad {filename} deleted"}
+        return {"status": "error", "message": "File not found"}
     except Exception as e:
         return {"status": "error", "message": str(e)}
 

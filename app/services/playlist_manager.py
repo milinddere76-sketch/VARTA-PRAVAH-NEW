@@ -13,13 +13,27 @@ def generate_playlist():
     """
     import time
     
-    # Ad-Slot Configuration: 3-minute window every 15 minutes
+    # Scan for uploaded ads in the output volume
+    ads_dir = "/app/output/ads"
+    ads = []
+    if os.path.exists(ads_dir):
+        ads = sorted([f for f in os.listdir(ads_dir) if f.endswith(".mp4")])
+        
     fallback_file = FALLBACK
-    ad_file = "/app/assets/priyansh_creations_adv.mp4"
     current_minutes = int(time.time() / 60)
-    if (current_minutes % 15) < 3 and os.path.exists(ad_file):
-        fallback_file = ad_file
-        print("📢 [PLAYLIST-AD] Ad-Slot Active: Using Priyansh Creations Advertisement")
+    
+    if (current_minutes % 15) < 3: # 3-minute ad window
+        if len(ads) > 0:
+            slot_index = current_minutes // 15
+            ad_index = slot_index % len(ads)
+            fallback_file = os.path.join(ads_dir, ads[ad_index])
+            print(f"📢 [PLAYLIST-AD] Ad-Slot Active: Using rotated uploaded ad: {ads[ad_index]}")
+        else:
+            ad_file = "/app/assets/priyansh_creations_adv.mp4"
+            if os.path.exists(ad_file):
+                fallback_file = ad_file
+                print("📢 [PLAYLIST-AD] Ad-Slot Active: Using default Priyansh Creations Advertisement")
+
 
     # 0. BULLETPROOF INITIALISATION: Ensure a playlist always exists
     if not os.path.exists(PLAYLIST):
