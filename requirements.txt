@@ -9,3 +9,4 @@ sqlalchemy
 python-dotenv
 groq
 edge-tts
+python-multipart
