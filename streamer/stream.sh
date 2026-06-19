@@ -10,7 +10,11 @@ if [ -n "$YOUTUBE_RTMP_URL" ]; then
     TEE_TARGETS="${TEE_TARGETS}|[f=flv:onfail=ignore]${YOUTUBE_RTMP_URL}"
 fi
 
-echo "🚀 [STREAMER] Starting Varta Pravah Broadcast..."
+# Bitrate Configuration
+BITRATE="${STREAM_BITRATE:-3000k}"
+BUFSIZE="${STREAM_BUFSIZE:-6000k}"
+
+echo "🚀 [STREAMER] Starting Varta Pravah Broadcast at $BITRATE..."
 
 while true
 do
@@ -26,7 +30,7 @@ do
       echo "🌐 [PRIMARY] Broadcasting: $(basename "$SOURCE")"
       
       ffmpeg -re -i "$SOURCE" \
-        -c:v libx264 -preset veryfast -maxrate 3000k -bufsize 6000k \
+        -c:v libx264 -preset veryfast -b:v "$BITRATE" -minrate "$BITRATE" -maxrate "$BITRATE" -bufsize "$BUFSIZE" \
         -pix_fmt yuv420p -g 50 \
         -vsync cfr \
         -r 25 \
@@ -40,7 +44,7 @@ do
     echo "🛡️ [FALLBACK] No news bulletins found in $VIDEO_DIR. Streaming promo..."
     
     ffmpeg -re -i "$LOCAL_FALLBACK" \
-      -c:v libx264 -preset veryfast -maxrate 3000k -bufsize 6000k \
+      -c:v libx264 -preset veryfast -b:v "$BITRATE" -minrate "$BITRATE" -maxrate "$BITRATE" -bufsize "$BUFSIZE" \
       -pix_fmt yuv420p -g 50 \
       -vsync cfr \
       -r 25 \
