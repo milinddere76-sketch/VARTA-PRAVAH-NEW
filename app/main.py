@@ -8,10 +8,20 @@ import time
 import shutil
 import json
 from app.scheduler.scheduler import main as scheduler_main
+from fastapi.middleware.cors import CORSMiddleware
 from app import config
 from app.database import init_db, log_analytics
 
 app = FastAPI(title="VARTA PRAVAH ENTERPRISE DASHBOARD")
+
+# Enable CORS for cross-origin frontend requests
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 # Initialize Redis for fast metrics
 r = redis.Redis(host=config.REDIS_HOST, port=int(config.REDIS_PORT))
