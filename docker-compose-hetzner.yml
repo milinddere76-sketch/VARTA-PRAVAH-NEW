@@ -10,7 +10,7 @@ services:
     restart: always
     command: python3 -m uvicorn app.main:app --host 0.0.0.0 --port 8000
     ports:
-      - "8000:8000"
+      - "${APP_PORT:-8000}:8000"
     env_file:
       - .env
     volumes:
@@ -42,7 +42,7 @@ services:
     container_name: vp_frontend
     restart: always
     ports:
-      - "3000:80"
+      - "${FRONTEND_PORT:-3000}:80"
 
   # --- STREAMING NODE (HETZNER) ---
   streamer:
@@ -53,8 +53,8 @@ services:
     restart: always
     env_file: .env
     ports:
-      - "1935:1935"
-      - "8085:8080"
+      - "${STREAMER_RTMP_PORT:-1935}:1935"
+      - "${STREAMER_HTTP_PORT:-8085}:8080"
     volumes:
       - ./output:/home/ubuntu/videos
       - ./queue:/home/ubuntu/queue
