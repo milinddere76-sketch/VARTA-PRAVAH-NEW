@@ -10,22 +10,28 @@ def create_video(sadtalker_video_path, output_path, script_text=""):
     logo_path = os.path.join(config.ASSETS_DIR, "logo.png")
 
     studio_path = os.path.join(config.ASSETS_DIR, "studio_bg.png")
-    font_path = "/usr/share/fonts/truetype/noto/NotoSansDevanagari-Regular.ttf"
+    # For English tickers, prioritize standard Latin-supporting fonts (DejaVuSans/NotoSans)
+    font_path = "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf"
     
-    # Ensure font exists, try alternate paths
     if not os.path.exists(font_path):
         alt_paths = [
+            "/usr/share/fonts/truetype/noto/NotoSans-Regular.ttf",
+            "C:/Windows/Fonts/arial.ttf",
+            "C:/Windows/Fonts/segoeui.ttf",
             "/app/assets/NotoSansDevanagari-Regular.ttf",
-            "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
-            "/usr/local/share/fonts/NotoSansDevanagari-Regular.ttf"
+            "/usr/share/fonts/truetype/noto/NotoSansDevanagari-Regular.ttf"
         ]
         for alt in alt_paths:
             if os.path.exists(alt):
                 font_path = alt
                 break
         if not os.path.exists(font_path):
-            print(f"⚠️ [VIDEO-ENGINE] Devanagari font not found, using system default")
-            font_path = "DejaVuSans"
+            import platform
+            if platform.system() == "Windows":
+                font_path = "Arial"
+            else:
+                font_path = "DejaVuSans"
+            print(f"⚠️ [VIDEO-ENGINE] Preferred font not found, using fallback system font: {font_path}")
 
     # Clean text for FFmpeg ticker - preserve Hindi/Devanagari script properly
     # Replace newlines with danda (।) for proper Hindi text flow
