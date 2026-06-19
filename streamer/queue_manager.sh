@@ -17,6 +17,14 @@ while true; do
   find "$VIDEO_DIR" -type f -name "final_bulletin_*.mp4" -mtime +3 -delete
   find "$VIDEO_DIR" -type f -name "lean_bulletin_*.mp4" -mtime +3 -delete
 
+  # Dynamic Ad-Slot Injection: 3-minute window every 15 minutes
+  CURRENT_MINUTES=$(( $(date +%s) / 60 ))
+  MOD_MINUTES=$(( CURRENT_MINUTES % 15 ))
+  PROMO_FILE="/app/assets/promo.mp4"
+  if [ $MOD_MINUTES -lt 3 ] && [ -f "/app/assets/priyansh_creations_adv.mp4" ]; then
+    PROMO_FILE="/app/assets/priyansh_creations_adv.mp4"
+  fi
+
   # 1. Start fresh in a temp file
   echo "ffconcat version 1.0" > "$TMP_PLAYLIST"
 
@@ -51,9 +59,9 @@ while true; do
       fi
       echo "file '$file'" >> "$TMP_PLAYLIST"
       has_news=true
-      # Add a separator promo after every news item to keep branding high
-      if [ -f "/app/assets/promo.mp4" ]; then
-        echo "file '/app/assets/promo.mp4'" >> "$TMP_PLAYLIST"
+      # Add a separator promo/ad after every news item to keep branding high
+      if [ -f "$PROMO_FILE" ]; then
+        echo "file '$PROMO_FILE'" >> "$TMP_PLAYLIST"
       fi
     fi
   done
@@ -75,16 +83,16 @@ while true; do
         echo "📰 [QUEUE-MANAGER] Adding lean bulletin: $file"
         echo "file '$file'" >> "$TMP_PLAYLIST"
         has_news=true
-        if [ -f "/app/assets/promo.mp4" ]; then
-          echo "file '/app/assets/promo.mp4'" >> "$TMP_PLAYLIST"
+        if [ -f "$PROMO_FILE" ]; then
+          echo "file '$PROMO_FILE'" >> "$TMP_PLAYLIST"
         fi
       fi
     done
   fi
 
-  # 5. IDLE: If no news, just loop the promo
-  if [ "$has_news" = false ] && [ -f "/app/assets/promo.mp4" ]; then
-      echo "file '/app/assets/promo.mp4'" >> "$TMP_PLAYLIST"
+  # 5. IDLE: If no news, just loop the promo/ad
+  if [ "$has_news" = false ] && [ -f "$PROMO_FILE" ]; then
+      echo "file '$PROMO_FILE'" >> "$TMP_PLAYLIST"
   fi
 
   # 6. COMPARE AND HOT-RELOAD

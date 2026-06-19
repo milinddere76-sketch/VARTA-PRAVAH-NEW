@@ -9,14 +9,25 @@ def generate_playlist():
     """
     FIX 4: Proactive Playlist Generation.
     BULLETPROOF FIX: Auto-fallback if playlist is missing.
+    Tracks time to inject the advertisement video every 15 minutes.
     """
+    import time
+    
+    # Ad-Slot Configuration: 3-minute window every 15 minutes
+    fallback_file = FALLBACK
+    ad_file = "/app/assets/priyansh_creations_adv.mp4"
+    current_minutes = int(time.time() / 60)
+    if (current_minutes % 15) < 3 and os.path.exists(ad_file):
+        fallback_file = ad_file
+        print("📢 [PLAYLIST-AD] Ad-Slot Active: Using Priyansh Creations Advertisement")
+
     # 0. BULLETPROOF INITIALISATION: Ensure a playlist always exists
     if not os.path.exists(PLAYLIST):
         print("🛡️ [BULLETPROOF] Playlist missing. Initialising auto-fallback...")
         try:
             os.makedirs(os.path.dirname(PLAYLIST), exist_ok=True)
             with open(PLAYLIST, "w") as f:
-                f.write(f"file '{FALLBACK}'\n")
+                f.write(f"file '{fallback_file}'\n")
         except Exception as e:
             print(f"⚠️ [BULLETPROOF] Startup repair failed: {e}")
 
@@ -33,12 +44,11 @@ def generate_playlist():
 
     # 2. Inject fallback branding if no news is available
     if not files:
-        print("⚠️ [PLAYLIST] No news bulletins found. Injecting fallback promo.")
-        files.append(FALLBACK)
+        print(f"⚠️ [PLAYLIST] No news bulletins found. Injecting fallback: {fallback_file}")
+        files.append(fallback_file)
     else:
-        # Add a promo after every few bulletins for branding continuity
-        # This is a 'Pro' version of the fallback logic
-        files.insert(0, FALLBACK)
+        # Add a promo/ad after every few bulletins for branding continuity
+        files.insert(0, fallback_file)
 
     # 3. Write to the shared handoff directory
     try:
