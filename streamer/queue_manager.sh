@@ -18,19 +18,16 @@ while true; do
   find "$VIDEO_DIR" -type f -name "final_bulletin_*.mp4" -mtime +3 -delete
   find "$VIDEO_DIR" -type f -name "lean_bulletin_*.mp4" -mtime +3 -delete
 
-  # Dynamic Ad-Slot Injection: 3-minute window every 15 minutes
-  CURRENT_MINUTES=$(( $(date +%s) / 60 ))
-  MOD_MINUTES=$(( CURRENT_MINUTES % 15 ))
+  # Dynamic Ad-Slot Injection: Use custom ads if uploaded, otherwise fallback to promo/standby
+  ADS=($(ls /home/ubuntu/videos/ads/*.mp4 2>/dev/null | sort))
   PROMO_FILE="/app/assets/promo.mp4"
-  if [ $MOD_MINUTES -lt 3 ]; then
-    ADS=($(ls /home/ubuntu/videos/ads/*.mp4 2>/dev/null | sort))
-    if [ ${#ADS[@]} -gt 0 ]; then
-      SLOT_INDEX=$(( CURRENT_MINUTES / 15 ))
-      AD_INDEX=$(( SLOT_INDEX % ${#ADS[@]} ))
-      PROMO_FILE="${ADS[$AD_INDEX]}"
-    elif [ -f "/app/assets/priyansh_creations_adv.mp4" ]; then
-      PROMO_FILE="/app/assets/priyansh_creations_adv.mp4"
-    fi
+  if [ ${#ADS[@]} -gt 0 ]; then
+    CURRENT_MINUTES=$(( $(date +%s) / 60 ))
+    SLOT_INDEX=$(( CURRENT_MINUTES / 15 ))
+    AD_INDEX=$(( SLOT_INDEX % ${#ADS[@]} ))
+    PROMO_FILE="${ADS[$AD_INDEX]}"
+  elif [ -f "/app/assets/priyansh_creations_adv.mp4" ]; then
+    PROMO_FILE="/app/assets/priyansh_creations_adv.mp4"
   fi
 
 

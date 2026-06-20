@@ -22,17 +22,16 @@ def generate_playlist():
     fallback_file = FALLBACK
     current_minutes = int(time.time() / 60)
     
-    if (current_minutes % 15) < 3: # 3-minute ad window
-        if len(ads) > 0:
-            slot_index = current_minutes // 15
-            ad_index = slot_index % len(ads)
-            fallback_file = f"/home/ubuntu/videos/ads/{ads[ad_index]}"
-            print(f"📢 [PLAYLIST-AD] Ad-Slot Active: Using rotated uploaded ad: {ads[ad_index]}")
-        else:
-            ad_file = "/app/assets/priyansh_creations_adv.mp4"
-            if os.path.exists(ad_file):
-                fallback_file = ad_file
-                print("📢 [PLAYLIST-AD] Ad-Slot Active: Using default Priyansh Creations Advertisement")
+    if len(ads) > 0:
+        slot_index = current_minutes // 15
+        ad_index = slot_index % len(ads)
+        fallback_file = f"/home/ubuntu/videos/ads/{ads[ad_index]}"
+        print(f"📢 [PLAYLIST-AD] Using rotated uploaded ad: {ads[ad_index]}")
+    else:
+        ad_file = "/app/assets/priyansh_creations_adv.mp4"
+        if os.path.exists(ad_file):
+            fallback_file = ad_file
+            print("📢 [PLAYLIST-AD] Using default Priyansh Creations Advertisement")
 
 
     # 0. BULLETPROOF INITIALISATION: Ensure a playlist always exists
