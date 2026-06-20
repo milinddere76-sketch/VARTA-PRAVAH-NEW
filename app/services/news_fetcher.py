@@ -51,30 +51,31 @@ class NewsFetcher:
         return list(set(headlines))[:6]
  
     def fetch_all_categories(self):
-        """Fetches news across all required domains: Regional, National, World, and Sports."""
-        print("📰 [NEWS-FETCHER] Gathering Regional, National, World, and Sports headlines...")
-        all_headlines = []
+        """Fetches news across all required domains, including regional, opposition, national, world, and sports, interleaving them for a balanced mix."""
+        print("📰 [NEWS-FETCHER] Gathering Regional, Opposition, National, World, and Sports headlines...")
         
-        # Category 1: Regional (India regional news / Hindi belt)
-        all_headlines.extend(self.fetch_category_headlines("India regional news", "भारत प्रादेशिक"))
+        categories = {
+            "regional": self.fetch_category_headlines("India regional news", "भारत प्रादेशिक"),
+            "opposition": self.fetch_category_headlines("India opposition politics Congress Rahul Gandhi AAP", "भारत विपक्ष राजनीति कांग्रेस"),
+            "national": self.fetch_category_headlines("India National News Government", "भारत राष्ट्रीय"),
+            "world": self.fetch_category_headlines("World News International", "अंतरराष्ट्रीय"),
+            "sports": self.fetch_category_headlines("Sports Khel Cricket", "खेल समाचार")
+        }
         
-        # Category 2: National (India)
-        all_headlines.extend(self.fetch_category_headlines("India National News", "भारत राष्ट्रीय"))
+        # Interleave the categories to ensure a balanced mix of news
+        interleaved_headlines = []
+        lists = [categories[k] for k in ["regional", "opposition", "national", "world", "sports"]]
+        max_len = max(len(lst) for lst in lists) if lists else 0
         
-        # Category 3: World (International)
-        all_headlines.extend(self.fetch_category_headlines("World News International", "अंतरराष्ट्रीय"))
-        
-        # Category 4: Sports (India & World)
-        all_headlines.extend(self.fetch_category_headlines("Sports Khel Cricket", "खेल समाचार"))
-        
-        # De-duplicate while preserving order
-        unique_headlines = []
-        for h in all_headlines:
-            if h not in unique_headlines:
-                unique_headlines.append(h)
-                
-        print(f"✅ [NEWS-FETCHER] Retrieved total pool of {len(unique_headlines)} headlines across all categories.")
-        return unique_headlines[:25]
+        for i in range(max_len):
+            for lst in lists:
+                if i < len(lst):
+                    headline = lst[i]
+                    if headline not in interleaved_headlines:
+                        interleaved_headlines.append(headline)
+                        
+        print(f"✅ [NEWS-FETCHER] Retrieved total pool of {len(interleaved_headlines)} headlines across all categories (interleaved).")
+        return interleaved_headlines[:25]
 
 def fetch_news():
     fetcher = NewsFetcher()
