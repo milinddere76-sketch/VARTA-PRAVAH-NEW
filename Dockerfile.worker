@@ -28,9 +28,6 @@ RUN pip install --no-cache-dir -r requirements.txt
 # Ensure production directories exist
 RUN mkdir -p /app/assets /app/output /app/queue
 
-# NUCLEAR INJECTION: Bake the broadcast key into the image
-COPY varta_master.key /app/oracle_key.key
-RUN chmod 600 /app/oracle_key.key
 
 # Environment variables for modular execution
 ENV PYTHONPATH=/app

@@ -30,6 +30,7 @@ def cleanup_temp_files():
     """
     print("🧹 [CLEANUP] Purging old temp files from output directory...")
     now = time.time()
+    deleted_any = False
     for f in os.listdir(config.OUTPUT_DIR):
         file_path = os.path.join(config.OUTPUT_DIR, f)
         # Delete if older than 6 hours (21600 seconds)
@@ -38,8 +39,16 @@ def cleanup_temp_files():
                 if os.path.isfile(file_path):
                     os.remove(file_path)
                     print(f"🗑️ Deleted: {f}")
+                    deleted_any = True
             except Exception as e:
                 print(f"⚠️ Failed to delete {f}: {e}")
+
+    if deleted_any:
+        try:
+            from app.services.playlist_manager import generate_playlist
+            generate_playlist()
+        except Exception as e:
+            print(f"⚠️ [CLEANUP] Failed to regenerate playlist: {e}")
 
 def get_bulletin_type():
     hour = datetime.now().hour
@@ -64,7 +73,7 @@ def main():
             verified_articles.append(article)
             
         if verified_articles:
-            active_articles = verified_articles[:6] # Enqueue up to 6 articles across categories
+            active_articles = verified_articles[:config.NEWS_MAX_BULLETINS] # Enqueue up to config.NEWS_MAX_BULLETINS articles across categories
             for index, article in enumerate(active_articles):
                 anchor_type = get_next_anchor()
                 prompt = f"BULLETIN_TYPE: {bulletin_type}\nANCHOR_TYPE: {anchor_type.upper()}\nRAW_HEADLINES:\n- {article}"
@@ -114,7 +123,7 @@ def main():
                         print("🧹 [SCHEDULER] Clearing old queue items to rotate fresh slot bulletins...")
                         r.delete(config.QUEUE_NAME)
                         
-                        active_articles = verified_articles[:6] # Process top 6 verified articles across categories
+                        active_articles = verified_articles[:config.NEWS_MAX_BULLETINS] # Process top config.NEWS_MAX_BULLETINS verified articles across categories
                         print(f"📰 [SCHEDULER] Processing {len(active_articles)} verified articles individually...")
                         
                         for index, article in enumerate(active_articles):

@@ -26,7 +26,7 @@ def generate_playlist():
         if len(ads) > 0:
             slot_index = current_minutes // 15
             ad_index = slot_index % len(ads)
-            fallback_file = os.path.join(ads_dir, ads[ad_index])
+            fallback_file = f"/home/ubuntu/videos/ads/{ads[ad_index]}"
             print(f"📢 [PLAYLIST-AD] Ad-Slot Active: Using rotated uploaded ad: {ads[ad_index]}")
         else:
             ad_file = "/app/assets/priyansh_creations_adv.mp4"
@@ -54,7 +54,7 @@ def generate_playlist():
         all_files = sorted(os.listdir(VIDEO_DIR))
         for f in all_files:
             if f.endswith(".mp4") and "bulletin" in f:
-                files.append(f"/app/output/{f}")
+                files.append(f"/home/ubuntu/videos/{f}")
 
     # 2. Inject fallback branding if no news is available
     if not files:

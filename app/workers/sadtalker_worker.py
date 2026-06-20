@@ -13,124 +13,7 @@ video_engine = VideoEngine()
 
 os.makedirs(config.OUTPUT_DIR, exist_ok=True)
 
-# SECURITY SHIELD: Handle SSH key permissions for Docker volumes
-SAFE_KEY_PATH = "/tmp/oracle_key_safe.key"
-def prepare_safe_key():
-    if os.path.exists(config.ORACLE_KEY_PATH):
-        try:
-            print(f"🔐 [SECURITY] Hardening SSH key permissions...")
-            # Copy to tmp to bypass read-only volume permission issues
-            subprocess.run(["cp", config.ORACLE_KEY_PATH, SAFE_KEY_PATH], check=True)
-            subprocess.run(["chmod", "600", SAFE_KEY_PATH], check=True)
-            return SAFE_KEY_PATH
-        except Exception as e:
-            print(f"⚠️ [SECURITY] Failed to harden key: {e}")
-    return config.ORACLE_KEY_PATH
 
-# Initialize safe key
-ACTIVE_KEY_PATH = prepare_safe_key()
-
-def upload_to_oracle(video_path, is_breaking=False):
-    """
-    Python Upload Hook (STEP 4)
-    Automated transfer of news bulletins to the Oracle relay node.
-    If ORACLE_IP is not set, runs in Local Single-Server Mode.
-    """
-    if not config.ORACLE_IP:
-        print("⚠️ [PIPELINE] ORACLE_IP not set. Running in Local Single-Server Mode.")
-        filename = os.path.basename(video_path)
-        if is_breaking:
-            dest_dir = os.path.join(config.OUTPUT_DIR, "breaking")
-            os.makedirs(dest_dir, exist_ok=True)
-            dest_path = os.path.join(dest_dir, filename)
-            try:
-                import shutil
-                shutil.copy2(video_path, dest_path)
-                print(f"✅ [LOCAL-SINGLE-SERVER] Copied Breaking News to: {dest_path}")
-                # Remove original to avoid duplicate standard playout
-                if os.path.exists(video_path):
-                    os.remove(video_path)
-            except Exception as e:
-                print(f"⚠️ [LOCAL-SINGLE-SERVER] Failed to copy breaking news: {e}")
-        else:
-            print(f"✅ [LOCAL-SINGLE-SERVER] Standard bulletin ready at: {video_path}")
-        return "local"
-
-    filename = os.path.basename(video_path)
-    
-    # Priority handling: Breaking news goes to its own subfolder
-    subfolder = "breaking/" if is_breaking else ""
-    # Target specific filename for maximum reliability and ensure permissions
-    remote_dest_tmp = f"{config.ORACLE_USER}@{config.ORACLE_IP}:{config.ORACLE_VIDEO_DIR}/{subfolder}{filename}.tmp"
-    
-    # HARDEN DESTINATION: Force permissions on remote folder before upload
-    try:
-        subprocess.run([
-            "ssh", "-i", ACTIVE_KEY_PATH, "-o", "StrictHostKeyChecking=no",
-            f"{config.ORACLE_USER}@{config.ORACLE_IP}",
-            f"mkdir -p {config.ORACLE_VIDEO_DIR}/{subfolder} && sudo chmod 777 {config.ORACLE_VIDEO_DIR}/{subfolder}"
-        ], timeout=15, capture_output=True)
-    except:
-        pass
-
-    cmd = [
-        "scp", "-i", ACTIVE_KEY_PATH,
-        "-o", "StrictHostKeyChecking=no",
-        video_path,
-        remote_dest_tmp
-    ]
-    
-    print(f"📤 [PIPELINE] Uploading {filename} to Oracle ({'BREAKING' if is_breaking else 'NORMAL'})...")
-    try:
-        result = subprocess.run(cmd, capture_output=True, text=True)
-        if result.returncode == 0:
-            # ATOMIC RENAME: Convert .tmp to final .mp4 only after complete upload
-            rename_cmd = [
-                "ssh", "-i", ACTIVE_KEY_PATH,
-                "-o", "StrictHostKeyChecking=no",
-                f"{config.ORACLE_USER}@{config.ORACLE_IP}",
-                f"mv {config.ORACLE_VIDEO_DIR}/{subfolder}{filename}.tmp {config.ORACLE_VIDEO_DIR}/{subfolder}{filename}"
-            ]
-            subprocess.run(rename_cmd, capture_output=True)
-            print(f"✅ [PIPELINE] Upload Successful: {filename}")
-            return True
-        else:
-            print(f"❌ [PIPELINE] Upload Failed: {result.stderr}")
-            return False
-    except Exception as e:
-        print(f"🚨 [PIPELINE] Upload Error: {e}")
-        return False
-
-def add_to_queue(video_filename, is_breaking=False):
-    """
-    Incorporate news into the dynamic playout queue (STEP 5).
-    """
-    if not config.ORACLE_IP:
-        return False
-
-    subfolder = "breaking/" if is_breaking else ""
-    remote_file_path = f"{config.ORACLE_VIDEO_DIR}/{subfolder}{video_filename}"
-    
-    remote_queue_path = f"{config.ORACLE_QUEUE_DIR}/playlist.txt"
-
-    # Command to append the file to the oracle playlist queue
-    cmd = [
-        "ssh", "-i", ACTIVE_KEY_PATH,
-        "-o", "StrictHostKeyChecking=no",
-        f"{config.ORACLE_USER}@{config.ORACLE_IP}",
-        f"mkdir -p {config.ORACLE_QUEUE_DIR} && sudo chmod 777 {config.ORACLE_QUEUE_DIR} && echo \"file '{remote_file_path}'\" >> {remote_queue_path}"
-    ]
-    
-    print(f"🧠 [PIPELINE] Adding {video_filename} to Oracle Queue at {remote_queue_path}...")
-    try:
-        result = subprocess.run(cmd, capture_output=True, text=True)
-        if result.returncode != 0:
-            print(f"⚠️ [PIPELINE] Queue update failed: {result.stderr}")
-            return False
-        return True
-    except Exception as e:
-        print(f"⚠️ [PIPELINE] Failed to update queue: {e}")
-        return False
 
 print("🎭 [SADTALKER-WORKER] Dedicated AI Face Engine starting...")
 # init_tts() - Not needed in Light Mode
@@ -245,19 +128,26 @@ while True:
                 
                 print(f"✅ [SADTALKER-WORKER] Bulletin Completed: {final_path}")
                 
-                # 5. AUTO-TRANSFER TO ORACLE (STEP 4)
+                # In single-server mode, the video remains locally in config.OUTPUT_DIR
+                # for the streamer to play from the shared volume
                 is_breaking = task.get("type") == "BREAKING"
-                upload_status = upload_to_oracle(final_path, is_breaking=is_breaking)
-                
-                if upload_status == "local":
-                    print(f"✅ [LOCAL-SINGLE-SERVER] Bulletin processing complete for local playout.")
-                elif upload_status:
-                    # 6. INSTANT QUEUE INJECTION (STEP 5)
-                    add_to_queue(final_video, is_breaking=is_breaking)
- 
-                    # 7. AUTO-CLEANUP (Hetzner)
-                    print(f"🧹 [CLEANUP] Removing local file: {final_path}")
-                    os.remove(final_path)
+                if is_breaking:
+                    # For breaking news, copy to breaking subfolder
+                    import shutil
+                    filename = os.path.basename(final_path)
+                    dest_dir = os.path.join(config.OUTPUT_DIR, "breaking")
+                    os.makedirs(dest_dir, exist_ok=True)
+                    dest_path = os.path.join(dest_dir, filename)
+                    try:
+                        shutil.copy2(final_path, dest_path)
+                        print(f"✅ [LOCAL-SINGLE-SERVER] Copied Breaking News to: {dest_path}")
+                        # Remove original standard bulletin to avoid duplicate playout
+                        if os.path.exists(final_path):
+                            os.remove(final_path)
+                    except Exception as e:
+                        print(f"⚠️ [LOCAL-SINGLE-SERVER] Failed to copy breaking news: {e}")
+                else:
+                    print(f"✅ [LOCAL-SINGLE-SERVER] Standard bulletin ready at: {final_path}")
                     
                 r.rpush("ready_videos", final_path)
                 r.incr("stats_videos_generated")
@@ -270,6 +160,11 @@ while True:
         # STORAGE MANAGEMENT: Auto-delete files older than 1 day
         print(f"🧹 [STORAGE] Cleaning up old bulletins...")
         os.system("find /app/output -type f -mtime +1 -delete")
+        try:
+            from app.services.playlist_manager import generate_playlist
+            generate_playlist()
+        except Exception as pe:
+            print(f"⚠️ [SADTALKER-WORKER] Playlist rebuild failed: {pe}")
 
         # LIMIT WORKER LOAD: Sleep for 60 seconds after each task to prevent CPU overload
         print(f"⏳ [LOAD-LIMIT] Cooldown for 60 seconds...")

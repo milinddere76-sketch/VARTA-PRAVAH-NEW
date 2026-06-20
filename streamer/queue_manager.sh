@@ -6,6 +6,7 @@
 VIDEO_DIR="/home/ubuntu/videos"
 PLAYLIST="/home/ubuntu/queue/playlist.txt"
 TMP_PLAYLIST="/tmp/playlist.txt.tmp"
+PLAYLIST_MAX_ITEMS=${PLAYLIST_MAX_ITEMS:-20}
 
 echo "🧠 [QUEUE-MANAGER] Brain is active. Monitoring $VIDEO_DIR..."
 
@@ -52,9 +53,9 @@ while true; do
     fi
   done
 
-  # 4. STANDARD: Add regular news bulletins (Limit to latest 10, newest first)
+  # 4. STANDARD: Add regular news bulletins (Limit to latest $PLAYLIST_MAX_ITEMS, newest first)
   has_news=false
-  for file in $(ls -t "$VIDEO_DIR"/final_bulletin_*.mp4 2>/dev/null | head -n 10); do
+  for file in $(ls -t "$VIDEO_DIR"/final_bulletin_*.mp4 2>/dev/null | head -n $PLAYLIST_MAX_ITEMS); do
     if [ -f "$file" ]; then
       if ! ffprobe -v error -show_entries format=duration -of default=noprint_wrappers=1 "$file" >/dev/null 2>&1; then
         if [ $(( $(date +%s) - $(stat -c %Y "$file" 2>/dev/null || stat -f %m "$file" 2>/dev/null || echo 0) )) -gt 60 ]; then
@@ -77,7 +78,7 @@ while true; do
   # 4b. FALLBACK: If no final bulletins, include lean bulletins from local output
   if [ "$has_news" = false ]; then
     echo "⚠️ [QUEUE-MANAGER] No final bulletins found. Falling back to lean bulletins..."
-    for file in $(ls -t "$VIDEO_DIR"/lean_bulletin_*.mp4 2>/dev/null | head -n 10); do
+    for file in $(ls -t "$VIDEO_DIR"/lean_bulletin_*.mp4 2>/dev/null | head -n $PLAYLIST_MAX_ITEMS); do
       if [ -f "$file" ]; then
         if ! ffprobe -v error -show_entries format=duration -of default=noprint_wrappers=1 "$file" >/dev/null 2>&1; then
           if [ $(( $(date +%s) - $(stat -c %Y "$file" 2>/dev/null || stat -f %m "$file" 2>/dev/null || echo 0) )) -gt 60 ]; then
